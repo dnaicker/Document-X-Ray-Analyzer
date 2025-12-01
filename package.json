@@ -38,8 +38,14 @@
       "output": "dist"
     },
     "files": [
-      "**/*",
-      "!**/*.map"
+      "electron-main.js",
+      "src/**/*",
+      "lib/**/*",
+      "assets/**/*",
+      "!**/*.map",
+      "!node_modules/**/*",
+      "!dist/**/*",
+      "!.git/**/*"
     ],
     "win": {
       "target": "nsis"
