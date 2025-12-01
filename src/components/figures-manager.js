@@ -31,17 +31,26 @@ class FiguresManager {
         this.render();
     }
 
+    setCurrentFile(filePath) {
+        // Allow manual setting of current file path
+        if (filePath && filePath !== this.currentFilePath) {
+            this.loadFiguresForFile(filePath);
+        }
+    }
+
     addFigure(figure) {
         // figure: { id, page, src, type: 'snip'|'scan', timestamp, note }
-        if (!this.currentFilePath) {
-            console.error('Cannot add figure: no document is currently loaded');
-            alert('Please open a document before adding figures.');
-            return;
-        }
-        
         if (!figure.id) figure.id = Date.now().toString();
         if (!figure.timestamp) figure.timestamp = Date.now();
         if (!figure.note) figure.note = '';
+        
+        if (!this.currentFilePath) {
+            console.error('Cannot add figure: no document is currently loaded');
+            console.error('currentFilePath:', this.currentFilePath);
+            console.error('Please ensure loadFiguresForFile() was called');
+            alert('Please open a document before adding figures.');
+            return;
+        }
         
         console.log(`Adding figure to document: ${this.currentFilePath}, page: ${figure.page}`);
         this.figures.push(figure);

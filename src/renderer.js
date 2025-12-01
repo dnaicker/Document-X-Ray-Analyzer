@@ -2578,6 +2578,12 @@ if (snipBtn) {
             const capturedPage = pdfViewer.currentPage;
             
             if (typeof figuresManager !== 'undefined') {
+                // Ensure currentFilePath is set (fallback)
+                if (!figuresManager.currentFilePath && currentFilePath) {
+                    console.log('Setting currentFilePath in figuresManager:', currentFilePath);
+                    figuresManager.setCurrentFile(currentFilePath);
+                }
+                
                 figuresManager.addFigure({
                     page: capturedPage,
                     src: dataUrl,
