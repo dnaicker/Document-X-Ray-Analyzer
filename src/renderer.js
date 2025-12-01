@@ -641,6 +641,11 @@ async function loadPDFFileFromPath(filePath) {
             if (typeof figuresManager !== 'undefined') {
                 figuresManager.loadFiguresForFile(filePath);
             }
+            
+            // Show Figures button for PDF
+            if (figuresBtn) {
+                figuresBtn.style.display = '';
+            }
 
             hideLoading();
             setStatus(`Loaded: ${fileName}`);
@@ -1520,6 +1525,11 @@ async function loadPDFFile(filePath, cachedState = null) {
                     figuresManager.loadFiguresForFile(filePath);
                 }
                 
+                // Show Figures button for PDF
+                if (figuresBtn) {
+                    figuresBtn.style.display = '';
+                }
+                
                 // Restore View Selection immediately
                 const lastLocation = recentFilesManager.getLastLocation(filePath);
                 if (lastLocation && lastLocation.view) {
@@ -1600,6 +1610,11 @@ async function loadPDFFile(filePath, cachedState = null) {
             // Load figures for this file
             if (typeof figuresManager !== 'undefined') {
                 figuresManager.loadFiguresForFile(filePath);
+            }
+            
+            // Show Figures button for PDF
+            if (figuresBtn) {
+                figuresBtn.style.display = '';
             }
             
             // Restore View Selection immediately
@@ -1791,9 +1806,14 @@ async function loadEPUBFile(filePath, cachedState = null) {
                     tabManager.addTab(filePath, currentFileName, 'epub');
                 }
                 
-                // Load figures for this file
+                // Clear figures for EPUB (not supported)
                 if (typeof figuresManager !== 'undefined') {
-                    figuresManager.loadFiguresForFile(filePath);
+                    figuresManager.loadFiguresForFile(filePath); // This will load empty array
+                }
+                
+                // Hide Figures button for EPUB
+                if (figuresBtn) {
+                    figuresBtn.style.display = 'none';
                 }
                 
                 // Restore View Selection immediately
@@ -1958,9 +1978,14 @@ async function loadEPUBFile(filePath, cachedState = null) {
                 tabManager.addTab(filePath, currentFileName, 'epub');
             }
             
-            // Load figures for this file
+            // Clear figures for EPUB (not supported)
             if (typeof figuresManager !== 'undefined') {
-                figuresManager.loadFiguresForFile(filePath);
+                figuresManager.loadFiguresForFile(filePath); // This will load empty array
+            }
+            
+            // Hide Figures button for EPUB
+            if (figuresBtn) {
+                figuresBtn.style.display = 'none';
             }
             
             const metadata = result.metadata || {};
@@ -2049,9 +2074,14 @@ async function loadDOCXFile(filePath) {
                     tabManager.addTab(filePath, currentFileName, 'docx');
                 }
                 
-                // Load figures for this file
+                // Clear figures for DOCX (not supported)
                 if (typeof figuresManager !== 'undefined') {
-                    figuresManager.loadFiguresForFile(filePath);
+                    figuresManager.loadFiguresForFile(filePath); // This will load empty array
+                }
+                
+                // Hide Figures button for DOCX
+                if (figuresBtn) {
+                    figuresBtn.style.display = 'none';
                 }
                 
                 // Restore View Selection immediately
