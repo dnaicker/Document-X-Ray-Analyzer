@@ -8,12 +8,17 @@ class FiguresManager {
     }
 
     loadFiguresForFile(filePath) {
+        console.log('=== loadFiguresForFile called ===');
+        console.log('Previous file:', this.currentFilePath);
+        console.log('New file:', filePath);
+        
         this.currentFilePath = filePath;
         this.figures = [];
         this.transientFigures = []; // Clear transient figures when switching documents
         
         try {
             const key = `figures_${filePath}`;
+            console.log('Loading from localStorage key:', key);
             const stored = localStorage.getItem(key);
             if (stored) {
                 this.figures = JSON.parse(stored);
@@ -22,12 +27,15 @@ class FiguresManager {
                     ...fig,
                     note: fig.note || ''
                 }));
+                console.log(`✓ Loaded ${this.figures.length} figures for: ${filePath}`);
+            } else {
+                console.log('✓ No stored figures found for this document (clean slate)');
             }
-            console.log(`Loaded ${this.figures.length} figures for: ${filePath}`);
         } catch (e) {
             console.error('Error loading figures:', e);
         }
         
+        console.log('=== Rendering figures ===');
         this.render();
     }
 

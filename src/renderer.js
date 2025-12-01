@@ -2557,6 +2557,10 @@ function switchView(view) {
         case 'figures':
             figuresBtn.classList.add('active');
             figuresView.classList.add('active');
+            // Re-render figures to ensure they're up to date
+            if (typeof figuresManager !== 'undefined') {
+                figuresManager.render();
+            }
             break;
     }
 }
