@@ -42,12 +42,10 @@
       "!**/*.map"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "assets/icons/icon.ico"
+      "target": "nsis"
     },
     "mac": {
-      "target": "dmg",
-      "icon": "assets/icons/icon.icns"
+      "target": "dmg"
     },
     "linux": {
       "target": "AppImage",
