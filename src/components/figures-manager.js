@@ -10,7 +10,7 @@ class FiguresManager {
     loadFiguresForFile(filePath) {
         this.currentFilePath = filePath;
         this.figures = [];
-        this.transientFigures = [];
+        this.transientFigures = []; // Clear transient figures when switching documents
         
         try {
             const key = `figures_${filePath}`;
@@ -23,6 +23,7 @@ class FiguresManager {
                     note: fig.note || ''
                 }));
             }
+            console.log(`Loaded ${this.figures.length} figures for: ${filePath}`);
         } catch (e) {
             console.error('Error loading figures:', e);
         }
@@ -32,10 +33,17 @@ class FiguresManager {
 
     addFigure(figure) {
         // figure: { id, page, src, type: 'snip'|'scan', timestamp, note }
+        if (!this.currentFilePath) {
+            console.error('Cannot add figure: no document is currently loaded');
+            alert('Please open a document before adding figures.');
+            return;
+        }
+        
         if (!figure.id) figure.id = Date.now().toString();
         if (!figure.timestamp) figure.timestamp = Date.now();
         if (!figure.note) figure.note = '';
         
+        console.log(`Adding figure to document: ${this.currentFilePath}, page: ${figure.page}`);
         this.figures.push(figure);
         this.saveToStorage();
         this.render();
@@ -133,11 +141,15 @@ class FiguresManager {
     }
 
     saveToStorage() {
-        if (!this.currentFilePath) return;
+        if (!this.currentFilePath) {
+            console.warn('Cannot save figures: no currentFilePath set');
+            return;
+        }
         
         try {
             const key = `figures_${this.currentFilePath}`;
             localStorage.setItem(key, JSON.stringify(this.figures));
+            console.log(`Saved ${this.figures.length} figures for: ${this.currentFilePath}`);
         } catch (e) {
             console.error('Error saving figures (storage quota might be full):', e);
             alert('Failed to save figure: Storage limit reached.');
