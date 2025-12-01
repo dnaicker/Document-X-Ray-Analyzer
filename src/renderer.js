@@ -1791,6 +1791,11 @@ async function loadEPUBFile(filePath, cachedState = null) {
                     tabManager.addTab(filePath, currentFileName, 'epub');
                 }
                 
+                // Load figures for this file
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+                
                 // Restore View Selection immediately
                 const lastLocation = recentFilesManager.getLastLocation(filePath);
                 if (lastLocation && lastLocation.view) {
@@ -1953,6 +1958,11 @@ async function loadEPUBFile(filePath, cachedState = null) {
                 tabManager.addTab(filePath, currentFileName, 'epub');
             }
             
+            // Load figures for this file
+            if (typeof figuresManager !== 'undefined') {
+                figuresManager.loadFiguresForFile(filePath);
+            }
+            
             const metadata = result.metadata || {};
                 setStatus(`✅ Loaded: ${currentFileName} (${result.text.split(/\s+/).length} words)`);
                 hideLoading();
@@ -2037,6 +2047,11 @@ async function loadDOCXFile(filePath) {
                 
                 if (typeof tabManager !== 'undefined') {
                     tabManager.addTab(filePath, currentFileName, 'docx');
+                }
+                
+                // Load figures for this file
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
                 }
                 
                 // Restore View Selection immediately
