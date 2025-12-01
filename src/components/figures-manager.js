@@ -16,6 +16,15 @@ class FiguresManager {
         this.figures = [];
         this.transientFigures = []; // Clear transient figures when switching documents
         
+        // Check if this is a non-PDF file (EPUB/DOCX) - don't load figures
+        const isNonPDF = filePath && (filePath.toLowerCase().endsWith('.epub') || filePath.toLowerCase().endsWith('.docx'));
+        
+        if (isNonPDF) {
+            console.log('✓ Non-PDF file detected - skipping figure loading');
+            this.render();
+            return;
+        }
+        
         try {
             const key = `figures_${filePath}`;
             console.log('Loading from localStorage key:', key);
