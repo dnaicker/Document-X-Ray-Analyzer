@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grammar Highlighter</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Top Toolbar -->
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <div class="app-title-group">
+            <h1>📚 Grammar Highlighter</h1>
+                <div class="dropdown">
+                    <button class="dropbtn">File</button>
+                    <div class="dropdown-content">
+                        <a id="openFileBtn">📂 Open File...</a>
+                        <a id="syncDriveBtn">☁️ Sync with Drive</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="toolbar-center">
+            <!-- Buttons moved to File menu -->
+        </div>
+        <div class="toolbar-right">
+            <span id="fileNameDisplay">No file loaded</span>
+        </div>
+    </div>
+
+    <!-- Document Tabs -->
+    <div id="documentTabs" class="document-tabs" style="display: none;"></div>
+
+    <!-- Main Content Area -->
+    <div class="main-container">
+        <!-- Left Panel: Document Viewer -->
+        <div class="pdf-panel" id="pdfPanel">
+            <div class="panel-header">
+                <h2 id="viewerTitle">📄 Document Viewer</h2>
+                <div class="pdf-controls">
+                    <button id="prevPageBtn" class="btn-icon" disabled>◀</button>
+                    <span id="pageInfo" class="page-info-container">
+                        Page <input type="number" id="pageInput" class="page-input" value="1" min="1"> / <span id="totalPagesDisplay">-</span>
+                    </span>
+                    <button id="nextPageBtn" class="btn-icon" disabled>▶</button>
+                    <button id="zoomOutBtn" class="btn-icon">🔍-</button>
+                    <span id="zoomLevel">100%</span>
+                    <button id="zoomInBtn" class="btn-icon">🔍+</button>
+                    <button id="snipBtn" class="btn-icon" data-tooltip="Snip Tool: Manually select tables, charts, or diagrams">✂️</button>
+                    <button id="epubSettingsBtn" class="btn-icon" style="display: none;" data-tooltip="EPUB Display Settings">⚙️</button>
+                </div>
+                
+                <!-- EPUB Settings Popup -->
+                <div id="epubSettingsPopup" class="text-settings-popup hidden">
+                    <div class="settings-header">
+                        <h4>📖 EPUB Display Settings</h4>
+                        <button id="closeEpubSettingsBtn" class="close-settings-btn">×</button>
+                    </div>
+                    <div class="settings-body">
+                        <div class="setting-group">
+                            <label>Theme:</label>
+                            <div class="theme-options">
+                                <button class="theme-btn active" data-theme="light">☀️ Light</button>
+                                <button class="theme-btn" data-theme="sepia">📜 Sepia</button>
+                                <button class="theme-btn" data-theme="dark">🌙 Dark</button>
+                            </div>
+                        </div>
+                        <div class="setting-group">
+                            <label>Font Size:</label>
+                            <div class="range-control">
+                                <span class="range-label-sm">A</span>
+                                <input type="range" id="epubFontSize" min="12" max="24" value="16" step="1">
+                                <span class="range-label-lg">A</span>
+                                <span id="epubFontSizeValue" style="margin-left: 10px; font-size: 12px; color: #666;">16px</span>
+                            </div>
+                        </div>
+                        <div class="setting-group">
+                            <label>Font Family:</label>
+                            <select id="epubFontFamily" class="font-select">
+                                <option value="Georgia, serif">Georgia (Serif)</option>
+                                <option value="'Times New Roman', serif">Times New Roman</option>
+                                <option value="Arial, sans-serif">Arial (Sans-serif)</option>
+                                <option value="'Segoe UI', sans-serif">Segoe UI</option>
+                                <option value="'Courier New', monospace">Courier New (Mono)</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label>Line Height:</label>
+                            <div class="range-control">
+                                <input type="range" id="epubLineHeight" min="1.2" max="2.0" value="1.6" step="0.1">
+                                <span id="epubLineHeightValue" style="margin-left: 10px; font-size: 12px; color: #666;">1.6</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="pdfViewerContainer" class="pdf-viewer-container">
+                <!-- PDF Loading Overlay -->
+                <div id="pdfLoadingOverlay" class="pdf-loading-overlay hidden">
+                    <div class="pdf-loading-content">
+                        <div class="loading-spinner"></div>
+                        <div class="pdf-loading-text">Loading viewer...</div>
+                    </div>
+                </div>
+                
+                <div id="pdfCanvas" class="pdf-canvas-wrapper">
+                    <div class="welcome-message">
+                        <div class="welcome-icon">📂</div>
+                        <h3>Welcome to Grammar Highlighter!</h3>
+                        <p>Click "Open File" to get started</p>
+                        
+                        <!-- Open File Button -->
+                        <button id="welcomeOpenFileBtn" class="btn btn-primary welcome-open-btn">📂 Open File</button>
+                        
+                        <!-- Recent PDFs -->
+                        <div id="recentPdfsSection" class="recent-pdfs-section">
+                            <h4>📋 Recent Documents</h4>
+                            <div id="recentPdfsList" class="recent-pdfs-list">
+                                <div class="no-recent-files">No recent files</div>
+                            </div>
+                        </div>
+                        
+                        <div class="features-list">
+                            <div class="feature-item">✓ PDF Text Extraction</div>
+                            <div class="feature-item">✓ OCR for Image-based PDFs</div>
+                            <div class="feature-item">✓ Grammar Analysis</div>
+                            <div class="feature-item">✓ Smart Highlighting</div>
+                        </div>
+                    </div>
+                    <canvas id="pdfCanvasElement"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="resizer" id="resizer1"></div>
+
+        <!-- Middle Panel: Text Display -->
+        <div class="text-panel" id="textPanel">
+            <div class="panel-header">
+                <h2>📝 Extracted Text</h2>
+                <div class="view-toggle">
+                    <button id="highlightedTextBtn" class="btn-toggle active">Analyse</button>
+                    <button id="notesBtn" class="btn-toggle">📌 Notes</button>
+                    <button id="translateTabBtn" class="btn-toggle">🌐 Translate</button>
+                    <button id="mapBtn" class="btn-toggle">🗺️ Map</button>
+                    <button id="figuresBtn" class="btn-toggle">🖼️ Figures</button>
+                    <button id="showStatsTabBtn" class="btn-toggle" style="margin-left: 10px; border-left: 1px solid rgba(0,0,0,0.1);">📊 Stats</button>
+                </div>
+            </div>
+
+            <!-- Hidden Raw Text Container (used internally for text processing) -->
+            <div id="rawTextContent" style="display: none;"></div>
+
+            <!-- Highlighted Text View (Analyse Tab) -->
+            <div id="highlightedTextView" class="text-view active">
+                <div class="notes-toolbar">
+                    <div class="continuous-mode-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="continuous-mode-checkbox">
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="toggle-label">Continuous Mode</span>
+                        
+                        <div class="color-picker-container hidden">
+                            <div class="color-option selected" data-color="#FFC107" style="background-color: #FFC107;" title="Yellow"></div>
+                            <div class="color-option" data-color="#4CAF50" style="background-color: #4CAF50;" title="Green"></div>
+                            <div class="color-option" data-color="#2196F3" style="background-color: #2196F3;" title="Blue"></div>
+                            <div class="color-option" data-color="#E91E63" style="background-color: #E91E63;" title="Pink"></div>
+                            <div class="color-option" data-color="#9C27B0" style="background-color: #9C27B0;" title="Purple"></div>
+                        </div>
+                    </div>
+                    <div class="page-navigator">
+                        <label for="highlightedTextPageNav" style="font-size: 13px; color: #666;">Page:</label>
+                        <input type="number" id="highlightedTextPageNav" class="page-nav-input" min="1" placeholder="1">
+                        <button class="btn-icon page-nav-btn" title="Go to page">→</button>
+                    </div>
+                    <button class="btn-icon text-settings-btn" title="Text Appearance" style="margin-left: auto;">Aa</button>
+                </div>
+                <div class="highlight-options">
+                    <label style="font-weight: 600; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; margin-bottom: 4px; width: 100%;"><input type="checkbox" id="highlightSelectAll" checked> ✓ Select All</label>
+                    <label><input type="checkbox" id="highlightNouns" checked> 🔵 Nouns <span class="pos-count" id="countNouns">-</span></label>
+                    <label><input type="checkbox" id="highlightVerbs" checked> 🟢 Verbs <span class="pos-count" id="countVerbs">-</span></label>
+                    <label><input type="checkbox" id="highlightAdj"> 🟡 Adjectives <span class="pos-count" id="countAdj">-</span></label>
+                    <label><input type="checkbox" id="highlightAdv"> 🟠 Adverbs <span class="pos-count" id="countAdv">-</span></label>
+                    <label><input type="checkbox" id="highlightPrep"> 🟣 Prepositions <span class="pos-count" id="countPrep">-</span></label>
+                    <label><input type="checkbox" id="highlightConj"> 🟤 Conjunctions <span class="pos-count" id="countConj">-</span></label>
+                    <label><input type="checkbox" id="highlightInterj"> 🔴 Interjections <span class="pos-count" id="countInterj">-</span></label>
+                    <label><input type="checkbox" id="highlightDet"> ⚪ Determiners <span class="pos-count" id="countDet">-</span></label>
+                    <label><input type="checkbox" id="highlightPeople" checked> 👤 People <span class="pos-count" id="countPeople">-</span></label>
+                    <label><input type="checkbox" id="highlightPlaces" checked> 📍 Places <span class="pos-count" id="countPlaces">-</span></label>
+                    <label><input type="checkbox" id="highlightAbbr"> 🆎 Abbreviations <span class="pos-count" id="countAbbr">-</span></label>
+                    <label><input type="checkbox" id="highlightAcronyms"> 🅰️ Acronyms <span class="pos-count" id="countAcronyms">-</span></label>
+                    <label><input type="checkbox" id="highlightNumbers"> 🔢 Numbers <span class="pos-count" id="countNumbers">-</span></label>
+                    <label><input type="checkbox" id="highlightCurrencies"> 💵 Currencies <span class="pos-count" id="countCurrencies">-</span></label>
+                    <label><input type="checkbox" id="highlightDates"> 📅 Dates <span class="pos-count" id="countDates">-</span></label>
+                    <label><input type="checkbox" id="highlightCrypto"> 🪙 Crypto <span class="pos-count" id="countCrypto">-</span></label>
+                    <label><input type="checkbox" id="highlightCurrencyPairs"> 💱 Pairs <span class="pos-count" id="countCurrencyPairs">-</span></label>
+                    <label><input type="checkbox" id="highlightCurrencySymbols"> 💲 Symbols <span class="pos-count" id="countCurrencySymbols">-</span></label>
+                </div>
+                <div class="text-content-wrapper">
+                    <div id="highlightedTextContent" class="text-content">
+                        <div class="placeholder-text">
+                            <p>✨ Analysis will start automatically...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes View -->
+            <div id="notesView" class="text-view">
+                <div class="notes-toolbar">
+                    <div class="notes-selection-controls" style="display: flex; align-items: center; gap: 10px; margin-right: 10px;">
+                        <input type="checkbox" id="selectAllNotes" title="Select All">
+                        <button id="deleteSelectedNotesBtn" class="btn-note" style="background-color: #ef5350; display: none; padding: 5px 10px;">🗑️</button>
+                    </div>
+                    <button id="addNoteBtn" class="btn-note" disabled>➕ Add Note</button>
+                    <button id="exportBtn" class="btn-note" style="background-color: #9c27b0;" disabled>📤 Export</button>
+                    
+                    <div class="notes-search-container">
+                        <input type="text" id="notesSearchInput" class="notes-search-input" placeholder="Search notes...">
+                    </div>
+                    
+                    <span class="notes-count">0 notes, 0 highlights</span>
+                </div>
+                <div class="notes-help-banner" id="notesHelpBanner">
+                    💡 <strong>Tip:</strong> Right-click on any selected text to highlight or add notes!
+                </div>
+                <div class="text-content-wrapper">
+                    <div id="notesContent" class="notes-content">
+                        <div class="placeholder-text">
+                            <p>📌 No notes yet</p>
+                            <p style="font-size: 14px; color: #666;">Go to Raw Text or Highlighted view, select text, then right-click</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map View -->
+            <div id="mapView" class="text-view">
+                <div class="map-toolbar">
+                    <div class="zoom-control">
+                        <label for="mapZoom">Thumbnail Size:</label>
+                        <input type="range" id="mapZoom" min="100" max="400" value="200">
+                        <span id="mapZoomValue">200px</span>
+                    </div>
+                    <div class="zoom-control">
+                        <label for="mapFontSize">Text Size:</label>
+                        <input type="range" id="mapFontSize" min="3" max="10" value="4" step="0.5">
+                        <span id="mapFontSizeValue">4px</span>
+                    </div>
+                    <div class="zoom-control">
+                        <label for="mapFontSelect">Font:</label>
+                        <select id="mapFontSelect" style="padding: 2px 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 12px;">
+                            <option value="'Segoe UI', sans-serif">Sans-Serif</option>
+                            <option value="'Times New Roman', serif">Serif</option>
+                            <option value="'Consolas', monospace">Monospace</option>
+                            <option value="'Comic Sans MS', 'Chalkboard SE', sans-serif">Casual</option>
+                        </select>
+                    </div>
+                    <div class="continuous-mode-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="continuous-mode-checkbox">
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="toggle-label">Continuous</span>
+                        
+                        <div class="color-picker-container hidden">
+                            <div class="color-option selected" data-color="#FFC107" style="background-color: #FFC107;" title="Yellow"></div>
+                            <div class="color-option" data-color="#4CAF50" style="background-color: #4CAF50;" title="Green"></div>
+                            <div class="color-option" data-color="#2196F3" style="background-color: #2196F3;" title="Blue"></div>
+                            <div class="color-option" data-color="#E91E63" style="background-color: #E91E63;" title="Pink"></div>
+                            <div class="color-option" data-color="#9C27B0" style="background-color: #9C27B0;" title="Purple"></div>
+                        </div>
+                    </div>
+                    <button class="btn-icon" id="mapSettingsBtn" title="Map Display Settings">⚙️</button>
+                </div>
+
+                <!-- Map POS Options (Similar to Analyse Tab) -->
+                <div class="highlight-options" style="border-bottom: 1px solid #e0e0e0; padding: 8px 15px; background: #fff;">
+                    <label style="font-weight: 600; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; margin-bottom: 4px; width: 100%;"><input type="checkbox" id="mapHighlightSelectAll"> ✓ Select All</label>
+                    <label><input type="checkbox" id="mapHighlightNouns"> 🔵 Nouns <span class="pos-count" id="mapCountNouns">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightVerbs"> 🟢 Verbs <span class="pos-count" id="mapCountVerbs">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightAdj"> 🟡 Adjectives <span class="pos-count" id="mapCountAdj">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightAdv"> 🟠 Adverbs <span class="pos-count" id="mapCountAdv">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightPrep"> 🟣 Prepositions <span class="pos-count" id="mapCountPrep">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightConj"> 🟤 Conjunctions <span class="pos-count" id="mapCountConj">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightInterj"> 🔴 Interjections <span class="pos-count" id="mapCountInterj">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightDet"> ⚪ Determiners <span class="pos-count" id="mapCountDet">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightPeople"> 👤 People <span class="pos-count" id="mapCountPeople">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightPlaces"> 📍 Places <span class="pos-count" id="mapCountPlaces">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightAbbr"> 🆎 Abbreviations <span class="pos-count" id="mapCountAbbr">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightAcronyms"> 🅰️ Acronyms <span class="pos-count" id="mapCountAcronyms">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightNumbers"> 🔢 Numbers <span class="pos-count" id="mapCountNumbers">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightCurrencies"> 💵 Currencies <span class="pos-count" id="mapCountCurrencies">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightDates"> 📅 Dates <span class="pos-count" id="mapCountDates">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightCrypto"> 🪙 Crypto <span class="pos-count" id="mapCountCrypto">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightCurrencyPairs"> 💱 Pairs <span class="pos-count" id="mapCountCurrencyPairs">-</span></label>
+                    <label><input type="checkbox" id="mapHighlightCurrencySymbols"> 💲 Symbols <span class="pos-count" id="mapCountCurrencySymbols">-</span></label>
+                </div>
+                
+                <!-- Map Settings Popup -->
+                <div id="mapSettingsPopup" class="text-settings-popup hidden">
+                    <div class="settings-header">
+                        <h4>🗺️ Map Display Settings</h4>
+                        <button id="closeMapSettingsBtn" class="close-settings-btn">×</button>
+                    </div>
+                    <div class="settings-body">
+                        <div class="setting-group">
+                            <label>Text Color:</label>
+                            <div class="color-options">
+                                <button class="color-btn" data-color="#ccc" style="background: #ccc;" title="Light Gray (Default)"></button>
+                                <button class="color-btn" data-color="#999" style="background: #999;" title="Medium Gray"></button>
+                                <button class="color-btn" data-color="#666" style="background: #666;" title="Dark Gray"></button>
+                                <button class="color-btn" data-color="#333" style="background: #333;" title="Almost Black"></button>
+                                <button class="color-btn" data-color="#000" style="background: #000;" title="Black"></button>
+                            </div>
+                        </div>
+                        <div class="setting-group">
+                            <label>Text Alignment:</label>
+                            <div class="alignment-options">
+                                <button class="btn-option" data-align="left" title="Left">⬅️</button>
+                                <button class="btn-option" data-align="center" title="Center">↕️</button>
+                                <button class="btn-option" data-align="right" title="Right">➡️</button>
+                                <button class="btn-option" data-align="justify" title="Justify">⬌</button>
+                            </div>
+                        </div>
+                        <div class="setting-group">
+                            <label class="toggle-label-inline">
+                                <input type="checkbox" id="mapShowHighlights" checked>
+                                <span>Show Highlights</span>
+                            </label>
+                        </div>
+                        <div class="setting-group">
+                            <label class="toggle-label-inline">
+                                <input type="checkbox" id="mapShowLinks" checked>
+                                <span>Show Link Connections</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-content-wrapper" style="background-color: #f5f5f7;">
+                    <div id="mapGrid" class="map-grid">
+                        <div class="placeholder-text">
+                            <p>🗺️ Map View</p>
+                            <p style="font-size: 14px; color: #666;">Visualize highlights across pages</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Translate View -->
+            <div id="translateView" class="text-view">
+                <div class="notes-toolbar">
+                    <div class="continuous-mode-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" class="continuous-mode-checkbox">
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="toggle-label">Continuous Mode</span>
+                        
+                        <div class="color-picker-container hidden">
+                            <div class="color-option selected" data-color="#FFC107" style="background-color: #FFC107;" title="Yellow"></div>
+                            <div class="color-option" data-color="#4CAF50" style="background-color: #4CAF50;" title="Green"></div>
+                            <div class="color-option" data-color="#2196F3" style="background-color: #2196F3;" title="Blue"></div>
+                            <div class="color-option" data-color="#E91E63" style="background-color: #E91E63;" title="Pink"></div>
+                            <div class="color-option" data-color="#9C27B0" style="background-color: #9C27B0;" title="Purple"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- POS Highlighting Toggle for Translate -->
+                    <div class="pos-toggle-group">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="translatePosToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="toggle-label">POS Highlighting</span>
+                    </div>
+                    
+                    <select id="translateLanguageSelect" class="translation-select" title="Select target language">
+                        <option value="">🌐 Select language...</option>
+                    </select>
+                    <button id="startTranslateBtn" class="btn-note" disabled>▶️ Start Translation</button>
+                    <button id="cancelTranslateBtn" class="btn-note hidden" style="background: #ef4444;">⏹️ Cancel</button>
+                    <button id="loadCachedBtn" class="btn-note hidden" style="background: #10b981;">📥 Load Cached</button>
+                    <span id="translateStatus" class="notes-count"></span>
+                </div>
+                
+                <!-- POS Checkboxes for Translate View -->
+                <div class="highlight-options" id="translatePosOptions" style="display: flex;">
+                    <label style="font-weight: 600; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; margin-bottom: 4px; width: 100%;"><input type="checkbox" id="translateHighlightSelectAll" checked> ✓ Select All</label>
+                    <label><input type="checkbox" id="translateHighlightNouns" checked> 🔵 Nouns <span class="pos-count" id="translateCountNouns">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightVerbs" checked> 🟢 Verbs <span class="pos-count" id="translateCountVerbs">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightAdj"> 🟡 Adjectives <span class="pos-count" id="translateCountAdj">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightAdv"> 🟠 Adverbs <span class="pos-count" id="translateCountAdv">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightPrep"> 🟣 Prepositions <span class="pos-count" id="translateCountPrep">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightConj"> 🟤 Conjunctions <span class="pos-count" id="translateCountConj">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightInterj"> 🔴 Interjections <span class="pos-count" id="translateCountInterj">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightDet"> ⚪ Determiners <span class="pos-count" id="translateCountDet">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightPeople" checked> 👤 People <span class="pos-count" id="translateCountPeople">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightPlaces" checked> 📍 Places <span class="pos-count" id="translateCountPlaces">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightAbbr"> 🆎 Abbreviations <span class="pos-count" id="translateCountAbbr">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightAcronyms"> 🅰️ Acronyms <span class="pos-count" id="translateCountAcronyms">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightNumbers"> 🔢 Numbers <span class="pos-count" id="translateCountNumbers">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightCurrencies"> 💵 Currencies <span class="pos-count" id="translateCountCurrencies">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightDates"> 📅 Dates <span class="pos-count" id="translateCountDates">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightCrypto"> 🪙 Crypto <span class="pos-count" id="translateCountCrypto">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightCurrencyPairs"> 💱 Pairs <span class="pos-count" id="translateCountCurrencyPairs">-</span></label>
+                    <label><input type="checkbox" id="translateHighlightCurrencySymbols"> 💲 Symbols <span class="pos-count" id="translateCountCurrencySymbols">-</span></label>
+                </div>
+                <div id="cachedTranslationsBanner" class="translate-info-banner hidden" style="background: #d1fae5; padding: 10px 15px; border-bottom: 1px solid #6ee7b7; font-size: 13px; color: #065f46;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">💾 Cached Translations Available:</div>
+                    <div id="cachedTranslationsList" style="margin-top: 5px;"></div>
+                </div>
+                <div class="translate-info-banner" style="background: #f3e8ff; padding: 10px 15px; border-bottom: 1px solid #d8b4fe; font-size: 13px; color: #6b21a8;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">💡 Background Translation:</div>
+                    <p style="margin: 0;">Translation runs in the background. You can continue working with the document while it processes. Hover over translated text to see the original.</p>
+                </div>
+                <div class="text-content-wrapper">
+                    <div id="translatedTextContent" class="text-content">
+                        <div class="placeholder-text">
+                            <p>🌐 Document Translation</p>
+                            <p style="font-size: 14px; color: #666;">Select a language and click "Start Translation"</p>
+                            <p style="font-size: 12px; color: #999; margin-top: 10px;">Supports 40+ languages including Spanish, French, German, Japanese, Chinese, and all 11 official South African languages (Zulu, Xhosa, Afrikaans, Northern Sotho, and more)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Figures View -->
+            <div id="figuresView" class="text-view">
+                <div class="notes-toolbar">
+                    <button id="scanFiguresBtn" class="btn-note">🖼️ Scan for Figures</button>
+                    <span id="figuresCount" class="notes-count">0 found</span>
+                </div>
+                <div class="figures-help-banner" style="background: #e3f2fd; padding: 10px 15px; border-bottom: 1px solid #bbdefb; font-size: 13px; color: #0d47a1;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">💡 How to capture figures:</div>
+                    <ul style="margin: 0; padding-left: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <li><strong>🖼️ Scan Button:</strong> Detects embedded images (photos).</li>
+                        <li><strong>✂️ Snip Tool:</strong> Use the scissors icon in the PDF toolbar to capture tables, charts, or diagrams manually.</li>
+                    </ul>
+                </div>
+                <div class="text-content-wrapper" style="background-color: #f5f5f7;">
+                    <div id="figuresGrid" class="map-grid">
+                        <div class="placeholder-text">
+                            <p>🖼️ Figures & Diagrams</p>
+                            <p style="font-size: 14px; color: #666;">Click "Scan" to extract images from the PDF</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="resizer" id="resizer2"></div>
+
+        <!-- Right Panel: Statistics (Always Visible) -->
+        <div class="stats-panel" id="statsPanel">
+            <div class="panel-header">
+                <h2>📊 Statistics</h2>
+            </div>
+                <div class="stats-container">
+                <!-- Search Section -->
+                <div class="stats-section search-section">
+                    <h3>🔍 Find Text</h3>
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="Enter word or phrase to find..." />
+                        <button id="searchBtn" class="btn-search">Search</button>
+                    </div>
+                    <div id="searchStatus" class="search-status"></div>
+                </div>
+
+                    <div class="stats-section">
+                        <h3>📊 Overview</h3>
+                        <div id="overviewStats" class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-label">Total Words</div>
+                                <div class="stat-value">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Unique Words</div>
+                                <div class="stat-value">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Sentences</div>
+                                <div class="stat-value">-</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Pages</div>
+                                <div class="stat-value">-</div>
+                            </div>
+                        <div class="stat-card" data-tooltip="Approximate U.S. grade level required to understand the text.
+• 5-8: Average (Conversational)
+• 9-12: High School
+• 13+: College/Professional (Complex)">
+                            <div class="stat-label">Reading Level ⓘ</div>
+                            <div class="stat-value" id="gradeLevel">-</div>
+                            <div class="stat-sub">Flesch-Kincaid</div>
+                        </div>
+                        <div class="stat-card" data-tooltip="Estimated time to read the document (based on 200 words/min).">
+                            <div class="stat-label">Reading Time ⓘ</div>
+                            <div class="stat-value" id="readingTime">-</div>
+                            <div class="stat-sub">min</div>
+                        </div>
+                        <div class="stat-card" data-tooltip="Percentage of unique words used.
+• > 50%: High Diversity (Rich Vocabulary)
+• 30-50%: Average
+• < 30%: Repetitive">
+                            <div class="stat-label">Vocabulary ⓘ</div>
+                            <div class="stat-value" id="lexicalDiversity">-</div>
+                            <div class="stat-sub">Diversity</div>
+                        </div>
+                        <div class="stat-card" data-tooltip="Average number of words per sentence.">
+                            <div class="stat-label">Sentence Len ⓘ</div>
+                            <div class="stat-value" id="avgSentenceLength">-</div>
+                            <div class="stat-sub">words/sent</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-section">
+                    <h3>🔝 Top Words</h3>
+                    <div id="topWordsList" class="entity-list">
+                        <div class="placeholder-text">No words analyzed yet</div>
+                    </div>
+                    <div id="topWordsPagination" class="pagination-controls hidden">
+                        <div class="pagination-info"></div>
+                        <div class="pagination-buttons">
+                            <button class="pagination-btn prev-btn">◀</button>
+                            <button class="pagination-btn next-btn">▶</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-section">
+                    <h3>💡 Unique Insights</h3>
+                    <div id="insightsList" class="entity-list">
+                        <div class="placeholder-text">No unique words detected</div>
+                    </div>
+                    <div id="insightsPagination" class="pagination-controls hidden">
+                        <div class="pagination-info"></div>
+                        <div class="pagination-buttons">
+                            <button class="pagination-btn prev-btn">◀</button>
+                            <button class="pagination-btn next-btn">▶</button>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div class="stats-section">
+                        <h3>👥 People</h3>
+                        <div id="peopleList" class="entity-list">
+                            <div class="placeholder-text">No people detected</div>
+                        </div>
+                    <div id="peoplePagination" class="pagination-controls hidden">
+                        <div class="pagination-info"></div>
+                        <div class="pagination-buttons">
+                            <button class="pagination-btn prev-btn">◀</button>
+                            <button class="pagination-btn next-btn">▶</button>
+                        </div>
+                    </div>
+                    </div>
+
+                    <div class="stats-section">
+                        <h3>📍 Places</h3>
+                        <div id="placesList" class="entity-list">
+                            <div class="placeholder-text">No places detected</div>
+                        </div>
+                    <div id="placesPagination" class="pagination-controls hidden">
+                        <div class="pagination-info"></div>
+                        <div class="pagination-buttons">
+                            <button class="pagination-btn prev-btn">◀</button>
+                            <button class="pagination-btn next-btn">▶</button>
+                        </div>
+                    </div>
+                    </div>
+
+                    <div class="stats-section">
+                        <h3>🔤 Abbreviations</h3>
+                        <div id="abbreviationsList" class="entity-list">
+                            <div class="placeholder-text">No abbreviations detected</div>
+                        </div>
+                    <div id="abbreviationsPagination" class="pagination-controls hidden">
+                        <div class="pagination-info"></div>
+                        <div class="pagination-buttons">
+                            <button class="pagination-btn prev-btn">◀</button>
+                            <button class="pagination-btn next-btn">▶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <span id="statusMessage">Ready</span>
+        </div>
+        <div class="status-right">
+            <span id="processingTime"></span>
+        </div>
+    </div>
+
+    <!-- Word Navigation Bar -->
+    <div id="wordNavBar" class="word-nav-bar hidden">
+        <button id="prevOccurrenceBtn" class="nav-btn">◀ Previous</button>
+        <div class="nav-info">
+            <span id="navWordDisplay"></span>
+            <div class="nav-occurrence-control">
+                Occurrence 
+                <input type="number" id="navOccurrenceInput" min="1" value="1" class="nav-input">
+                of 
+                <span id="navTotalCount">0</span>
+            </div>
+        </div>
+        <button id="nextOccurrenceBtn" class="nav-btn">Next ▶</button>
+        <button id="closeNavBtn" class="nav-close-btn">✕</button>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu hidden">
+        <!-- Default options -->
+        <div class="context-menu-group" id="contextDefaultGroup">
+            <div class="context-menu-item" id="contextHighlight">
+                🖍️ Highlight Text
+            </div>
+            <div class="context-menu-item" id="contextHighlightAndNote">
+                ✨ Highlight + Note
+            </div>
+        </div>
+        
+        <!-- Existing Highlight options -->
+        <div class="context-menu-group hidden" id="contextHighlightGroup">
+            <div class="context-menu-item" id="contextEditNote">
+                ✏️ Edit Note
+            </div>
+            <div class="context-menu-item delete-item" id="contextDeleteHighlight">
+                🗑️ Remove Highlight
+            </div>
+        </div>
+    </div>
+
+    <!-- Note Input Dialog -->
+    <div id="noteDialog" class="note-dialog-overlay hidden">
+        <div class="note-dialog">
+            <div class="note-dialog-header">
+                <h3 id="noteDialogTitle">Add Note</h3>
+                <button id="noteDialogClose" class="note-dialog-close">×</button>
+            </div>
+            <div class="note-dialog-body">
+                <textarea id="noteDialogInput" class="note-dialog-textarea" placeholder="Type your note here..."></textarea>
+            </div>
+            <div class="note-dialog-footer single-button">
+                <div class="note-dialog-footer-hint">Press Ctrl+Enter to save</div>
+                <div class="note-dialog-footer-actions">
+                    <button id="noteDialogSave" class="btn-primary">💾 Save Note</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Text Appearance Popup -->
+    <div id="textSettingsPopup" class="settings-popup hidden">
+        <div class="settings-header">
+            <h4>Text Appearance</h4>
+            <button id="closeSettingsBtn" class="btn-close">×</button>
+        </div>
+        <div class="settings-group">
+            <label>Font Size</label>
+            <div class="range-control">
+                <span class="range-label-sm">A</span>
+                <input type="range" id="fontSizeRange" min="12" max="32" step="1" value="14">
+                <span class="range-label-lg">A</span>
+            </div>
+        </div>
+        <div class="settings-group">
+            <label>Font Style</label>
+            <div class="btn-group font-family-group">
+                <button class="btn-option active" data-font="sans">Sans</button>
+                <button class="btn-option" data-font="serif" style="font-family: serif;">Serif</button>
+                <button class="btn-option" data-font="mono" style="font-family: monospace;">Mono</button>
+            </div>
+        </div>
+        <div class="settings-group">
+            <label>Theme</label>
+            <div class="theme-options">
+                <button class="theme-option active" data-theme="light" style="background: white; border: 1px solid #ddd;" title="Light"></button>
+                <button class="theme-option" data-theme="sepia" style="background: #f4ecd8;" title="Sepia"></button>
+                <button class="theme-option" data-theme="dark" style="background: #333;" title="Dark"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Tooltip -->
+    <div id="customTooltip" class="custom-tooltip hidden">
+        <div id="tooltipContent" class="tooltip-content"></div>
+        <div class="tooltip-arrow"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <div id="loadingMessage">Processing...</div>
+        <div class="progress-container">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- Sync Dialog -->
+    <div id="syncDialog" class="note-dialog-overlay hidden">
+        <div class="note-dialog">
+            <div class="note-dialog-header">
+                <h3>Google Drive Sync</h3>
+                <button class="close-btn" id="closeSyncDialog">×</button>
+            </div>
+            <div class="note-dialog-body" style="padding: 20px;">
+                <div id="syncStatusArea">
+                    <p id="syncStatusText">Not connected</p>
+                    <button id="gdriveLoginBtn" class="btn-primary">Connect Google Drive</button>
+                    <button id="gdriveLogoutBtn" class="btn-secondary hidden">Disconnect</button>
+                </div>
+                
+                <div id="syncActions" class="hidden" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+                    <h4>Sync Data</h4>
+                    <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
+                        Sync your notes, highlights, and settings to Google Drive.
+                    </p>
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <button id="syncUploadBtn" class="btn-primary">⬆️ Upload to Drive</button>
+                        <button id="syncDownloadBtn" class="btn-secondary">⬇️ Download from Drive</button>
+                    </div>
+                    
+                    <div style="margin-top: 15px;">
+                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.9em;">
+                            <input type="checkbox" id="syncDocumentsCheck" checked> 
+                            Also upload current document file
+                        </label>
+                    </div>
+                    
+                    <div id="lastSyncTime" style="margin-top: 10px; font-size: 0.85em; color: #888;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="../lib/compromise.js"></script>
+    <script src="components/pdf-viewer.js"></script>
+    <script src="components/epub-reader.js"></script>
+    <script src="components/docx-reader.js"></script>
+    <script src="components/dictionary-service.js"></script>
+    <script src="components/text-analyzer.js"></script>
+    <script src="components/stats-panel.js"></script>
+    <script src="components/analysis-cache.js"></script>
+    <script src="components/translation-service.js"></script>
+    <script src="components/translation-cache.js"></script>
+    <script src="components/notes-manager.js"></script>
+    <script src="components/figures-manager.js"></script>
+    <script src="components/tab-manager.js"></script>
+    <script src="renderer.js"></script>
+</body>
+</html>
+

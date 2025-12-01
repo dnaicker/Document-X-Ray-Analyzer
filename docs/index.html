@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grammar Highlighter - Advanced Desktop Text Analysis</title>
+    <style>
+        :root {
+            --primary: #4a90e2;
+            --secondary: #2c3e50;
+            --accent: #e74c3c;
+            --text: #333;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Header */
+        header {
+            background: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-size: 1.5em;
+            font-weight: 800;
+            color: var(--primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .nav-links a {
+            margin-left: 20px;
+            color: var(--secondary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .nav-links a:hover { color: var(--primary); }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 80px 20px;
+            background: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
+            border-bottom: 1px solid #eee;
+        }
+        .hero h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            color: var(--secondary);
+            letter-spacing: -1px;
+        }
+        .hero p {
+            font-size: 1.3em;
+            color: #666;
+            max-width: 700px;
+            margin: 0 auto 40px;
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 1.1em;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4);
+        }
+        .btn-secondary {
+            background: white;
+            color: var(--secondary);
+            border: 2px solid #eee;
+            box-shadow: none;
+        }
+        .btn-secondary:hover {
+            border-color: var(--secondary);
+            background: white;
+        }
+
+        /* Features Grid */
+        .features {
+            padding: 80px 20px;
+        }
+        .section-title {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 60px;
+            color: var(--secondary);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+        }
+        .feature-card {
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 16px;
+            transition: transform 0.3s;
+            border: 1px solid #eee;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+        }
+        .icon {
+            font-size: 3em;
+            margin-bottom: 20px;
+            display: block;
+        }
+        .feature-card h3 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: var(--secondary);
+        }
+
+        /* Preview Section */
+        .preview {
+            background: var(--secondary);
+            color: white;
+            padding: 80px 20px;
+            text-align: center;
+        }
+        .preview-img {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            margin-top: 40px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+            border-top: 1px solid #eee;
+            background: white;
+        }
+        
+        /* Github Button Specifics */
+        .github-btn {
+            background: #24292e;
+            box-shadow: 0 4px 15px rgba(36, 41, 46, 0.3);
+        }
+        .github-btn:hover {
+            box-shadow: 0 6px 20px rgba(36, 41, 46, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5em; }
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="container nav-wrapper">
+        <a href="#" class="logo">⚡ Grammar Highlighter</a>
+        <nav class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#download">Download</a>
+            <a href="https://github.com/denver-code/grammar-highlighter-desktop" id="repo-link">GitHub</a>
+        </nav>
+    </div>
+</header>
+
+<section class="hero">
+    <div class="container">
+        <h1>Analyze Texts Like a Pro</h1>
+        <p>An intelligent desktop tool for linguistic analysis, parts-of-speech highlighting, and multilingual translation—all running locally on your machine.</p>
+        
+        <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;" id="download">
+            <a href="#" class="btn" id="download-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download for Windows
+            </a>
+            <a href="#" class="btn btn-secondary" id="github-btn">
+                View on GitHub
+            </a>
+        </div>
+        <p id="version-info" style="font-size: 0.9em; margin-top: 15px; color: #888;">Latest Release</p>
+    </div>
+</section>
+
+<section class="features" id="features">
+    <div class="container">
+        <h2 class="section-title">Why use Grammar Highlighter?</h2>
+        <div class="grid">
+            <div class="feature-card">
+                <span class="icon">🎨</span>
+                <h3>Advanced POS Highlighting</h3>
+                <p>Instantly visualize Nouns, Verbs, Adjectives, and more. Now supporting Numbers, Dates, Currencies, and Crypto symbols.</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">🌍</span>
+                <h3>Smart Translation</h3>
+                <p>Translate documents into multiple languages with integrated Parts of Speech analysis for the translated text.</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">📊</span>
+                <h3>Deep Statistics</h3>
+                <p>Get detailed word counts, entity analysis, and frequency distribution maps for your documents.</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">🗺️</span>
+                <h3>Visual Maps</h3>
+                <p>See the structure of your text with the unique Map View, highlighting key entities and their locations.</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">🔒</span>
+                <h3>Privacy First</h3>
+                <p>All analysis happens locally on your computer. No document data is sent to the cloud for processing.</p>
+            </div>
+            <div class="feature-card">
+                <span class="icon">⚡</span>
+                <h3>Instant Search</h3>
+                <p>Powerful search capabilities across large PDF documents and text files with instant results.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <div class="container">
+        <p>
+            <a href="privacy-policy.html">Privacy Policy</a>
+        </p>
+        <p>&copy; 2025 Grammar Highlighter. Open Source Software.</p>
+    </div>
+</footer>
+
+<script>
+    // This script attempts to fetch the latest release from your GitHub repo
+    // Update 'denver-code' and 'grammar-highlighter-desktop' with your actual username and repo name
+    const USER = 'denver-code'; // PLACEHOLDER: Replace if different
+    const REPO = 'grammar-highlighter-desktop'; 
+    
+    async function getLatestRelease() {
+        try {
+            const response = await fetch(`https://api.github.com/repos/${USER}/${REPO}/releases/latest`);
+            if (!response.ok) throw new Error('No release found');
+            const data = await response.json();
+            
+            // Update Version Text
+            document.getElementById('version-info').textContent = `Latest: ${data.tag_name}`;
+            
+            // Find Windows Asset
+            const winAsset = data.assets.find(a => a.name.endsWith('.exe'));
+            if (winAsset) {
+                const btn = document.getElementById('download-btn');
+                btn.href = winAsset.browser_download_url;
+                btn.innerHTML = `
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Download ${data.tag_name} (.exe)
+                `;
+            }
+            
+            // Update GitHub Link
+            document.getElementById('github-btn').href = data.html_url;
+            document.getElementById('repo-link').href = `https://github.com/${USER}/${REPO}`;
+            
+        } catch (e) {
+            console.log('Could not fetch latest release:', e);
+            // Fallback links
+            document.getElementById('download-btn').href = `https://github.com/${USER}/${REPO}/releases`;
+            document.getElementById('github-btn').href = `https://github.com/${USER}/${REPO}`;
+             document.getElementById('repo-link').href = `https://github.com/${USER}/${REPO}`;
+        }
+    }
+
+    // Try to fetch on load
+    getLatestRelease();
+</script>
+
+</body>
+</html>

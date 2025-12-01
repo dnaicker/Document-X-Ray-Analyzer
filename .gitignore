@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+out/
+build/
+
+# Development
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+desktop.ini
+*.lnk
+
+# Electron
+*.asar
+
+# Configuration with secrets
+config.js
