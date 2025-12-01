@@ -1823,7 +1823,6 @@ async function loadEPUBFile(filePath, cachedState = null) {
                 }
                 
                 setStatus(`✅ Restored: ${currentFileName}`);
-                hideLoading();
                 
                 // Refresh map if it's the active view
                 const mapView = document.getElementById('mapView');
@@ -1831,7 +1830,7 @@ async function loadEPUBFile(filePath, cachedState = null) {
                     renderMap().catch(err => console.error('Error rendering map:', err));
                 }
                 
-                // Show loading overlay
+                // Show loading overlay for EPUB rendering
                 const pdfLoadingOverlay = document.getElementById('pdfLoadingOverlay');
                 if (pdfLoadingOverlay) {
                     pdfLoadingOverlay.classList.remove('hidden');
@@ -1876,8 +1875,11 @@ async function loadEPUBFile(filePath, cachedState = null) {
                                 setupEPUBNavigation();
                             }
                         }
-                        // Hide loading overlay
-                        if (pdfLoadingOverlay) pdfLoadingOverlay.classList.add('hidden');
+                        // Hide loading overlay after EPUB fully renders
+                        setTimeout(() => {
+                            if (pdfLoadingOverlay) pdfLoadingOverlay.classList.add('hidden');
+                            hideLoading();
+                        }, 300);
                     } catch (e) {
                         console.error('Background EPUB load error:', e);
                         if (pdfLoadingOverlay) pdfLoadingOverlay.classList.add('hidden');
@@ -1990,7 +1992,11 @@ async function loadEPUBFile(filePath, cachedState = null) {
             
             const metadata = result.metadata || {};
                 setStatus(`✅ Loaded: ${currentFileName} (${result.text.split(/\s+/).length} words)`);
-                hideLoading();
+                
+                // Wait a bit for EPUB to fully render in DOM before hiding loading
+                setTimeout(() => {
+                    hideLoading();
+                }, 300);
 
                 // Auto-analyze immediately
                 setTimeout(() => {
