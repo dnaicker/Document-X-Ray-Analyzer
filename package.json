@@ -53,7 +53,10 @@
     "mac": {
       "target": "dmg",
       "identity": null,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "hardenedRuntime": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist"
     },
     "linux": {
       "target": "AppImage",
