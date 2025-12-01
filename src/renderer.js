@@ -1515,6 +1515,11 @@ async function loadPDFFile(filePath, cachedState = null) {
                     tabManager.addTab(filePath, currentFileName, 'pdf');
                 }
                 
+                // Load figures for this file
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+                
                 // Restore View Selection immediately
                 const lastLocation = recentFilesManager.getLastLocation(filePath);
                 if (lastLocation && lastLocation.view) {
@@ -1590,6 +1595,11 @@ async function loadPDFFile(filePath, cachedState = null) {
             
             if (typeof tabManager !== 'undefined') {
                 tabManager.addTab(filePath, currentFileName, 'pdf');
+            }
+            
+            // Load figures for this file
+            if (typeof figuresManager !== 'undefined') {
+                figuresManager.loadFiguresForFile(filePath);
             }
             
             // Restore View Selection immediately
