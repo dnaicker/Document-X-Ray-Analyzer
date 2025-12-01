@@ -9,6 +9,12 @@
 
 ---
 
+## 📸 Application Preview
+
+![Document X-Ray Analyzer](assets/img/Application%20Image.png)
+
+---
+
 ## 🌟 Key Features
 
 ### 📚 Multi-Format Document Support
