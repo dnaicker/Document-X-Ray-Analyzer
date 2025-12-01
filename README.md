@@ -11,6 +11,12 @@
 
 ## 📸 Application Preview
 
+### 🎥 Video Demo
+[![Watch Demo Video](https://img.youtube.com/vi/F_y1S7vodgY/maxresdefault.jpg)](https://youtu.be/F_y1S7vodgY)
+
+*Click to watch the full demo on YouTube*
+
+### 📷 Screenshots
 ![Document X-Ray Analyzer](assets/img/Application%20Image.png)
 
 ---
