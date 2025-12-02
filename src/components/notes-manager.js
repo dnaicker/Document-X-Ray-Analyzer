@@ -953,7 +953,6 @@ class NotesManager {
     }
     
     editNoteInternal(item) {
-        
         // Determine current text and title based on type
         let currentText, title;
         if (item.type === 'note') {
@@ -965,20 +964,174 @@ class NotesManager {
             title = 'Edit Highlight Note';
         }
         
-        this.openDialog(title, currentText, (newText) => {
-            if (newText !== null) {
-                if (item.type === 'note') {
-                    if (newText.trim() === '') return; // Don't allow empty text for notes
-                    item.text = newText.trim();
-                } else {
-                    // For highlights, empty note is allowed (just highlighted text)
-                    item.note = newText.trim();
-                }
-                this.saveToStorage();
-                this.render();
-                // Re-apply highlights to update tooltips with new note text
-                this.applyHighlights();
+        // Collect existing tags for suggestions
+        this.collectAllTags();
+        const existingTags = item.tags || [];
+        const suggestedTags = [...this.allTags].filter(t => !existingTags.includes(t));
+        
+        // Create enhanced edit dialog with tags
+        const dialog = document.createElement('div');
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog" style="max-width: 500px;">
+                <div class="note-dialog-header">
+                    <h3>${title}</h3>
+                    <button class="note-dialog-close" id="editDialogClose">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    <div class="edit-note-section">
+                        <label style="display: block; font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;">
+                            ${item.type === 'note' ? 'Note text:' : 'Note (optional):'}
+                        </label>
+                        <textarea id="editNoteTextarea" class="note-dialog-input" placeholder="${item.type === 'note' ? 'Enter note text...' : 'Add a note to this highlight...'}">${this.escapeHtml(currentText)}</textarea>
+                    </div>
+                    
+                    <div class="edit-tags-section" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                        <label style="display: block; font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;">🏷️ Tags:</label>
+                        <div class="tag-input-container" style="margin-bottom: 10px;">
+                            <input type="text" id="editTagInput" class="tag-input" placeholder="Type a tag and press Enter..." autocomplete="off">
+                        </div>
+                        <div class="current-tags-list" id="editCurrentTags" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 30px;">
+                            ${existingTags.map(tag => `
+                                <span class="tag-badge" data-tag="${this.escapeHtml(tag)}">
+                                    ${this.escapeHtml(tag)}
+                                    <button class="tag-remove-btn" data-remove-tag="${this.escapeHtml(tag)}">×</button>
+                                </span>
+                            `).join('')}
+                        </div>
+                        ${suggestedTags.length > 0 ? `
+                            <div class="suggested-tags-section" style="margin-top: 10px;">
+                                <label style="display: block; font-size: 11px; color: #999; margin-bottom: 6px;">Click to add:</label>
+                                <div class="suggested-tags-list" id="editSuggestedTags" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                    ${suggestedTags.slice(0, 8).map(tag => `
+                                        <span class="tag-badge suggested" data-suggest-tag="${this.escapeHtml(tag)}">${this.escapeHtml(tag)}</span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" id="editDialogCancel" style="background: #9e9e9e;">Cancel</button>
+                    <button class="btn-primary" id="editDialogSave">Save</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        
+        // Track current tags state
+        let currentTags = [...existingTags];
+        
+        // Get elements
+        const textarea = dialog.querySelector('#editNoteTextarea');
+        const tagInput = dialog.querySelector('#editTagInput');
+        const currentTagsList = dialog.querySelector('#editCurrentTags');
+        const suggestedTagsList = dialog.querySelector('#editSuggestedTags');
+        
+        // Focus textarea
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        
+        // Helper to render current tags
+        const renderCurrentTags = () => {
+            currentTagsList.innerHTML = currentTags.map(tag => `
+                <span class="tag-badge" data-tag="${this.escapeHtml(tag)}">
+                    ${this.escapeHtml(tag)}
+                    <button class="tag-remove-btn" data-remove-tag="${this.escapeHtml(tag)}">×</button>
+                </span>
+            `).join('');
+        };
+        
+        // Helper to add a tag
+        const addTag = (tag) => {
+            const normalizedTag = tag.trim().toLowerCase();
+            if (!normalizedTag || currentTags.includes(normalizedTag)) return;
+            
+            currentTags.push(normalizedTag);
+            renderCurrentTags();
+            
+            // Remove from suggestions if present
+            if (suggestedTagsList) {
+                const suggestedBadge = suggestedTagsList.querySelector(`[data-suggest-tag="${normalizedTag}"]`);
+                if (suggestedBadge) suggestedBadge.remove();
             }
+        };
+        
+        // Helper to remove a tag
+        const removeTag = (tag) => {
+            const index = currentTags.indexOf(tag);
+            if (index > -1) {
+                currentTags.splice(index, 1);
+                renderCurrentTags();
+            }
+        };
+        
+        // Event: Add tag on Enter
+        tagInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addTag(tagInput.value);
+                tagInput.value = '';
+            }
+        });
+        
+        // Event: Remove tag button clicks
+        currentTagsList.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('[data-remove-tag]');
+            if (removeBtn) {
+                removeTag(removeBtn.dataset.removeTag);
+            }
+        });
+        
+        // Event: Suggested tag clicks
+        if (suggestedTagsList) {
+            suggestedTagsList.addEventListener('click', (e) => {
+                const suggestBadge = e.target.closest('[data-suggest-tag]');
+                if (suggestBadge) {
+                    addTag(suggestBadge.dataset.suggestTag);
+                }
+            });
+        }
+        
+        // Event: Save
+        const saveHandler = () => {
+            const newText = textarea.value;
+            
+            if (item.type === 'note') {
+                if (newText.trim() === '') {
+                    alert('Note text cannot be empty.');
+                    return;
+                }
+                item.text = newText.trim();
+            } else {
+                item.note = newText.trim();
+            }
+            
+            // Update tags
+            item.tags = currentTags.length > 0 ? currentTags : undefined;
+            
+            this.saveToStorage();
+            this.render();
+            this.applyHighlights();
+            dialog.remove();
+        };
+        
+        dialog.querySelector('#editDialogSave').addEventListener('click', saveHandler);
+        
+        // Event: Save on Ctrl+Enter in textarea
+        textarea.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                saveHandler();
+            }
+        });
+        
+        // Event: Close/Cancel
+        const closeDialog = () => dialog.remove();
+        dialog.querySelector('#editDialogClose').addEventListener('click', closeDialog);
+        dialog.querySelector('#editDialogCancel').addEventListener('click', closeDialog);
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) closeDialog();
         });
     }
     
