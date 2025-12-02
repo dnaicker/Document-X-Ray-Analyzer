@@ -993,15 +993,33 @@ class NotesManager {
                     <div class="edit-tags-section" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
                         <label style="display: block; font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;">🏷️ Tags:</label>
                         <div class="tag-input-container" style="margin-bottom: 10px;">
-                            <input type="text" id="editTagInput" class="tag-input" placeholder="Type a tag and press Enter..." autocomplete="off">
+                            <input type="text" id="editTagInput" class="tag-input" placeholder="Type a tag name..." autocomplete="off">
+                            <div class="tag-color-selector" style="margin-top: 10px;">
+                                <label style="display: block; margin-bottom: 5px; font-size: 11px; color: #666;">Tag Color:</label>
+                                <div class="color-options" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <button type="button" class="color-option selected" data-color="green" style="background: #4caf50;" title="Green">✓</button>
+                                    <button type="button" class="color-option" data-color="blue" style="background: #2196f3;" title="Blue"></button>
+                                    <button type="button" class="color-option" data-color="purple" style="background: #9c27b0;" title="Purple"></button>
+                                    <button type="button" class="color-option" data-color="orange" style="background: #ff9800;" title="Orange"></button>
+                                    <button type="button" class="color-option" data-color="red" style="background: #f44336;" title="Red"></button>
+                                    <button type="button" class="color-option" data-color="teal" style="background: #009688;" title="Teal"></button>
+                                    <button type="button" class="color-option" data-color="pink" style="background: #e91e63;" title="Pink"></button>
+                                    <button type="button" class="color-option" data-color="gray" style="background: #9e9e9e;" title="Gray"></button>
+                                </div>
+                            </div>
+                            <button id="saveEditTagBtn" class="btn-primary" style="margin-top: 10px; width: 100%; font-size: 13px;">💾 Add Tag</button>
                         </div>
                         <div class="current-tags-list" id="editCurrentTags" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 30px;">
-                            ${existingTags.map(tag => `
-                                <span class="tag-badge" data-tag="${this.escapeHtml(tag)}">
-                                    ${this.escapeHtml(tag)}
-                                    <button class="tag-remove-btn" data-remove-tag="${this.escapeHtml(tag)}">×</button>
-                                </span>
-                            `).join('')}
+                            ${existingTags.map(tag => {
+                                const tagName = this.getTagName(tag);
+                                const tagColor = this.getTagColor(tag);
+                                return `
+                                    <span class="tag-badge tag-${tagColor}" data-tag="${this.escapeHtml(tagName)}">
+                                        ${this.escapeHtml(tagName)}
+                                        <button class="tag-remove-btn" data-remove-tag="${this.escapeHtml(tagName)}">×</button>
+                                    </span>
+                                `;
+                            }).join('')}
                         </div>
                         ${suggestedTags.length > 0 ? `
                             <div class="suggested-tags-section" style="margin-top: 10px;">
@@ -1036,22 +1054,46 @@ class NotesManager {
         textarea.focus();
         textarea.setSelectionRange(textarea.value.length, textarea.value.length);
         
+        // Color selector logic
+        let selectedColor = 'green';
+        const colorOptions = dialog.querySelectorAll('.color-option');
+        colorOptions.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                colorOptions.forEach(b => {
+                    b.classList.remove('selected');
+                    b.textContent = '';
+                });
+                btn.classList.add('selected');
+                btn.textContent = '✓';
+                selectedColor = btn.dataset.color;
+            });
+        });
+        
         // Helper to render current tags
         const renderCurrentTags = () => {
-            currentTagsList.innerHTML = currentTags.map(tag => `
-                <span class="tag-badge" data-tag="${this.escapeHtml(tag)}">
-                    ${this.escapeHtml(tag)}
-                    <button class="tag-remove-btn" data-remove-tag="${this.escapeHtml(tag)}">×</button>
-                </span>
-            `).join('');
+            currentTagsList.innerHTML = currentTags.map(tag => {
+                const tagName = this.getTagName(tag);
+                const tagColor = this.getTagColor(tag);
+                return `
+                    <span class="tag-badge tag-${tagColor}" data-tag="${this.escapeHtml(tagName)}">
+                        ${this.escapeHtml(tagName)}
+                        <button class="tag-remove-btn" data-remove-tag="${this.escapeHtml(tagName)}">×</button>
+                    </span>
+                `;
+            }).join('');
         };
         
         // Helper to add a tag
-        const addTag = (tag) => {
+        const addTag = (tag, color = 'green') => {
             const normalizedTag = tag.trim().toLowerCase();
-            if (!normalizedTag || currentTags.includes(normalizedTag)) return;
+            if (!normalizedTag) return;
             
-            currentTags.push(normalizedTag);
+            // Check if tag already exists
+            const existingIndex = currentTags.findIndex(t => this.getTagName(t) === normalizedTag);
+            if (existingIndex > -1) return;
+            
+            currentTags.push({ name: normalizedTag, color: color });
             renderCurrentTags();
             
             // Remove from suggestions if present
@@ -1063,19 +1105,41 @@ class NotesManager {
         
         // Helper to remove a tag
         const removeTag = (tag) => {
-            const index = currentTags.indexOf(tag);
+            const index = currentTags.findIndex(t => this.getTagName(t) === tag);
             if (index > -1) {
                 currentTags.splice(index, 1);
                 renderCurrentTags();
             }
         };
         
+        // Save tag button click
+        const saveTagBtn = dialog.querySelector('#saveEditTagBtn');
+        const saveTagHandler = () => {
+            const tag = tagInput.value.trim();
+            if (tag) {
+                addTag(tag, selectedColor);
+                tagInput.value = '';
+                // Reset color to default
+                selectedColor = 'green';
+                colorOptions.forEach(b => {
+                    b.classList.remove('selected');
+                    b.textContent = '';
+                });
+                colorOptions[0].classList.add('selected');
+                colorOptions[0].textContent = '✓';
+            }
+        };
+        
+        saveTagBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            saveTagHandler();
+        });
+        
         // Event: Add tag on Enter
         tagInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                addTag(tagInput.value);
-                tagInput.value = '';
+                saveTagHandler();
             }
         });
         
@@ -1092,7 +1156,7 @@ class NotesManager {
             suggestedTagsList.addEventListener('click', (e) => {
                 const suggestBadge = e.target.closest('[data-suggest-tag]');
                 if (suggestBadge) {
-                    addTag(suggestBadge.dataset.suggestTag);
+                    addTag(suggestBadge.dataset.suggestTag, 'green'); // Default color for suggested tags
                 }
             });
         }
@@ -1731,11 +1795,15 @@ class NotesManager {
                         `}
                         ${itemTags.length > 0 ? `
                             <div class="note-tags">
-                                ${itemTags.map(tag => `
-                                    <span class="note-tag-badge" onclick="event.stopPropagation(); notesManager.setTagFilter('${this.escapeHtml(tag)}')" title="Filter by this tag">
-                                        🏷️ ${this.escapeHtml(tag)}
-                                    </span>
-                                `).join('')}
+                                ${itemTags.map(tag => {
+                                    const tagName = this.getTagName(tag);
+                                    const tagColor = this.getTagColor(tag);
+                                    return `
+                                        <span class="note-tag-badge tag-${tagColor}" onclick="event.stopPropagation(); notesManager.setTagFilter('${this.escapeHtml(tagName)}')" title="Filter by this tag">
+                                            🏷️ ${this.escapeHtml(tagName)}
+                                        </span>
+                                    `;
+                                }).join('')}
                             </div>
                         ` : ''}
                         <div class="note-meta">
@@ -1817,13 +1885,16 @@ class NotesManager {
         this.allTags = new Set();
         [...this.notes, ...this.highlights].forEach(item => {
             if (item.tags && Array.isArray(item.tags)) {
-                item.tags.forEach(tag => this.allTags.add(tag.toLowerCase()));
+                item.tags.forEach(tag => {
+                    const tagName = this.getTagName(tag);
+                    this.allTags.add(tagName.toLowerCase());
+                });
             }
         });
         return this.allTags;
     }
     
-    addTagToItem(itemId, tag) {
+    addTagToItem(itemId, tag, color = 'green') {
         const item = this.getItemById(itemId);
         if (!item) return false;
         
@@ -1832,10 +1903,16 @@ class NotesManager {
         
         if (!item.tags) item.tags = [];
         
-        // Don't add duplicate tags
-        if (item.tags.includes(normalizedTag)) return false;
+        // Check if tag already exists (by name only)
+        const existingTag = item.tags.find(t => {
+            const tagName = typeof t === 'string' ? t : t.name;
+            return tagName === normalizedTag;
+        });
         
-        item.tags.push(normalizedTag);
+        if (existingTag) return false;
+        
+        // Store tag as object with name and color
+        item.tags.push({ name: normalizedTag, color: color });
         this.saveToStorage();
         this.render();
         return true;
@@ -1846,7 +1923,10 @@ class NotesManager {
         if (!item || !item.tags) return false;
         
         const normalizedTag = tag.toLowerCase();
-        const index = item.tags.indexOf(normalizedTag);
+        const index = item.tags.findIndex(t => {
+            const tagName = typeof t === 'string' ? t : t.name;
+            return tagName === normalizedTag;
+        });
         
         if (index > -1) {
             item.tags.splice(index, 1);
@@ -1855,6 +1935,14 @@ class NotesManager {
             return true;
         }
         return false;
+    }
+    
+    getTagName(tag) {
+        return typeof tag === 'string' ? tag : tag.name;
+    }
+    
+    getTagColor(tag) {
+        return typeof tag === 'string' ? 'green' : (tag.color || 'green');
     }
     
     showAddTagDialog(itemId) {
@@ -1874,25 +1962,43 @@ class NotesManager {
         const dialog = document.createElement('div');
         dialog.className = 'note-dialog-overlay';
         dialog.innerHTML = `
-            <div class="note-dialog" style="max-width: 400px;">
+            <div class="note-dialog" style="max-width: 450px;">
                 <div class="note-dialog-header">
                     <h3>🏷️ Add Tags</h3>
                     <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
                 </div>
                 <div class="note-dialog-body">
                     <div class="tag-input-container">
-                        <input type="text" id="tagInput" class="tag-input" placeholder="Type a tag and press Enter..." autocomplete="off">
+                        <input type="text" id="tagInput" class="tag-input" placeholder="Type a tag name..." autocomplete="off">
+                        <div class="tag-color-selector" style="margin-top: 10px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">Tag Color:</label>
+                            <div class="color-options" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button type="button" class="color-option selected" data-color="green" style="background: #4caf50;" title="Green">✓</button>
+                                <button type="button" class="color-option" data-color="blue" style="background: #2196f3;" title="Blue"></button>
+                                <button type="button" class="color-option" data-color="purple" style="background: #9c27b0;" title="Purple"></button>
+                                <button type="button" class="color-option" data-color="orange" style="background: #ff9800;" title="Orange"></button>
+                                <button type="button" class="color-option" data-color="red" style="background: #f44336;" title="Red"></button>
+                                <button type="button" class="color-option" data-color="teal" style="background: #009688;" title="Teal"></button>
+                                <button type="button" class="color-option" data-color="pink" style="background: #e91e63;" title="Pink"></button>
+                                <button type="button" class="color-option" data-color="gray" style="background: #9e9e9e;" title="Gray"></button>
+                            </div>
+                        </div>
+                        <button id="saveTagBtn" class="btn-primary" style="margin-top: 10px; width: 100%;">💾 Save Tag</button>
                     </div>
                     ${existingTags.length > 0 ? `
                         <div class="current-tags-section">
                             <label>Current tags:</label>
                             <div class="current-tags-list">
-                                ${existingTags.map(tag => `
-                                    <span class="tag-badge" data-tag="${this.escapeHtml(tag)}">
-                                        ${this.escapeHtml(tag)}
-                                        <button class="tag-remove-btn" onclick="notesManager.removeTagFromItem('${itemId}', '${this.escapeHtml(tag)}'); this.closest('.tag-badge').remove();">×</button>
-                                    </span>
-                                `).join('')}
+                                ${existingTags.map(tag => {
+                                    const tagName = this.getTagName(tag);
+                                    const tagColor = this.getTagColor(tag);
+                                    return `
+                                        <span class="tag-badge tag-${tagColor}" data-tag="${this.escapeHtml(tagName)}">
+                                            ${this.escapeHtml(tagName)}
+                                            <button class="tag-remove-btn" onclick="notesManager.removeTagFromItem('${itemId}', '${this.escapeHtml(tagName)}'); this.closest('.tag-badge').remove();">×</button>
+                                        </span>
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
                     ` : ''}
@@ -1918,36 +2024,72 @@ class NotesManager {
         const input = dialog.querySelector('#tagInput');
         input.focus();
         
-        // Handle Enter key to add tag
+        // Color selector logic
+        let selectedColor = 'green';
+        const colorOptions = dialog.querySelectorAll('.color-option');
+        colorOptions.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                colorOptions.forEach(b => {
+                    b.classList.remove('selected');
+                    b.textContent = '';
+                });
+                btn.classList.add('selected');
+                btn.textContent = '✓';
+                selectedColor = btn.dataset.color;
+            });
+        });
+        
+        // Save tag function
+        const saveTag = () => {
+            const tag = input.value.trim();
+            if (tag) {
+                if (this.addTagToItem(itemId, tag, selectedColor)) {
+                    // Add tag badge to current tags section
+                    let currentTagsList = dialog.querySelector('.current-tags-list');
+                    if (!currentTagsList) {
+                        // Create section if it doesn't exist
+                        const section = document.createElement('div');
+                        section.className = 'current-tags-section';
+                        section.innerHTML = `<label>Current tags:</label><div class="current-tags-list"></div>`;
+                        dialog.querySelector('.tag-input-container').after(section);
+                        currentTagsList = section.querySelector('.current-tags-list');
+                    }
+                    
+                    const badge = document.createElement('span');
+                    badge.className = `tag-badge tag-${selectedColor}`;
+                    badge.dataset.tag = tag.toLowerCase();
+                    badge.innerHTML = `${this.escapeHtml(tag.toLowerCase())} <button class="tag-remove-btn" onclick="notesManager.removeTagFromItem('${itemId}', '${this.escapeHtml(tag.toLowerCase())}'); this.closest('.tag-badge').remove();">×</button>`;
+                    currentTagsList.appendChild(badge);
+                    
+                    // Remove from suggestions if present
+                    const suggestedBadge = dialog.querySelector(`.suggested-tags-list .tag-badge[onclick*="'${tag.toLowerCase()}'"]`);
+                    if (suggestedBadge) suggestedBadge.remove();
+                    
+                    input.value = '';
+                    selectedColor = 'green'; // Reset to default
+                    colorOptions.forEach(b => {
+                        b.classList.remove('selected');
+                        b.textContent = '';
+                    });
+                    colorOptions[0].classList.add('selected');
+                    colorOptions[0].textContent = '✓';
+                }
+            }
+        };
+        
+        // Save button click
+        const saveBtn = dialog.querySelector('#saveTagBtn');
+        saveBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            saveTag();
+        });
+        
+        // Enter key to save tag
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const tag = input.value.trim();
-                if (tag) {
-                    if (this.addTagToItem(itemId, tag)) {
-                        // Add tag badge to current tags section
-                        let currentTagsList = dialog.querySelector('.current-tags-list');
-                        if (!currentTagsList) {
-                            // Create section if it doesn't exist
-                            const section = document.createElement('div');
-                            section.className = 'current-tags-section';
-                            section.innerHTML = `<label>Current tags:</label><div class="current-tags-list"></div>`;
-                            dialog.querySelector('.tag-input-container').after(section);
-                            currentTagsList = section.querySelector('.current-tags-list');
-                        }
-                        
-                        const badge = document.createElement('span');
-                        badge.className = 'tag-badge';
-                        badge.dataset.tag = tag.toLowerCase();
-                        badge.innerHTML = `${this.escapeHtml(tag.toLowerCase())} <button class="tag-remove-btn" onclick="notesManager.removeTagFromItem('${itemId}', '${this.escapeHtml(tag.toLowerCase())}'); this.closest('.tag-badge').remove();">×</button>`;
-                        currentTagsList.appendChild(badge);
-                        
-                        // Remove from suggestions if present
-                        const suggestedBadge = dialog.querySelector(`.suggested-tags-list .tag-badge[onclick*="'${tag.toLowerCase()}'"]`);
-                        if (suggestedBadge) suggestedBadge.remove();
-                    }
-                    input.value = '';
-                }
+                saveTag();
             }
         });
     }

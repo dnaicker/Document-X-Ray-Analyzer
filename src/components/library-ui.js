@@ -224,9 +224,11 @@ class LibraryUI {
                     <span class="folder-count">${fileCount}</span>
                     ${folder.tags && folder.tags.length > 0 ? `
                         <div class="folder-tags-inline">
-                            ${folder.tags.slice(0, 2).map(tag => `
-                                <span class="folder-tag-mini">${this.escapeHtml(tag)}</span>
-                            `).join('')}
+                            ${folder.tags.slice(0, 2).map(tag => {
+                                const tagName = this.libraryManager.getTagName(tag);
+                                const tagColor = this.libraryManager.getTagColor(tag);
+                                return `<span class="folder-tag-mini tag-${tagColor}">${this.escapeHtml(tagName)}</span>`;
+                            }).join('')}
                             ${folder.tags.length > 2 ? `<span class="folder-tag-mini">+${folder.tags.length - 2}</span>` : ''}
                         </div>
                     ` : ''}
@@ -636,18 +638,36 @@ class LibraryUI {
                 </div>
                 <div class="note-dialog-body">
                     <div class="tag-input-container">
-                        <input type="text" id="folderTagInput" class="tag-input" placeholder="Type a tag and press Enter...">
+                        <input type="text" id="folderTagInput" class="tag-input" placeholder="Type a tag name...">
+                        <div class="tag-color-selector" style="margin-top: 10px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">Tag Color:</label>
+                            <div class="color-options" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button type="button" class="color-option selected" data-color="green" style="background: #4caf50;" title="Green">✓</button>
+                                <button type="button" class="color-option" data-color="blue" style="background: #2196f3;" title="Blue"></button>
+                                <button type="button" class="color-option" data-color="purple" style="background: #9c27b0;" title="Purple"></button>
+                                <button type="button" class="color-option" data-color="orange" style="background: #ff9800;" title="Orange"></button>
+                                <button type="button" class="color-option" data-color="red" style="background: #f44336;" title="Red"></button>
+                                <button type="button" class="color-option" data-color="teal" style="background: #009688;" title="Teal"></button>
+                                <button type="button" class="color-option" data-color="pink" style="background: #e91e63;" title="Pink"></button>
+                                <button type="button" class="color-option" data-color="gray" style="background: #9e9e9e;" title="Gray"></button>
+                            </div>
+                        </div>
+                        <button id="saveFolderTagBtn" class="btn-primary" style="margin-top: 10px; width: 100%;">💾 Save Tag</button>
                     </div>
                     ${existingTags.length > 0 ? `
                         <div class="current-tags-section">
                             <label>Current tags:</label>
                             <div class="current-tags-list" id="currentFolderTags">
-                                ${existingTags.map(tag => `
-                                    <span class="tag-badge">
-                                        ${this.escapeHtml(tag)}
-                                        <button class="tag-remove-btn" onclick="libraryUI.removeFolderTag('${folderId}', '${this.escapeHtml(tag)}', this)">×</button>
-                                    </span>
-                                `).join('')}
+                                ${existingTags.map(tag => {
+                                    const tagName = this.libraryManager.getTagName(tag);
+                                    const tagColor = this.libraryManager.getTagColor(tag);
+                                    return `
+                                        <span class="tag-badge tag-${tagColor}">
+                                            ${this.escapeHtml(tagName)}
+                                            <button class="tag-remove-btn" onclick="libraryUI.removeFolderTag('${folderId}', '${this.escapeHtml(tagName)}', this)">×</button>
+                                        </span>
+                                    `;
+                                }).join('')}
                             </div>
                         </div>
                     ` : '<div id="currentFolderTags"></div>'}
@@ -670,22 +690,60 @@ class LibraryUI {
         document.body.appendChild(dialog);
         
         const input = document.getElementById('folderTagInput');
+        
+        // Color selector logic
+        let selectedColor = 'green';
+        const colorOptions = dialog.querySelectorAll('.color-option');
+        colorOptions.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                colorOptions.forEach(b => {
+                    b.classList.remove('selected');
+                    b.textContent = '';
+                });
+                btn.classList.add('selected');
+                btn.textContent = '✓';
+                selectedColor = btn.dataset.color;
+            });
+        });
+        
+        // Save tag function
+        const saveTag = () => {
+            const tag = input.value.trim();
+            if (tag) {
+                this.addFolderTag(folderId, tag, null, selectedColor);
+                input.value = '';
+                // Reset color to default
+                selectedColor = 'green';
+                colorOptions.forEach(b => {
+                    b.classList.remove('selected');
+                    b.textContent = '';
+                });
+                colorOptions[0].classList.add('selected');
+                colorOptions[0].textContent = '✓';
+            }
+        };
+        
+        // Save button click
+        const saveBtn = document.getElementById('saveFolderTagBtn');
+        saveBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            saveTag();
+        });
+        
+        // Enter key to save
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const tag = input.value.trim();
-                if (tag) {
-                    this.addFolderTag(folderId, tag);
-                    input.value = '';
-                }
+                saveTag();
             }
         });
         
         setTimeout(() => input.focus(), 100);
     }
     
-    addFolderTag(folderId, tag, element) {
-        if (this.libraryManager.addTagToFolder(folderId, tag)) {
+    addFolderTag(folderId, tag, element, color = 'green') {
+        if (this.libraryManager.addTagToFolder(folderId, tag, color)) {
             // Remove from suggestions if present
             if (element) element.remove();
             
@@ -693,7 +751,7 @@ class LibraryUI {
             const container = document.getElementById('currentFolderTags');
             if (container) {
                 const badge = document.createElement('span');
-                badge.className = 'tag-badge';
+                badge.className = `tag-badge tag-${color}`;
                 badge.innerHTML = `${this.escapeHtml(tag)} <button class="tag-remove-btn" onclick="libraryUI.removeFolderTag('${folderId}', '${this.escapeHtml(tag)}', this.parentElement)">×</button>`;
                 container.appendChild(badge);
             }

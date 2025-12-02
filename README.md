@@ -88,6 +88,9 @@ Toggle any category on/off to focus on what matters to you.
 
 ### Build From Source
 
+**Linux:**
+`Docker/WSL2 for Linux builds`
+
 **Prerequisites:**
 - Node.js 16+ installed
 - npm package manager

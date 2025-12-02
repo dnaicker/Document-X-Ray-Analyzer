@@ -210,23 +210,45 @@ class LibraryManager {
     
     // ========== FOLDER TAGS ==========
     
-    addTagToFolder(folderId, tag) {
+    addTagToFolder(folderId, tag, color = 'green') {
         const folder = this.library.folders[folderId];
         if (!folder) return false;
         
         const normalizedTag = tag.trim().toLowerCase();
-        if (!normalizedTag || folder.tags.includes(normalizedTag)) return false;
+        if (!normalizedTag) return false;
         
-        folder.tags.push(normalizedTag);
+        // Check if tag already exists (by name only)
+        const existingTag = folder.tags.find(t => {
+            const tagName = typeof t === 'string' ? t : t.name;
+            return tagName === normalizedTag;
+        });
+        
+        if (existingTag) return false;
+        
+        // Store tag as object with name and color
+        folder.tags.push({ name: normalizedTag, color: color });
         this.saveLibrary();
         return true;
+    }
+    
+    getTagName(tag) {
+        return typeof tag === 'string' ? tag : tag.name;
+    }
+    
+    getTagColor(tag) {
+        return typeof tag === 'string' ? 'green' : (tag.color || 'green');
     }
     
     removeTagFromFolder(folderId, tag) {
         const folder = this.library.folders[folderId];
         if (!folder) return false;
         
-        const index = folder.tags.indexOf(tag.toLowerCase());
+        const normalizedTag = tag.toLowerCase();
+        const index = folder.tags.findIndex(t => {
+            const tagName = this.getTagName(t);
+            return tagName === normalizedTag;
+        });
+        
         if (index > -1) {
             folder.tags.splice(index, 1);
             this.saveLibrary();
@@ -239,7 +261,10 @@ class LibraryManager {
         const tags = new Set();
         Object.values(this.library.folders).forEach(folder => {
             if (folder.tags) {
-                folder.tags.forEach(tag => tags.add(tag));
+                folder.tags.forEach(tag => {
+                    const tagName = this.getTagName(tag);
+                    tags.add(tagName);
+                });
             }
         });
         return [...tags].sort();
