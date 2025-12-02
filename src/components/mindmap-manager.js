@@ -57,6 +57,7 @@ class MindmapManager {
 
         // Setup events
         this.canvas.addEventListener('mousedown', this.handleMouseDown);
+        this.canvas.addEventListener('dblclick', this.handleDoubleClick.bind(this));
         this.canvas.addEventListener('contextmenu', this.handleContextMenu);
         window.addEventListener('mousemove', this.handleMouseMove);
         window.addEventListener('mouseup', this.handleMouseUp);
@@ -374,6 +375,23 @@ class MindmapManager {
         this.canvas.style.cursor = 'default';
     }
 
+    handleDoubleClick(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const worldPos = this.screenToWorld(mouseX, mouseY);
+
+        // Check if double-clicking a node
+        for (let i = this.nodes.length - 1; i >= 0; i--) {
+            const node = this.nodes[i];
+            if (worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
+                worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
+                this.editNode(node);
+                return;
+            }
+        }
+    }
+
     handleWheel(e) {
         e.preventDefault();
         
@@ -667,10 +685,43 @@ class MindmapManager {
         this.ctx.stroke();
 
         // Body Text
-        this.ctx.fillStyle = '#444';
-        this.ctx.font = `${this.FONT_SIZE}px Arial`;
-        const text = node.data.text || node.data.note || '';
-        this.wrapText(text, x + 15, y + 50, w - 30, 18);
+        const isHighlight = node.data.type === 'highlight';
+        let currentY = y + 50;
+        
+        if (isHighlight) {
+            const comment = node.data.comment || '';
+            const highlightedText = node.data.text || '';
+            
+            // Always show the highlighted text first (in italic, lighter color)
+            this.ctx.fillStyle = '#888';
+            this.ctx.font = `italic ${this.FONT_SIZE - 1}px Arial`;
+            const highlightLines = this.wrapTextWithReturn(highlightedText, x + 15, currentY, w - 30, 16, 2);
+            currentY += highlightLines * 16;
+            
+            // If there's a comment, show it below with a separator
+            if (comment) {
+                // Add a small visual separator
+                currentY += 8;
+                this.ctx.strokeStyle = '#e0e0e0';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.moveTo(x + 15, currentY);
+                this.ctx.lineTo(x + w - 15, currentY);
+                this.ctx.stroke();
+                currentY += 12;
+                
+                // Show comment in regular style
+                this.ctx.fillStyle = '#444';
+                this.ctx.font = `${this.FONT_SIZE}px Arial`;
+                this.wrapTextWithReturn(comment, x + 15, currentY, w - 30, 18, 3);
+            }
+        } else {
+            // For notes, show the note text
+            this.ctx.fillStyle = '#444';
+            this.ctx.font = `${this.FONT_SIZE}px Arial`;
+            const text = node.data.text || node.data.note || '';
+            this.wrapTextWithReturn(text, x + 15, currentY, w - 30, 18, 5);
+        }
     }
 
     drawRoundedRect(x, y, w, h, r) {
@@ -713,6 +764,34 @@ class MindmapManager {
             }
         }
         this.ctx.fillText(line, x, y);
+    }
+
+    wrapTextWithReturn(text, x, y, maxWidth, lineHeight, maxLines = 5) {
+        const words = text.split(' ');
+        let line = '';
+        let testLine = '';
+        let lineCount = 0;
+
+        for (let n = 0; n < words.length; n++) {
+            testLine = line + words[n] + ' ';
+            const metrics = this.ctx.measureText(testLine);
+            const testWidth = metrics.width;
+            
+            if (testWidth > maxWidth && n > 0) {
+                this.ctx.fillText(line, x, y);
+                line = words[n] + ' ';
+                y += lineHeight;
+                lineCount++;
+                if (lineCount >= maxLines) {
+                    this.ctx.fillText('...', x, y);
+                    return lineCount + 1;
+                }
+            } else {
+                line = testLine;
+            }
+        }
+        this.ctx.fillText(line, x, y);
+        return lineCount + 1;
     }
 
     drawLinkHandle(node) {
@@ -768,6 +847,7 @@ class MindmapManager {
 
         if (node) {
             // Node options
+            this.addMenuItem('✏️ Edit Note', () => this.editNode(node));
             this.addMenuItem('🔗 Link to...', () => this.showLinkDialog(node));
             this.addMenuItem('🗑️ Delete Note', () => this.deleteNode(node), true);
         } else {
@@ -948,6 +1028,88 @@ class MindmapManager {
         };
 
         dialog.querySelector('#confirmAddNoteBtn').addEventListener('click', handleAdd);
+    }
+
+    editNode(node) {
+        const currentText = node.data.text || node.data.note || '';
+        const currentComment = node.data.comment || '';
+        const isHighlight = node.data.type === 'highlight';
+        
+        // Create edit dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog" style="max-width: 500px;">
+                <div class="note-dialog-header">
+                    <h3>${isHighlight ? '✏️ Edit Highlight' : '✏️ Edit Note'}</h3>
+                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    ${isHighlight ? `
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #666;">Highlighted Text:</label>
+                            <div style="background: #f5f5f5; padding: 10px; border-radius: 4px; color: #333; font-style: italic;">
+                                "${this.escapeHtml(currentText)}"
+                            </div>
+                        </div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #666;">Your Comment:</label>
+                        <textarea id="editNoteTextarea" class="note-dialog-textarea" placeholder="Add your comment about this highlight..." style="min-height: 120px;">${this.escapeHtml(currentComment)}</textarea>
+                    ` : `
+                        <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #666;">Note Text:</label>
+                        <textarea id="editNoteTextarea" class="note-dialog-textarea" placeholder="Type your note here..." style="min-height: 150px;">${this.escapeHtml(currentText)}</textarea>
+                    `}
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
+                    <button class="btn-primary" id="confirmEditBtn">Save Changes</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        const textarea = document.getElementById('editNoteTextarea');
+        textarea.focus();
+        
+        // Handle save button
+        const handleSave = () => {
+            const newText = textarea.value.trim();
+            
+            if (newText) {
+                // Update the note/highlight
+                const item = this.notesManager.getItemById(node.id);
+                if (item) {
+                    if (isHighlight) {
+                        item.comment = newText;
+                    } else {
+                        item.text = newText;
+                        item.note = newText; // Some notes use 'note' property
+                    }
+                    
+                    this.notesManager.saveToStorage();
+                    this.notesManager.render();
+                    this.refreshData();
+                    console.log('✓ Note updated');
+                }
+                dialog.remove();
+            }
+        };
+        
+        document.getElementById('confirmEditBtn').addEventListener('click', handleSave);
+        
+        // Handle Enter key (Ctrl+Enter to save)
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                handleSave();
+            }
+        });
+        
+        // Close on background click
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        });
     }
 
     deleteNode(node) {
