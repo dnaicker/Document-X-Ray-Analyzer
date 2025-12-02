@@ -41,10 +41,12 @@ class LibraryUI {
         const html = `
             <div class="library-container">
                 <div class="library-header">
-                    <h2>📚 My Library</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2>📚 My Library</h2>
+                    </div>
                     <div class="library-actions">
                         <button class="btn-library" onclick="libraryUI.showCreateFolderDialog()" title="New Folder (Ctrl+N)">
-                            ➕ New Folder
+                            ➕ Folder
                         </button>
                         <button class="btn-library" onclick="libraryUI.showImportDialog()" title="Import Files">
                             📥 Import
@@ -143,10 +145,14 @@ class LibraryUI {
             <div class="library-folder ${folder.expanded ? 'expanded' : ''}" 
                  data-folder-id="${folder.id}"
                  style="padding-left: ${indent}px;">
-                <div class="folder-header" 
+                <div class="folder-header folder-drop-target" 
+                     data-folder-id="${folder.id}"
                      onclick="libraryUI.toggleFolder('${folder.id}')"
-                     oncontextmenu="libraryUI.showFolderContextMenu(event, '${folder.id}')">
-                    ${hasChildren ? `<span class="folder-expand-icon">${expandIcon}</span>` : '<span class="folder-expand-icon" style="width: 16px;"></span>'}
+                     oncontextmenu="libraryUI.showFolderContextMenu(event, '${folder.id}')"
+                     ondragover="libraryUI.handleDragOver(event)"
+                     ondragleave="libraryUI.handleDragLeave(event)"
+                     ondrop="libraryUI.handleDrop(event, '${folder.id}')">
+                    ${hasChildren ? `<span class="folder-expand-icon">${expandIcon}</span>` : '<span class="folder-expand-icon" style="width: 12px;"></span>'}
                     <span class="folder-icon">${folder.icon}</span>
                     <span class="folder-name">${this.escapeHtml(folder.name)}</span>
                     <span class="folder-count">${fileCount}</span>
@@ -180,7 +186,7 @@ class LibraryUI {
         
         const library = this.libraryManager.library;
         
-        return folder.files.map(filePath => {
+        return `<div class="folder-files-container">${folder.files.map(filePath => {
             const file = library.files[filePath];
             if (!file) return '';
             
@@ -191,26 +197,30 @@ class LibraryUI {
             
             const fileExt = file.name.split('.').pop().toLowerCase();
             const fileIcon = this.getFileIcon(fileExt);
-            const lastOpened = file.lastOpened ? new Date(file.lastOpened).toLocaleDateString() : 'Never';
             
             return `
                 <div class="library-file" 
                      data-file-path="${this.escapeHtml(file.path)}"
-                     onclick="libraryUI.openFile('${this.escapeHtml(file.path)}')"
-                     oncontextmenu="libraryUI.showFileContextMenu(event, '${this.escapeHtml(file.path)}')">
+                     draggable="true"
+                     ondragstart="libraryUI.handleFileDragStart(event)"
+                     ondragend="libraryUI.handleFileDragEnd(event)"
+                     onclick="libraryUI.handleFileClick(event)"
+                     ondblclick="libraryUI.handleFileDoubleClick(event)"
+                     oncontextmenu="libraryUI.handleFileContextMenu(event)"
+                     title="${this.escapeHtml(file.name)}">
                     <span class="file-icon">${fileIcon}</span>
                     <div class="file-info">
                         <div class="file-name">${this.escapeHtml(file.name)}</div>
-                        <div class="file-meta">
-                            Last opened: ${lastOpened}
-                            ${file.tags && file.tags.length > 0 ? `
-                                · ${file.tags.map(tag => `<span class="file-tag-mini">${this.escapeHtml(tag)}</span>`).join(' ')}
-                            ` : ''}
-                        </div>
+                        ${file.tags && file.tags.length > 0 ? `
+                            <div class="file-meta">
+                                ${file.tags.slice(0, 2).map(tag => `<span class="file-tag-mini">${this.escapeHtml(tag)}</span>`).join(' ')}
+                                ${file.tags.length > 2 ? `<span class="file-tag-mini">+${file.tags.length - 2}</span>` : ''}
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
-        }).join('');
+        }).join('')}</div>`;
     }
     
     getFileIcon(extension) {
@@ -232,13 +242,17 @@ class LibraryUI {
     }
     
     showCreateFolderDialog(parentId = 'root') {
+        // Remove any existing dialogs first
+        document.querySelectorAll('.note-dialog-overlay').forEach(d => d.remove());
+        
         const dialog = document.createElement('div');
+        dialog.id = 'createFolderDialog';
         dialog.className = 'note-dialog-overlay';
         dialog.innerHTML = `
             <div class="note-dialog" style="max-width: 400px;">
                 <div class="note-dialog-header">
                     <h3>➕ Create New Folder</h3>
-                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                    <button class="note-dialog-close" onclick="document.getElementById('createFolderDialog').remove()">×</button>
                 </div>
                 <div class="note-dialog-body">
                     <div class="form-group">
@@ -249,24 +263,49 @@ class LibraryUI {
                         <label>Icon (emoji):</label>
                         <div class="icon-picker">
                             ${['📁', '📂', '📚', '📖', '📕', '📘', '📗', '📙', '🗂️', '📋', '📊', '🔬', '🎓', '💼', '🏢', '🌍'].map(icon => `
-                                <button class="icon-option" data-icon="${icon}" onclick="libraryUI.selectIcon(this)">${icon}</button>
+                                <button type="button" class="icon-option" data-icon="${icon}" onclick="libraryUI.selectIcon(this)">${icon}</button>
                             `).join('')}
                         </div>
                         <input type="hidden" id="selectedIcon" value="📁">
                     </div>
                 </div>
                 <div class="note-dialog-footer">
-                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
-                    <button class="btn-primary" onclick="libraryUI.createFolder('${parentId}')">Create</button>
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('createFolderDialog').remove()">Cancel</button>
+                    <button type="button" class="btn-primary" id="createFolderBtn">Create</button>
                 </div>
             </div>
         `;
         document.body.appendChild(dialog);
         
-        setTimeout(() => document.getElementById('newFolderName').focus(), 100);
+        // Setup Create button event listener
+        const createBtn = document.getElementById('createFolderBtn');
+        if (createBtn) {
+            createBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.createFolder(parentId);
+            });
+        }
+        
+        // Allow Enter key to create folder
+        const nameInput = document.getElementById('newFolderName');
+        if (nameInput) {
+            nameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.createFolder(parentId);
+                }
+            });
+        }
+        
+        setTimeout(() => {
+            if (nameInput) nameInput.focus();
+        }, 100);
     }
     
     selectIcon(button) {
+        event.preventDefault(); // Prevent any form submission
+        event.stopPropagation();
+        
         // Remove active class from all
         document.querySelectorAll('.icon-option').forEach(btn => btn.classList.remove('active'));
         // Add to clicked
@@ -287,10 +326,29 @@ class LibraryUI {
         
         const icon = iconInput.value || '📁';
         
-        this.libraryManager.createFolder(name, parentId, icon);
+        const newFolder = this.libraryManager.createFolder(name, parentId, icon);
+        
+        // Expand parent folder to show the new subfolder
+        if (parentId && parentId !== 'root') {
+            const parentFolder = this.libraryManager.getFolder(parentId);
+            if (parentFolder && !parentFolder.expanded) {
+                this.libraryManager.toggleFolderExpanded(parentId);
+            }
+        }
+        
+        // Also expand the root "My Library" if creating at root level
+        if (parentId === 'root') {
+            const rootFolder = this.libraryManager.getFolder('root');
+            if (rootFolder && !rootFolder.expanded) {
+                this.libraryManager.toggleFolderExpanded('root');
+            }
+        }
         
         // Close dialog
-        document.querySelector('.note-dialog-overlay').remove();
+        const dialog = document.getElementById('createFolderDialog');
+        if (dialog) {
+            dialog.remove();
+        }
     }
     
     showFolderContextMenu(event, folderId) {
@@ -479,6 +537,21 @@ class LibraryUI {
         }
     }
     
+    openFileInNewTab(filePath) {
+        // Prevent single click from firing
+        event.stopPropagation();
+        
+        this.libraryManager.updateFileLastOpened(filePath);
+        
+        // Open in new tab using tab manager
+        if (window.openFileInNewTab) {
+            window.openFileInNewTab(filePath);
+        } else {
+            // Fallback to regular open
+            this.openFile(filePath);
+        }
+    }
+    
     showMoveFileDialog(filePath) {
         // Simple implementation - could be enhanced with tree picker
         const folders = Object.values(this.libraryManager.library.folders)
@@ -607,12 +680,158 @@ class LibraryUI {
         this.render();
     }
     
+    handleFileClick(event) {
+        event.stopPropagation();
+        const fileElement = event.currentTarget;
+        const filePath = fileElement.getAttribute('data-file-path');
+        if (filePath) {
+            // getAttribute returns the decoded value, so we don't need to unescape HTML entities
+            // unless they were double-escaped. But escapeHtml matches unescapeHtml logic.
+            // However, escapeHtml escapes & to &amp;. getAttribute decodes &amp; to &.
+            // So we effectively get the raw path back.
+            this.openFile(filePath);
+        }
+    }
+
+    handleFileDoubleClick(event) {
+        event.stopPropagation();
+        const fileElement = event.currentTarget;
+        const filePath = fileElement.getAttribute('data-file-path');
+        if (filePath) {
+            this.openFileInNewTab(filePath);
+        }
+    }
+
+    handleFileContextMenu(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        const fileElement = event.currentTarget;
+        const filePath = fileElement.getAttribute('data-file-path');
+        if (filePath) {
+            this.showFileContextMenu(event, filePath);
+        }
+    }
+
+    // ========== DRAG AND DROP ==========
+    
+    handleFileDragStart(event) {
+        event.stopPropagation();
+        
+        // Get file path from data attribute
+        const fileElement = event.target.closest('.library-file');
+        if (!fileElement) return;
+        
+        // Get the raw path and unescape HTML entities
+        const escapedPath = fileElement.getAttribute('data-file-path');
+        const filePath = this.unescapeHtml(escapedPath);
+        this.draggedFilePath = filePath;
+        
+        fileElement.classList.add('dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', filePath);
+        
+        console.log('Drag started for file:', filePath);
+    }
+    
+    handleFileDragEnd(event) {
+        const fileElement = event.target.closest('.library-file');
+        if (fileElement) {
+            fileElement.classList.remove('dragging');
+        }
+        
+        console.log('Drag ended');
+        
+        // Remove all drag-over classes
+        document.querySelectorAll('.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+    }
+    
+    handleDragOver(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        
+        const folderHeader = event.currentTarget;
+        if (!folderHeader.classList.contains('drag-over')) {
+            folderHeader.classList.add('drag-over');
+        }
+    }
+    
+    handleDragLeave(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const folderHeader = event.currentTarget;
+        // Only remove if we're actually leaving the element (not entering a child)
+        const rect = folderHeader.getBoundingClientRect();
+        const x = event.clientX;
+        const y = event.clientY;
+        
+        if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+            folderHeader.classList.remove('drag-over');
+        }
+    }
+    
+    handleDrop(event, targetFolderId) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const folderHeader = event.currentTarget;
+        folderHeader.classList.remove('drag-over');
+        
+        console.log('Drop event - draggedFilePath:', this.draggedFilePath, 'targetFolder:', targetFolderId);
+        
+        if (!this.draggedFilePath) {
+            console.log('No dragged file path');
+            return;
+        }
+        
+        const file = this.libraryManager.getFile(this.draggedFilePath);
+        console.log('File data:', file);
+        
+        if (!file) {
+            console.log('File not found in library');
+            return;
+        }
+        
+        // Don't do anything if dropping in same folder
+        if (file.folder === targetFolderId) {
+            console.log('Already in target folder');
+            return;
+        }
+        
+        // Move the file
+        console.log('Moving file from', file.folder, 'to', targetFolderId);
+        const success = this.libraryManager.moveFileToFolder(this.draggedFilePath, targetFolderId);
+        console.log('Move result:', success);
+        
+        if (success) {
+            // Show success feedback
+            const targetFolder = this.libraryManager.getFolder(targetFolderId);
+            if (targetFolder) {
+                // Expand target folder to show the file
+                if (!targetFolder.expanded) {
+                    this.libraryManager.toggleFolderExpanded(targetFolderId);
+                }
+            }
+        }
+        
+        this.draggedFilePath = null;
+    }
+    
     // ========== UTILITIES ==========
     
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    unescapeHtml(text) {
+        const div = document.createElement('div');
+        div.innerHTML = text;
+        return div.textContent;
     }
 }
 

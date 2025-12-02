@@ -442,6 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof LibraryUI !== 'undefined' && typeof libraryManager !== 'undefined') {
         libraryUI = new LibraryUI(libraryManager);
         libraryUI.initialize('libraryView');
+        setupLibraryResizer();
         console.log('Library UI initialized');
     }
     
@@ -1454,8 +1455,6 @@ openFileBtn.addEventListener('click', async () => {
                 throw new Error(`Unsupported file type: ${currentFileType}`);
             }
             
-            // Hide library view when file is opened
-            hideLibraryView();
         }
     } catch (error) {
         console.error('Error opening file:', error);
@@ -4082,28 +4081,37 @@ function showLoading(message = 'Processing...', indeterminate = false) {
     }
 }
 
-// Library View Functions
-function showLibraryView() {
-    const libraryView = document.getElementById('libraryView');
-    const pdfCanvas = document.getElementById('pdfCanvas');
+// Library Panel Resizer
+function setupLibraryResizer() {
+    const libraryPanel = document.getElementById('libraryPanel');
+    const libraryResizer = document.getElementById('libraryResizer');
     
-    if (libraryView) libraryView.style.display = 'block';
-    if (pdfCanvas) pdfCanvas.style.display = 'none';
+    if (!libraryPanel || !libraryResizer) return;
     
-    // Hide EPUB/DOCX containers
-    const pdfContainer = document.getElementById('pdfViewerContainer');
-    if (pdfContainer) {
-        const epubContainer = pdfContainer.querySelector('.epub-container');
-        if (epubContainer) epubContainer.style.display = 'none';
+    let isResizing = false;
+    
+    libraryResizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
         
-        const docxContainer = pdfContainer.querySelector('.docx-content');
-        if (docxContainer) docxContainer.style.display = 'none';
-    }
-}
-
-function hideLibraryView() {
-    const libraryView = document.getElementById('libraryView');
-    if (libraryView) libraryView.style.display = 'none';
+        const newWidth = e.clientX;
+        if (newWidth >= 200 && newWidth <= 500) {
+            libraryPanel.style.width = newWidth + 'px';
+        }
+    });
+    
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    });
 }
 
 // Open file from library
@@ -4133,10 +4141,59 @@ window.openFileFromLibrary = async function(filePath) {
         } else if (fileType === 'docx') {
             await loadDOCXFile(filePath);
         }
-        
-        hideLibraryView();
     } catch (error) {
         console.error('Error opening file from library:', error);
+        setStatus('❌ Error: ' + error.message);
+        hideLoading();
+    }
+};
+
+// Open file in new tab from library (or switch to existing tab)
+window.openFileInNewTab = async function(filePath) {
+    try {
+        // Determine file type from extension
+        const ext = filePath.split('.').pop().toLowerCase();
+        let fileType = 'pdf';
+        if (ext === 'epub') fileType = 'epub';
+        else if (ext === 'docx' || ext === 'doc') fileType = 'docx';
+        
+        const fileName = filePath.split(/[\\/]/).pop();
+        
+        // Update last opened in library
+        if (typeof libraryManager !== 'undefined') {
+            libraryManager.updateFileLastOpened(filePath);
+        }
+        
+        // Check if file is already open in a tab
+        if (typeof tabManager !== 'undefined') {
+            const existingTab = tabManager.tabs.find(t => t.filePath === filePath);
+            
+            if (existingTab) {
+                // File is already open - just switch to that tab
+                console.log('File already open in tab, switching to it:', filePath);
+                tabManager.switchTab(filePath);
+                return;
+            }
+            
+            // File not open yet - add new tab
+            tabManager.addTab(filePath, fileName, fileType);
+        }
+        
+        // Then load the file
+        currentFilePath = filePath;
+        currentFileName = fileName;
+        currentFileType = fileType;
+        fileNameDisplay.textContent = currentFileName;
+        
+        if (fileType === 'pdf') {
+            await loadPDFFile(filePath);
+        } else if (fileType === 'epub') {
+            await loadEPUBFile(filePath);
+        } else if (fileType === 'docx') {
+            await loadDOCXFile(filePath);
+        }
+    } catch (error) {
+        console.error('Error opening file in new tab:', error);
         setStatus('❌ Error: ' + error.message);
         hideLoading();
     }

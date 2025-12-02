@@ -34,6 +34,16 @@
 
     <!-- Main Content Area -->
     <div class="main-container">
+        <!-- Library Sidebar (Left-most panel) -->
+        <div class="library-panel" id="libraryPanel">
+            <div id="libraryView" class="library-view">
+                <!-- Library UI will be rendered here -->
+            </div>
+        </div>
+        
+        <!-- Resizer between Library and Document Viewer -->
+        <div class="resizer" id="libraryResizer"></div>
+        
         <!-- Left Panel: Document Viewer -->
         <div class="pdf-panel" id="pdfPanel">
             <div class="panel-header">
@@ -96,11 +106,6 @@
                 </div>
             </div>
             <div id="pdfViewerContainer" class="pdf-viewer-container">
-                <!-- Library View (shown when no file is open) -->
-                <div id="libraryView" class="library-view">
-                    <!-- Library UI will be rendered here -->
-                </div>
-                
                 <!-- PDF Loading Overlay -->
                 <div id="pdfLoadingOverlay" class="pdf-loading-overlay hidden">
                     <div class="pdf-loading-content">
