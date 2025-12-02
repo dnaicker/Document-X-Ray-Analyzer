@@ -64,7 +64,7 @@ function createWindow() {
 
   mainWindow.loadFile('src/index.html');
 
-  // Open DevTools in development
+  // Open DevTools in development only
   if (process.env.NODE_ENV === 'development') {
     mainWindow.webContents.openDevTools();
   }
@@ -94,29 +94,34 @@ app.on('window-all-closed', () => {
 
 // IPC Handlers
 ipcMain.handle('open-file-dialog', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'Supported Documents', extensions: ['pdf', 'epub', 'docx'] },
-      { name: 'PDF Files', extensions: ['pdf'] },
-      { name: 'EPUB Files', extensions: ['epub'] },
-      { name: 'Word Documents', extensions: ['docx'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
-  });
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Supported Documents', extensions: ['pdf', 'epub', 'docx'] },
+        { name: 'PDF Files', extensions: ['pdf'] },
+        { name: 'EPUB Files', extensions: ['epub'] },
+        { name: 'Word Documents', extensions: ['docx'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
 
-  if (!result.canceled && result.filePaths.length > 0) {
-    const filePath = result.filePaths[0];
-    const ext = path.extname(filePath).toLowerCase();
-    return {
-      canceled: false,
-      filePath: filePath,
-      fileName: path.basename(filePath),
-      fileType: ext.substring(1) // Remove the dot
-    };
+    if (!result.canceled && result.filePaths.length > 0) {
+      const filePath = result.filePaths[0];
+      const ext = path.extname(filePath).toLowerCase();
+      return {
+        canceled: false,
+        filePath: filePath,
+        fileName: path.basename(filePath),
+        fileType: ext.substring(1) // Remove the dot
+      };
+    }
+
+    return { canceled: true };
+  } catch (error) {
+    console.error('Error in open-file-dialog handler:', error);
+    return { canceled: true, error: error.message };
   }
-
-  return { canceled: true };
 });
 
 ipcMain.handle('read-pdf-file', async (event, filePath) => {

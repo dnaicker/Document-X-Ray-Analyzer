@@ -382,6 +382,46 @@ class RecentFilesManager {
 
 const recentFilesManager = new RecentFilesManager();
 
+// Dropdown menu handler
+function initializeDropdowns() {
+    const dropdowns = document.querySelectorAll('.dropdown');
+    
+    dropdowns.forEach(dropdown => {
+        const dropbtn = dropdown.querySelector('.dropbtn');
+        
+        if (dropbtn) {
+            dropbtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                
+                // Toggle active class
+                const isActive = dropdown.classList.contains('active');
+                
+                // Close all dropdowns
+                document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
+                
+                // Toggle current
+                if (!isActive) {
+                    dropdown.classList.add('active');
+                }
+            });
+        }
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
+        }
+    });
+    
+    // Close dropdown after clicking a menu item
+    document.querySelectorAll('.dropdown-content button, .dropdown-content a').forEach(item => {
+        item.addEventListener('click', () => {
+            document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('active'));
+        });
+    });
+}
+
 // DOM Elements
 const openFileBtn = document.getElementById('openFileBtn');
 const closePdfBtn = document.getElementById('closePdfBtn');
@@ -453,6 +493,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof tabManager !== 'undefined' && tabManager.finishRestore) {
         tabManager.finishRestore();
     }
+    
+    // Initialize dropdown click behavior
+    initializeDropdowns();
 });
 
 // Helper function to download missing file
@@ -1427,11 +1470,12 @@ if (closePdfBtn) {
 }
 
 // File Operations
-openFileBtn.addEventListener('click', async () => {
-    try {
-        const result = await ipcRenderer.invoke('open-file-dialog');
-        
-        if (!result.canceled) {
+if (openFileBtn) {
+    openFileBtn.addEventListener('click', async (e) => {
+        try {
+            const result = await ipcRenderer.invoke('open-file-dialog');
+            
+            if (!result.canceled) {
             currentFileName = result.fileName;
             currentFilePath = result.filePath;
             currentFileType = result.fileType || 'pdf';
@@ -1461,7 +1505,8 @@ openFileBtn.addEventListener('click', async () => {
         setStatus('❌ Error: ' + error.message);
         hideLoading();
     }
-});
+    });
+}
 
 // Welcome screen open file button
 const welcomeOpenFileBtn = document.getElementById('welcomeOpenFileBtn');
