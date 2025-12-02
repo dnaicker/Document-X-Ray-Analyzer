@@ -287,6 +287,29 @@ class LibraryManager {
         return Array.from(tagsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     }
     
+    getAllTags() {
+        const tags = new Set();
+        // Collect folder tags
+        Object.values(this.library.folders).forEach(folder => {
+            if (folder.tags) {
+                folder.tags.forEach(tag => {
+                    const tagName = this.getTagName(tag);
+                    tags.add(tagName);
+                });
+            }
+        });
+        // Collect file tags
+        Object.values(this.library.files).forEach(file => {
+            if (file.tags) {
+                file.tags.forEach(tag => {
+                    const tagName = typeof tag === 'string' ? tag : tag.name;
+                    tags.add(tagName);
+                });
+            }
+        });
+        return [...tags].sort();
+    }
+    
     // ========== FILE OPERATIONS ==========
     
     addFile(filePath, fileName, folderId = 'unfiled') {

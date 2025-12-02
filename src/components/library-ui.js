@@ -112,7 +112,7 @@ class LibraryUI {
     }
     
     renderTagFilter() {
-        const tags = this.libraryManager.getAllFolderTags();
+        const tags = this.libraryManager.getAllTags(); // Get both folder and file tags
         if (tags.length === 0) return '';
         
         return `
@@ -136,14 +136,20 @@ class LibraryUI {
         
         // Check folder itself
         const matchesFolderName = folder.name.toLowerCase().includes(query);
-        const matchesFolderTags = folder.tags && folder.tags.some(tag => tag.toLowerCase().includes(query));
+        const matchesFolderTags = folder.tags && folder.tags.some(tag => {
+            const tagName = typeof tag === 'string' ? tag : tag.name;
+            return tagName.toLowerCase().includes(query);
+        });
         
         // Check files in this folder
         const hasMatchingFiles = folder.files && folder.files.some(filePath => {
             const file = library.files[filePath];
             if (!file) return false;
             const matchesFileName = file.name.toLowerCase().includes(query);
-            const matchesFileTags = file.tags && file.tags.some(tag => tag.toLowerCase().includes(query));
+            const matchesFileTags = file.tags && file.tags.some(tag => {
+                const tagName = typeof tag === 'string' ? tag : tag.name;
+                return tagName.toLowerCase().includes(query);
+            });
             return matchesFileName || matchesFileTags;
         });
         
@@ -164,7 +170,7 @@ class LibraryUI {
             const folder = library.folders[folderId];
             if (!folder) return '';
             
-            // Apply search filter
+            // Apply search filter (takes priority over tag filter)
             if (this.searchQuery && this.searchQuery.trim()) {
                 const query = this.searchQuery.toLowerCase().trim();
                 
@@ -175,10 +181,25 @@ class LibraryUI {
                 
                 if (!matches) return '';
             }
-            
-            // Apply tag filter (only applies to folders, not search)
-            if (this.activeTagFilter && !folder.tags.includes(this.activeTagFilter)) {
-                return '';
+            // Apply tag filter only when NOT searching
+            else if (this.activeTagFilter) {
+                const folderTagNames = folder.tags ? folder.tags.map(t => this.libraryManager.getTagName(t).toLowerCase()) : [];
+                const hasFolderTag = folderTagNames.includes(this.activeTagFilter);
+                
+                // Check if any files in this folder have the tag
+                const hasFileWithTag = folder.files && folder.files.some(filePath => {
+                    const file = library.files[filePath];
+                    if (!file || !file.tags) return false;
+                    const fileTagNames = file.tags.map(t => {
+                        const tagName = typeof t === 'string' ? t : t.name;
+                        return tagName.toLowerCase();
+                    });
+                    return fileTagNames.includes(this.activeTagFilter);
+                });
+                
+                if (!hasFolderTag && !hasFileWithTag) {
+                    return '';
+                }
             }
             
             return this.renderFolder(folder, 0);
@@ -268,21 +289,37 @@ class LibraryUI {
         
         const library = this.libraryManager.library;
         
-        // Filter files based on search
+        // Filter files based on search OR tag filter (not both)
         const filesToShow = folder.files.filter(filePath => {
             const file = library.files[filePath];
             if (!file) return false;
             
-            // If no search query, show all files
-            if (!this.searchQuery || !this.searchQuery.trim()) return true;
-            
-            const query = this.searchQuery.toLowerCase().trim();
-            const matchesFileName = file.name.toLowerCase().includes(query);
-            const matchesFileTags = file.tags && file.tags.some(tag => tag.toLowerCase().includes(query));
-            
-            console.log(`  File "${file.name}": name=${matchesFileName}, tags=${matchesFileTags}, query="${query}"`);
-            
-            return matchesFileName || matchesFileTags;
+            // If searching, apply search filter only
+            if (this.searchQuery && this.searchQuery.trim()) {
+                const query = this.searchQuery.toLowerCase().trim();
+                const matchesFileName = file.name.toLowerCase().includes(query);
+                const matchesFileTags = file.tags && file.tags.some(tag => {
+                    const tagName = typeof tag === 'string' ? tag : tag.name;
+                    return tagName.toLowerCase().includes(query);
+                });
+                
+                console.log(`  File "${file.name}": name=${matchesFileName}, tags=${matchesFileTags}, query="${query}"`);
+                
+                return matchesFileName || matchesFileTags;
+            }
+            // If tag filter is active (and not searching), apply tag filter
+            else if (this.activeTagFilter) {
+                const fileTagNames = file.tags ? file.tags.map(t => {
+                    const tagName = typeof t === 'string' ? t : t.name;
+                    return tagName.toLowerCase();
+                }) : [];
+                
+                return fileTagNames.includes(this.activeTagFilter);
+            }
+            // No filters active, show all files
+            else {
+                return true;
+            }
         });
         
         // If no files to show, return empty
