@@ -21,15 +21,15 @@
   "license": "MIT",
   "homepage": "https://dnaicker.github.io/Document-X-Ray-Analyzer",
   "devDependencies": {
-    "electron": "^28.0.0",
+    "electron": "^39.2.4",
     "electron-builder": "^24.9.1"
   },
   "dependencies": {
-    "pdfjs-dist": "^3.11.174",
-    "tesseract.js": "^5.0.4",
     "epubjs": "^0.3.93",
+    "jszip": "^3.10.1",
     "mammoth": "^1.6.0",
-    "jszip": "^3.10.1"
+    "pdfjs-dist": "^5.4.449",
+    "tesseract.js": "^5.0.4"
   },
   "build": {
     "appId": "com.grammarhighlighter.desktop",
@@ -42,10 +42,18 @@
       "src/**/*",
       "lib/**/*",
       "assets/**/*",
+      "config.js",
+      "node_modules/**/*",
       "!**/*.map",
-      "!node_modules/**/*",
       "!dist/**/*",
       "!.git/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/pdfjs-dist/**/*",
+      "node_modules/tesseract.js/**/*",
+      "node_modules/epubjs/**/*",
+      "node_modules/mammoth/**/*",
+      "node_modules/jszip/**/*"
     ],
     "win": {
       "target": "nsis"
@@ -64,4 +72,3 @@
     }
   }
 }
-
