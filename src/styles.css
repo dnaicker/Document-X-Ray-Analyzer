@@ -4302,6 +4302,12 @@ input:checked + .slider:before {
     background: #ffebee;
 }
 
+.context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .context-menu-divider {
     height: 1px;
     background: #e0e0e0;

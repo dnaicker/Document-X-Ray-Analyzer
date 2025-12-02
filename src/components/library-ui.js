@@ -361,57 +361,124 @@ class LibraryUI {
         const menu = document.getElementById('libraryContextMenu');
         if (!menu) return;
         
-        menu.innerHTML = `
-            <div class="context-menu-item" onclick="libraryUI.showCreateFolderDialog('${folderId}')">
-                ➕ New Subfolder
-            </div>
-            <div class="context-menu-item" onclick="libraryUI.showRenameFolderDialog('${folderId}')">
-                ✏️ Rename
-            </div>
-            <div class="context-menu-item" onclick="libraryUI.showFolderTagsDialog('${folderId}')">
-                🏷️ Manage Tags
-            </div>
-            ${folder.type !== 'library' && folder.type !== 'special' ? `
-                <div class="context-menu-divider"></div>
-                <div class="context-menu-item danger" onclick="libraryUI.deleteFolder('${folderId}')">
-                    🗑️ Delete Folder
+        // Special menu for Trash folder
+        if (folderId === 'trash') {
+            const fileCount = folder.files ? folder.files.length : 0;
+            menu.innerHTML = `
+                <div class="context-menu-item ${fileCount === 0 ? 'disabled' : ''}" data-action="emptytrash">
+                    🗑️ Empty Trash (${fileCount} ${fileCount === 1 ? 'item' : 'items'})
                 </div>
-            ` : ''}
-        `;
+            `;
+        } else {
+            menu.innerHTML = `
+                <div class="context-menu-item" data-action="newfolder">
+                    ➕ New Subfolder
+                </div>
+                <div class="context-menu-item" data-action="rename">
+                    ✏️ Rename
+                </div>
+                <div class="context-menu-item" data-action="tags">
+                    🏷️ Manage Tags
+                </div>
+                ${folder.type !== 'library' && folder.type !== 'special' ? `
+                    <div class="context-menu-divider"></div>
+                    <div class="context-menu-item danger" data-action="delete">
+                        🗑️ Delete Folder
+                    </div>
+                ` : ''}
+            `;
+        }
+        
+        // Add event listeners to menu items
+        menu.querySelectorAll('.context-menu-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const action = e.currentTarget.getAttribute('data-action');
+                this.handleFolderContextAction(action, folderId);
+                this.hideContextMenu();
+            });
+        });
         
         menu.classList.remove('hidden');
         menu.style.left = event.clientX + 'px';
         menu.style.top = event.clientY + 'px';
     }
     
+    handleFolderContextAction(action, folderId) {
+        switch (action) {
+            case 'newfolder':
+                this.showCreateFolderDialog(folderId);
+                break;
+            case 'rename':
+                this.showRenameFolderDialog(folderId);
+                break;
+            case 'tags':
+                this.showFolderTagsDialog(folderId);
+                break;
+            case 'delete':
+                this.deleteFolder(folderId);
+                break;
+            case 'emptytrash':
+                this.emptyTrash();
+                break;
+        }
+    }
+    
     showFileContextMenu(event, filePath) {
         event.preventDefault();
         event.stopPropagation();
         
+        // Store the unescaped path for use in context menu actions
         this.contextMenuTarget = { type: 'file', path: filePath };
         
         const menu = document.getElementById('libraryContextMenu');
         if (!menu) return;
         
+        // Use data attributes instead of inline onclick to avoid escaping issues
         menu.innerHTML = `
-            <div class="context-menu-item" onclick="libraryUI.openFile('${this.escapeHtml(filePath)}')">
+            <div class="context-menu-item" data-action="open">
                 📂 Open
             </div>
-            <div class="context-menu-item" onclick="libraryUI.showMoveFileDialog('${this.escapeHtml(filePath)}')">
+            <div class="context-menu-item" data-action="move">
                 📁 Move to Folder
             </div>
-            <div class="context-menu-item" onclick="libraryUI.showFileTagsDialog('${this.escapeHtml(filePath)}')">
+            <div class="context-menu-item" data-action="tags">
                 🏷️ Manage Tags
             </div>
             <div class="context-menu-divider"></div>
-            <div class="context-menu-item danger" onclick="libraryUI.moveFileToTrash('${this.escapeHtml(filePath)}')">
+            <div class="context-menu-item danger" data-action="trash">
                 🗑️ Move to Trash
             </div>
         `;
         
+        // Add event listeners to menu items
+        menu.querySelectorAll('.context-menu-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const action = e.currentTarget.getAttribute('data-action');
+                this.handleFileContextAction(action, filePath);
+                this.hideContextMenu();
+            });
+        });
+        
         menu.classList.remove('hidden');
         menu.style.left = event.clientX + 'px';
         menu.style.top = event.clientY + 'px';
+    }
+    
+    handleFileContextAction(action, filePath) {
+        switch (action) {
+            case 'open':
+                this.openFile(filePath);
+                break;
+            case 'move':
+                this.showMoveFileDialog(filePath);
+                break;
+            case 'tags':
+                this.showFileTagsDialog(filePath);
+                break;
+            case 'trash':
+                this.moveFileToTrash(filePath);
+                break;
+        }
     }
     
     hideContextMenu() {
@@ -435,6 +502,29 @@ class LibraryUI {
         
         if (confirm(`Delete folder "${folder.name}"? Files will be moved to Unfiled Items.`)) {
             this.libraryManager.deleteFolder(folderId);
+        }
+    }
+    
+    emptyTrash() {
+        const trashFolder = this.libraryManager.getFolder('trash');
+        if (!trashFolder) return;
+        
+        const fileCount = trashFolder.files ? trashFolder.files.length : 0;
+        
+        if (fileCount === 0) {
+            alert('Trash is already empty');
+            return;
+        }
+        
+        if (confirm(`Permanently delete ${fileCount} ${fileCount === 1 ? 'file' : 'files'} from trash? This cannot be undone.`)) {
+            const result = this.libraryManager.emptyTrash();
+            
+            if (result.errors.length > 0) {
+                alert(`Deleted ${result.deleted} files. ${result.errors.length} errors occurred.`);
+                console.error('Errors emptying trash:', result.errors);
+            } else {
+                console.log(`Successfully deleted ${result.deleted} files from trash`);
+            }
         }
     }
     
@@ -591,8 +681,21 @@ class LibraryUI {
     }
     
     moveFileToTrash(filePath) {
-        if (confirm('Move file to trash?')) {
-            this.libraryManager.moveFileToFolder(filePath, 'trash');
+        const file = this.libraryManager.getFile(filePath);
+        if (!file) {
+            console.error('File not found:', filePath);
+            return;
+        }
+        
+        if (confirm(`Move "${file.name}" to trash?`)) {
+            const success = this.libraryManager.moveFileToFolder(filePath, 'trash');
+            if (success) {
+                console.log('File moved to trash:', filePath);
+                // UI will auto-update via library-updated event
+            } else {
+                console.error('Failed to move file to trash');
+                alert('Failed to move file to trash');
+            }
         }
     }
     

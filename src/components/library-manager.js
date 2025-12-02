@@ -274,26 +274,50 @@ class LibraryManager {
         const fileData = this.library.files[filePath];
         if (!fileData) return false;
         
-        // Remove from folder
-        if (fileData.folder && this.library.folders[fileData.folder]) {
-            const folder = this.library.folders[fileData.folder];
-            folder.files = folder.files.filter(f => f !== filePath);
-        }
+        // Remove from ALL folders (cleanup in case of inconsistencies)
+        Object.values(this.library.folders).forEach(folder => {
+            if (folder.files && folder.files.includes(filePath)) {
+                folder.files = folder.files.filter(f => f !== filePath);
+            }
+        });
         
         delete this.library.files[filePath];
         this.saveLibrary();
         return true;
     }
     
+    emptyTrash() {
+        const trashFolder = this.library.folders['trash'];
+        if (!trashFolder) return { deleted: 0, errors: [] };
+        
+        const filesToDelete = [...trashFolder.files]; // Copy array
+        let deleted = 0;
+        const errors = [];
+        
+        filesToDelete.forEach(filePath => {
+            try {
+                if (this.removeFile(filePath)) {
+                    deleted++;
+                }
+            } catch (error) {
+                console.error('Error deleting file:', filePath, error);
+                errors.push({ filePath, error: error.message });
+            }
+        });
+        
+        return { deleted, errors };
+    }
+    
     moveFileToFolder(filePath, newFolderId) {
         const fileData = this.library.files[filePath];
         if (!fileData || !this.library.folders[newFolderId]) return false;
         
-        // Remove from old folder
-        if (fileData.folder && this.library.folders[fileData.folder]) {
-            const oldFolder = this.library.folders[fileData.folder];
-            oldFolder.files = oldFolder.files.filter(f => f !== filePath);
-        }
+        // Remove from ALL folders (cleanup in case file appears in multiple folders)
+        Object.values(this.library.folders).forEach(folder => {
+            if (folder.files && folder.files.includes(filePath)) {
+                folder.files = folder.files.filter(f => f !== filePath);
+            }
+        });
         
         // Add to new folder
         fileData.folder = newFolderId;
