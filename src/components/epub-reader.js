@@ -216,9 +216,55 @@ class EPUBReader {
     }
 
     /**
+     * Resize the EPUB rendition
+     * @param {number} width - New width
+     * @param {number} height - New height
+     */
+    resize(width, height) {
+        if (this.rendition) {
+            try {
+                this.rendition.resize(width, height);
+            } catch (error) {
+                console.warn('Error resizing EPUB:', error);
+            }
+        }
+    }
+
+    /**
+     * Setup resize observer for automatic resizing
+     * @param {HTMLElement} container - The container element to observe
+     */
+    setupResizeObserver(container) {
+        // Clean up existing observer
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+        }
+
+        // Use debounce to avoid excessive resize calls
+        let resizeTimeout;
+        this.resizeObserver = new ResizeObserver((entries) => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                for (const entry of entries) {
+                    const { width, height } = entry.contentRect;
+                    if (width > 0 && height > 0) {
+                        this.resize(width, height);
+                    }
+                }
+            }, 150); // Debounce for 150ms
+        });
+
+        this.resizeObserver.observe(container);
+    }
+
+    /**
      * Clean up resources
      */
     destroy() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = null;
+        }
         if (this.rendition) {
             this.rendition.destroy();
             this.rendition = null;

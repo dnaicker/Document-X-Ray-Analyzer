@@ -893,6 +893,7 @@ class MindmapManager {
         if (node) {
             // Node options
             this.addMenuItem('✏️ Edit Note', () => this.editNode(node));
+            this.addMenuItem('🎨 Change Color', () => this.showColorPicker(node));
             this.addMenuItem('🔗 Link to...', () => this.showLinkDialog(node));
             this.addMenuItem('🗑️ Delete Note', () => this.deleteNode(node), true);
         } else {
@@ -1103,6 +1104,18 @@ class MindmapManager {
                         <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #666;">Note Text:</label>
                         <textarea id="editNoteTextarea" class="note-dialog-textarea" placeholder="Type your note here..." style="min-height: 150px;">${this.escapeHtml(currentText)}</textarea>
                     `}
+                    
+                    <div style="margin-top: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #666;">Color:</label>
+                        <div class="mindmap-color-picker" id="editColorPicker">
+                            <div class="color-option ${node.color === 'yellow' ? 'selected' : ''}" data-color="yellow" style="background: #ffd54f;"></div>
+                            <div class="color-option ${node.color === 'green' ? 'selected' : ''}" data-color="green" style="background: #81c784;"></div>
+                            <div class="color-option ${node.color === 'blue' ? 'selected' : ''}" data-color="blue" style="background: #64b5f6;"></div>
+                            <div class="color-option ${node.color === 'pink' ? 'selected' : ''}" data-color="pink" style="background: #f06292;"></div>
+                            <div class="color-option ${node.color === 'purple' ? 'selected' : ''}" data-color="purple" style="background: #ba68c8;"></div>
+                            <div class="color-option ${node.color === 'orange' ? 'selected' : ''}" data-color="orange" style="background: #ffb74d;"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="note-dialog-footer">
                     <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
@@ -1116,11 +1129,22 @@ class MindmapManager {
         const textarea = document.getElementById('editNoteTextarea');
         textarea.focus();
         
+        // Handle color picker
+        let selectedColor = node.color || 'yellow';
+        const colorPicker = document.getElementById('editColorPicker');
+        colorPicker.querySelectorAll('.color-option').forEach(option => {
+            option.addEventListener('click', () => {
+                colorPicker.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                selectedColor = option.dataset.color;
+            });
+        });
+        
         // Handle save button
         const handleSave = () => {
             const newText = textarea.value.trim();
             
-            if (newText) {
+            if (newText || !isHighlight) { // Allow empty for notes to just change color
                 // Update the note/highlight
                 const item = this.notesManager.getItemById(node.id);
                 if (item) {
@@ -1130,6 +1154,9 @@ class MindmapManager {
                         item.text = newText;
                         item.note = newText; // Some notes use 'note' property
                     }
+                    
+                    // Update color
+                    item.color = selectedColor;
                     
                     this.notesManager.saveToStorage();
                     this.notesManager.render();
@@ -1147,6 +1174,70 @@ class MindmapManager {
             if (e.key === 'Enter' && e.ctrlKey) {
                 handleSave();
             }
+        });
+        
+        // Close on background click
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        });
+    }
+
+    showColorPicker(node) {
+        const currentColor = node.color || 'yellow';
+        
+        // Create color picker dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog" style="max-width: 350px;">
+                <div class="note-dialog-header">
+                    <h3>🎨 Change Color</h3>
+                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    <p style="margin-bottom: 15px; color: #666; font-size: 14px;">Choose a color for this note:</p>
+                    <div class="mindmap-color-picker" id="colorPickerOptions" style="justify-content: center;">
+                        <div class="color-option-large ${currentColor === 'yellow' ? 'selected' : ''}" data-color="yellow" style="background: #ffd54f;"></div>
+                        <div class="color-option-large ${currentColor === 'green' ? 'selected' : ''}" data-color="green" style="background: #81c784;"></div>
+                        <div class="color-option-large ${currentColor === 'blue' ? 'selected' : ''}" data-color="blue" style="background: #64b5f6;"></div>
+                        <div class="color-option-large ${currentColor === 'pink' ? 'selected' : ''}" data-color="pink" style="background: #f06292;"></div>
+                        <div class="color-option-large ${currentColor === 'purple' ? 'selected' : ''}" data-color="purple" style="background: #ba68c8;"></div>
+                        <div class="color-option-large ${currentColor === 'orange' ? 'selected' : ''}" data-color="orange" style="background: #ffb74d;"></div>
+                    </div>
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
+                    <button class="btn-primary" id="confirmColorBtn">Apply Color</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // Handle color selection
+        let selectedColor = currentColor;
+        const colorOptions = document.querySelectorAll('#colorPickerOptions .color-option-large');
+        colorOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                colorOptions.forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                selectedColor = option.dataset.color;
+            });
+        });
+        
+        // Handle confirm button
+        document.getElementById('confirmColorBtn').addEventListener('click', () => {
+            const item = this.notesManager.getItemById(node.id);
+            if (item) {
+                item.color = selectedColor;
+                this.notesManager.saveToStorage();
+                this.notesManager.render();
+                this.refreshData();
+                console.log('✓ Color changed to', selectedColor);
+            }
+            dialog.remove();
         });
         
         // Close on background click

@@ -769,6 +769,9 @@ async function loadEPUBFileFromPath(filePath) {
                 
                 await epubReader.render(epubContainer, pdfContainer.clientWidth, pdfContainer.clientHeight);
                 
+                // Setup resize observer for automatic resizing
+                epubReader.setupResizeObserver(epubContainer);
+                
                 // Restore saved location
                 const lastLocation = recentFilesManager.getLastLocation(filePath);
                 if (lastLocation) {
@@ -1941,6 +1944,9 @@ async function loadEPUBFile(filePath, cachedState = null) {
                                 console.log('Rendering EPUB to container...');
                                 await epubReader.render(epubContainer, container.clientWidth, container.clientHeight);
                                 console.log('EPUB rendered successfully');
+                                
+                                // Setup resize observer for automatic resizing
+                                epubReader.setupResizeObserver(epubContainer);
                                 
                                 if (lastLocation && lastLocation.cfi && epubReader.rendition) {
                                     epubReader.rendition.display(lastLocation.cfi);
