@@ -4393,6 +4393,21 @@ if (closeSyncDialog) {
     });
 }
 
+// Setup guide link handler
+const setupGuideLink = document.getElementById('setupGuideLink');
+if (setupGuideLink) {
+    setupGuideLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const { shell } = require('electron');
+        const path = require('path');
+        const guidePath = path.join(__dirname, '..', 'GOOGLE_DRIVE_SETUP.md');
+        shell.openPath(guidePath).catch(() => {
+            // Fallback: show alert with instructions
+            alert('Setup Guide Location:\n\n' + guidePath + '\n\nThe guide contains step-by-step instructions for setting up Google Drive OAuth credentials.');
+        });
+    });
+}
+
 if (gdriveLoginBtn) {
     gdriveLoginBtn.addEventListener('click', async () => {
         try {
