@@ -79,17 +79,6 @@ class DOCXReader {
             // Create a styled wrapper for the content
             const wrapper = document.createElement('div');
             wrapper.className = 'docx-content';
-            wrapper.style.cssText = `
-                padding: 40px;
-                max-width: 800px;
-                margin: 0 auto;
-                background: white;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                font-family: 'Calibri', 'Arial', sans-serif;
-                font-size: 11pt;
-                line-height: 1.6;
-                color: #333;
-            `;
             
             wrapper.innerHTML = this.htmlContent;
             container.appendChild(wrapper);
