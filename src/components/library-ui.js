@@ -623,10 +623,55 @@ class LibraryUI {
         const folder = this.libraryManager.getFolder(folderId);
         if (!folder) return;
         
-        const newName = prompt('Rename folder:', folder.name);
-        if (newName && newName.trim()) {
-            this.libraryManager.renameFolder(folderId, newName.trim());
-        }
+        // Close any existing dialogs first
+        const existingDialogs = document.querySelectorAll('.note-dialog-overlay');
+        existingDialogs.forEach(d => d.remove());
+        
+        const dialog = document.createElement('div');
+        dialog.id = 'renameFolderDialog';
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog">
+                <div class="note-dialog-header">
+                    <h3>✏️ Rename Folder</h3>
+                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    <label for="renameFolderInput">New Name:</label>
+                    <input type="text" id="renameFolderInput" class="note-dialog-input" value="${this.escapeHtml(folder.name)}">
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
+                    <button class="btn-primary" id="confirmRenameBtn">Rename</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        const input = document.getElementById('renameFolderInput');
+        input.select();
+        input.focus();
+        
+        const handleRename = () => {
+            const newName = input.value.trim();
+            if (newName && newName !== folder.name) {
+                this.libraryManager.renameFolder(folderId, newName);
+                dialog.remove();
+            } else if (newName === folder.name) {
+                dialog.remove();
+            }
+        };
+        
+        document.getElementById('confirmRenameBtn').addEventListener('click', handleRename);
+        
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                handleRename();
+            } else if (e.key === 'Escape') {
+                dialog.remove();
+            }
+        });
     }
     
     deleteFolder(folderId) {
