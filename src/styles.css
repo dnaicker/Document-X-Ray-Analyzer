@@ -4811,3 +4811,16 @@ input:checked + .slider:before {
     font-weight: 600;
     white-space: nowrap;
 }
+
+/* Mindmap Canvas */
+.mindmap-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#mindmapContainer {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}

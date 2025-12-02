@@ -650,7 +650,7 @@ class NotesManager {
             id: Date.now().toString(),
             type: 'note',
             text: text,
-            page: page || (pdfViewer.currentPage || 1),
+            page: page || (typeof pdfViewer !== 'undefined' ? pdfViewer.currentPage : 1),
             createdAt: new Date().toISOString(),
             links: [], // Array of linked note IDs (format: {id, filePath, fileName})
             filePath: this.currentFilePath,
@@ -660,6 +660,7 @@ class NotesManager {
         this.notes.push(note);
         this.saveToStorage();
         this.render();
+        return note;
     }
     
     applyHighlights() {

@@ -18,6 +18,7 @@ let translationState = {
     lastAnalysis: null // Store analysis of translated text
 };
 let currentMapRenderPath = null; // Track which document the map is rendering for
+let mindmapManager = null;
 
 // Recent Files Manager
 // Tooltip Manager
@@ -438,6 +439,7 @@ const highlightedTextBtn = document.getElementById('highlightedTextBtn');
 const notesBtn = document.getElementById('notesBtn');
 const translateTabBtn = document.getElementById('translateTabBtn');
 const mapBtn = document.getElementById('mapBtn');
+const mindmapBtn = document.getElementById('mindmapBtn');
 const figuresBtn = document.getElementById('figuresBtn');
 
 // View panels
@@ -445,6 +447,7 @@ const highlightedTextView = document.getElementById('highlightedTextView');
 const notesView = document.getElementById('notesView');
 const translateView = document.getElementById('translateView');
 const mapView = document.getElementById('mapView');
+const mindmapView = document.getElementById('mindmapView');
 const figuresView = document.getElementById('figuresView');
 const mapGrid = document.getElementById('mapGrid');
 const mapZoom = document.getElementById('mapZoom');
@@ -488,6 +491,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize translation UI
     initializeTranslation();
+
+    // Initialize Mindmap
+    if (typeof MindmapManager !== 'undefined' && typeof notesManager !== 'undefined') {
+        mindmapManager = new MindmapManager(notesManager);
+        mindmapManager.initialize('mindmapContainer');
+        
+        const refreshBtn = document.getElementById('refreshMindmapBtn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => mindmapManager.refreshData());
+        }
+    }
     
     // Finish restoring workspace tabs after everything is loaded
     if (typeof tabManager !== 'undefined' && tabManager.finishRestore) {
@@ -2558,6 +2572,7 @@ highlightedTextBtn.addEventListener('click', () => switchView('highlighted'));
 notesBtn.addEventListener('click', () => switchView('notes'));
 translateTabBtn.addEventListener('click', () => switchView('translate'));
 mapBtn.addEventListener('click', () => switchView('map'));
+mindmapBtn.addEventListener('click', () => switchView('mindmap'));
 
 document.addEventListener('highlight-map-word', (e) => {
     if (e.detail && e.detail.word) {
@@ -2633,10 +2648,10 @@ function switchView(view) {
     }
     
     // Update buttons
-    [highlightedTextBtn, notesBtn, translateTabBtn, mapBtn, figuresBtn].forEach(btn => btn.classList.remove('active'));
+    [highlightedTextBtn, notesBtn, translateTabBtn, mapBtn, mindmapBtn, figuresBtn].forEach(btn => btn.classList.remove('active'));
     
     // Update views
-    [highlightedTextView, notesView, translateView, mapView, figuresView].forEach(v => v.classList.remove('active'));
+    [highlightedTextView, notesView, translateView, mapView, mindmapView, figuresView].forEach(v => v.classList.remove('active'));
     
     // Update stats panel based on view
     if (typeof statsPanel !== 'undefined') {
@@ -2673,6 +2688,14 @@ function switchView(view) {
             
             // Call async renderMap
             renderMap().catch(err => console.error('Error rendering map:', err));
+            break;
+        case 'mindmap':
+            mindmapBtn.classList.add('active');
+            mindmapView.classList.add('active');
+            if (mindmapManager) {
+                mindmapManager.refreshData();
+                setTimeout(() => mindmapManager.handleResize(), 10);
+            }
             break;
         case 'figures':
             figuresBtn.classList.add('active');
