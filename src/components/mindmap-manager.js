@@ -22,6 +22,7 @@ class MindmapManager {
         this.linkDragSource = null;
         this.linkDragX = 0;
         this.linkDragY = 0;
+        this.hoveredConnection = null;
         
         // Constants
         this.NODE_WIDTH = 200;
@@ -199,6 +200,15 @@ class MindmapManager {
         this.lastMouseX = mouseX;
         this.lastMouseY = mouseY;
 
+        // Check if clicking on a connection arrow (before checking nodes)
+        if (e.button === 0) { // Left click only
+            const clickedConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
+            if (clickedConnection) {
+                this.promptDeleteConnection(clickedConnection);
+                return;
+            }
+        }
+
         // Check if clicking a node (reverse order to check top nodes first)
         for (let i = this.nodes.length - 1; i >= 0; i--) {
             const node = this.nodes[i];
@@ -266,6 +276,17 @@ class MindmapManager {
             }
             
             this.linkDragTarget = hoverNode;
+            
+            // Check if this would remove an existing link
+            if (hoverNode) {
+                const sourceItem = this.notesManager.getItemById(this.linkDragSource.id);
+                this.linkWillRemove = sourceItem?.links?.some(link => 
+                    (typeof link === 'string' ? link === hoverNode.id : link.id === hoverNode.id)
+                );
+            } else {
+                this.linkWillRemove = false;
+            }
+            
             this.render();
         } else if (this.isDragging && this.draggedNode) {
             const dx = (mouseX - this.lastMouseX) / this.scale;
@@ -283,6 +304,14 @@ class MindmapManager {
             this.offsetY += dy;
             
             this.render();
+        } else {
+            // Check if hovering over a connection
+            const hoveredConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
+            if (hoveredConnection !== this.hoveredConnection) {
+                this.hoveredConnection = hoveredConnection;
+                this.canvas.style.cursor = hoveredConnection ? 'pointer' : 'default';
+                this.render();
+            }
         }
 
         this.lastMouseX = mouseX;
@@ -295,24 +324,32 @@ class MindmapManager {
             
             // Check if released over a valid target node
             if (this.linkDragTarget && this.linkDragSource) {
-                console.log('Creating link between', this.linkDragSource.id, 'and', this.linkDragTarget.id);
-                console.log('Source data:', this.linkDragSource.data);
-                console.log('Target data:', this.linkDragTarget.data);
-                console.log('Target filePath:', this.linkDragTarget.data.filePath);
+                console.log('Toggling link between', this.linkDragSource.id, 'and', this.linkDragTarget.id);
                 
-                // Create the link
-                const result = this.notesManager.toggleLink(
+                // Check if link already exists
+                const sourceItem = this.notesManager.getItemById(this.linkDragSource.id);
+                const linkExists = sourceItem?.links?.some(link => 
+                    (typeof link === 'string' ? link === this.linkDragTarget.id : link.id === this.linkDragTarget.id)
+                );
+                
+                // Toggle the link (create or remove)
+                this.notesManager.toggleLink(
                     this.linkDragSource.id,
                     this.linkDragTarget.id,
                     this.linkDragTarget.data.filePath
                 );
-                console.log('toggleLink result:', result);
+                
+                // Show feedback
+                if (linkExists) {
+                    console.log('✓ Link removed');
+                } else {
+                    console.log('✓ Link created');
+                }
                 
                 this.notesManager.render();
                 
                 // Small delay to ensure notesManager has updated
                 setTimeout(() => {
-                    console.log('Refreshing mindmap data...');
                     this.refreshData();
                 }, 100);
             } else {
@@ -383,15 +420,22 @@ class MindmapManager {
         this.ctx.scale(this.scale, this.scale);
 
         // Draw connections
-        this.ctx.strokeStyle = '#ccc';
-        this.ctx.lineWidth = 2;
         this.connections.forEach(conn => {
-            this.drawBezierCurve(conn.source, conn.target);
+            const isHovered = this.hoveredConnection === conn;
+            this.ctx.strokeStyle = isHovered ? '#2196F3' : '#ccc';
+            this.ctx.lineWidth = isHovered ? 3 : 2;
+            this.drawBezierCurve(conn.source, conn.target, isHovered);
         });
 
         // Draw temporary link arrow if dragging
         if (this.isLinkDragging && this.linkDragSource) {
-            this.ctx.strokeStyle = this.linkDragTarget ? '#4CAF50' : '#999';
+            // Color: Red if removing, Green if creating, Gray if no target
+            let color = '#999';
+            if (this.linkDragTarget) {
+                color = this.linkWillRemove ? '#f44336' : '#4CAF50';
+            }
+            
+            this.ctx.strokeStyle = color;
             this.ctx.lineWidth = 2;
             this.ctx.setLineDash([5, 5]);
             
@@ -445,7 +489,7 @@ class MindmapManager {
         this.ctx.stroke();
     }
 
-    drawBezierCurve(source, target) {
+    drawBezierCurve(source, target, isHovered = false) {
         // Calculate attachment points
         const { start, end, dir } = this.getConnectionPoints(source, target);
 
@@ -548,14 +592,27 @@ class MindmapManager {
         // Highlight if this is a valid link target
         const isLinkTarget = this.isLinkDragging && this.linkDragTarget === node;
         
-        // Shadow
-        this.ctx.shadowColor = isLinkTarget ? 'rgba(76, 175, 80, 0.4)' : 'rgba(0, 0, 0, 0.1)';
+        // Shadow (green for create, red for remove)
+        let shadowColor = 'rgba(0, 0, 0, 0.1)';
+        let bgColor = '#ffffff';
+        
+        if (isLinkTarget) {
+            if (this.linkWillRemove) {
+                shadowColor = 'rgba(244, 67, 54, 0.4)';
+                bgColor = '#ffebee';
+            } else {
+                shadowColor = 'rgba(76, 175, 80, 0.4)';
+                bgColor = '#e8f5e9';
+            }
+        }
+        
+        this.ctx.shadowColor = shadowColor;
         this.ctx.shadowBlur = isLinkTarget ? 20 : 10;
         this.ctx.shadowOffsetX = 2;
         this.ctx.shadowOffsetY = 2;
 
         // Background
-        this.ctx.fillStyle = isLinkTarget ? '#e8f5e9' : '#ffffff';
+        this.ctx.fillStyle = bgColor;
         this.drawRoundedRect(x, y, w, h, radius);
         this.ctx.fill();
         
@@ -725,6 +782,126 @@ class MindmapManager {
         item.textContent = text;
         item.addEventListener('click', onClick);
         this.contextMenu.appendChild(item);
+    }
+
+    getConnectionAtPoint(x, y) {
+        const threshold = 10; // Click detection threshold in world units
+        
+        for (const conn of this.connections) {
+            // Get connection points
+            const { start, end } = this.getConnectionPoints(conn.source, conn.target);
+            
+            // Calculate control points for bezier curve
+            const dx = end.x - start.x;
+            const dy = end.y - start.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const curvature = 0.5;
+            const offset = Math.min(dist * curvature, 100);
+            
+            // Determine direction
+            const overlapX = Math.max(0, Math.min(conn.source.x + conn.source.width, conn.target.x + conn.target.width) - Math.max(conn.source.x, conn.target.x));
+            const overlapY = Math.max(0, Math.min(conn.source.y + conn.source.height, conn.target.y + conn.target.height) - Math.max(conn.source.y, conn.target.y));
+            const dir = (overlapY > 0 || Math.abs(dx) > Math.abs(dy)) ? 'horizontal' : 'vertical';
+            
+            let cp1, cp2;
+            if (dir === 'horizontal') {
+                cp1 = { x: start.x + (start.x < end.x ? offset : -offset), y: start.y };
+                cp2 = { x: end.x + (start.x < end.x ? -offset : offset), y: end.y };
+            } else {
+                cp1 = { x: start.x, y: start.y + (start.y < end.y ? offset : -offset) };
+                cp2 = { x: end.x, y: end.y + (start.y < end.y ? -offset : offset) };
+            }
+            
+            // Sample points along the bezier curve and check distance
+            for (let t = 0; t <= 1; t += 0.05) {
+                const point = this.getBezierPoint(start, cp1, cp2, end, t);
+                const distToPoint = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(y - point.y, 2));
+                
+                if (distToPoint <= threshold) {
+                    return conn;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    getBezierPoint(p0, p1, p2, p3, t) {
+        const mt = 1 - t;
+        const mt2 = mt * mt;
+        const mt3 = mt2 * mt;
+        const t2 = t * t;
+        const t3 = t2 * t;
+        
+        return {
+            x: mt3 * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x,
+            y: mt3 * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y
+        };
+    }
+
+    promptDeleteConnection(connection) {
+        const sourceText = (connection.source.data.text || connection.source.data.note || '').substring(0, 80);
+        const targetText = (connection.target.data.text || connection.target.data.note || '').substring(0, 80);
+        const sourceType = connection.source.data.type === 'highlight' ? '🖍️ Highlight' : '📝 Note';
+        const targetType = connection.target.data.type === 'highlight' ? '🖍️ Highlight' : '📝 Note';
+        
+        // Create custom dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog" style="max-width: 500px;">
+                <div class="note-dialog-header" style="background: linear-gradient(135deg, #f44336 0%, #e91e63 100%);">
+                    <h3>🔗 Delete Link</h3>
+                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    <p style="margin-bottom: 20px; color: #666; font-size: 14px;">Are you sure you want to remove the connection between these items?</p>
+                    
+                    <div style="background: #f5f5f5; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid ${connection.source.color === 'yellow' ? '#ffd54f' : connection.source.color === 'green' ? '#81c784' : connection.source.color === 'blue' ? '#64b5f6' : connection.source.color === 'pink' ? '#f06292' : connection.source.color === 'purple' ? '#ba68c8' : '#ffb74d'};">
+                        <div style="font-size: 12px; color: #999; margin-bottom: 5px;">${sourceType}</div>
+                        <div style="color: #333; line-height: 1.4;">"${this.escapeHtml(sourceText)}${sourceText.length >= 80 ? '...' : ''}"</div>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 15px 0; color: #999; font-size: 20px;">↓</div>
+                    
+                    <div style="background: #f5f5f5; border-radius: 8px; padding: 15px; border-left: 4px solid ${connection.target.color === 'yellow' ? '#ffd54f' : connection.target.color === 'green' ? '#81c784' : connection.target.color === 'blue' ? '#64b5f6' : connection.target.color === 'pink' ? '#f06292' : connection.target.color === 'purple' ? '#ba68c8' : '#ffb74d'};">
+                        <div style="font-size: 12px; color: #999; margin-bottom: 5px;">${targetType}</div>
+                        <div style="color: #333; line-height: 1.4;">"${this.escapeHtml(targetText)}${targetText.length >= 80 ? '...' : ''}"</div>
+                    </div>
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
+                    <button class="btn-primary" id="confirmDeleteLinkBtn" style="background: #f44336;">Delete Link</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // Handle confirm button
+        document.getElementById('confirmDeleteLinkBtn').addEventListener('click', () => {
+            // Remove the link
+            this.notesManager.toggleLink(
+                connection.source.id,
+                connection.target.id,
+                connection.target.data.filePath
+            );
+            this.notesManager.render();
+            
+            setTimeout(() => {
+                this.refreshData();
+            }, 100);
+            
+            console.log('✓ Link deleted');
+            dialog.remove();
+        });
+        
+        // Close on background click
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        });
     }
 
     addNote(x, y) {
