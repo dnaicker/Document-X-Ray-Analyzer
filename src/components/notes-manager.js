@@ -953,6 +953,10 @@ class NotesManager {
     }
     
     editNoteInternal(item) {
+        // Close any existing dialogs first
+        const existingDialogs = document.querySelectorAll('.note-dialog-overlay');
+        existingDialogs.forEach(d => d.remove());
+        
         // Determine current text and title based on type
         let currentText, title;
         if (item.type === 'note') {
@@ -1854,6 +1858,10 @@ class NotesManager {
     }
     
     showAddTagDialog(itemId) {
+        // Close any existing dialogs first
+        const existingDialogs = document.querySelectorAll('.note-dialog-overlay');
+        existingDialogs.forEach(d => d.remove());
+        
         const item = this.getItemById(itemId);
         if (!item) return;
         
