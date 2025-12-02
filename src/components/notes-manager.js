@@ -31,9 +31,11 @@ class NotesManager {
         this.notesHelpBanner = document.getElementById('notesHelpBanner');
         this.isContinuousMode = false;
         
-        // Search
+        // Search and Tags
         this.notesSearchInput = document.getElementById('notesSearchInput');
         this.searchQuery = '';
+        this.activeTagFilter = null; // Currently selected tag filter
+        this.allTags = new Set(); // All unique tags across notes
         
         this.selectedText = '';
         this.targetHighlightId = null;
@@ -225,6 +227,9 @@ class NotesManager {
             this.searchQuery = e.target.value.trim().toLowerCase();
             this.render();
         });
+        
+        // Setup tag filter container click listener (for tag badges)
+        this.setupTagFilterListeners();
         
         // Setup selection controls
         if (this.selectAllCheckbox) {
@@ -1505,7 +1510,16 @@ class NotesManager {
             allItems = allItems.filter(item => {
                 const textMatch = item.text && item.text.toLowerCase().includes(this.searchQuery);
                 const noteMatch = item.note && item.note.toLowerCase().includes(this.searchQuery);
-                return textMatch || noteMatch;
+                // Also search in tags
+                const tagMatch = item.tags && item.tags.some(tag => tag.toLowerCase().includes(this.searchQuery));
+                return textMatch || noteMatch || tagMatch;
+            });
+        }
+        
+        // Filter based on active tag filter
+        if (this.activeTagFilter) {
+            allItems = allItems.filter(item => {
+                return item.tags && item.tags.includes(this.activeTagFilter);
             });
         }
         
@@ -1535,6 +1549,7 @@ class NotesManager {
             const isHighlight = item.type === 'highlight';
             const date = new Date(item.createdAt).toLocaleString();
             const highlightColor = item.color || 'yellow';
+            const itemTags = item.tags || [];
             
             return `
                 <div class="note-item ${isHighlight ? 'highlight-item' : ''} highlight-${highlightColor}" data-note-id="${item.id}" style="display: flex; align-items: flex-start;">
@@ -1545,6 +1560,7 @@ class NotesManager {
                         <div class="note-header">
                             <span class="note-type">${isHighlight ? '🖍️ Highlight' : '📝 Note'}</span>
                             <div class="note-actions">
+                                <button class="note-action-btn" onclick="event.stopPropagation(); notesManager.showAddTagDialog('${item.id}')" title="Add tags">🏷️</button>
                                 <button class="note-action-btn" onclick="event.stopPropagation(); notesManager.linkNotes('${item.id}')" title="Link to another note">🔗</button>
                                 <button class="note-action-btn" onclick="event.stopPropagation(); notesManager.editNote('${item.id}')" title="Edit">✏️</button>
                                 <button class="note-action-btn" onclick="event.stopPropagation(); notesManager.deleteNote('${item.id}')" title="Delete">🗑️</button>
@@ -1556,6 +1572,15 @@ class NotesManager {
                         ` : `
                             <div class="note-text">${this.escapeHtml(item.text)}</div>
                         `}
+                        ${itemTags.length > 0 ? `
+                            <div class="note-tags">
+                                ${itemTags.map(tag => `
+                                    <span class="note-tag-badge" onclick="event.stopPropagation(); notesManager.setTagFilter('${this.escapeHtml(tag)}')" title="Filter by this tag">
+                                        🏷️ ${this.escapeHtml(tag)}
+                                    </span>
+                                `).join('')}
+                            </div>
+                        ` : ''}
                         <div class="note-meta">
                             <span class="note-page">Page ${item.page}</span>
                             <span class="note-date">${date}</span>
@@ -1612,7 +1637,9 @@ class NotesManager {
             `;
         }).join('');
         
-        this.notesContent.innerHTML = html;
+        // Render tag filter bar + notes
+        const tagFilterHtml = this.renderTagFilterBar();
+        this.notesContent.innerHTML = tagFilterHtml + html;
         
         document.dispatchEvent(new CustomEvent('notes-updated'));
     }
@@ -1621,6 +1648,209 @@ class NotesManager {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    // ========== TAG MANAGEMENT ==========
+    
+    setupTagFilterListeners() {
+        // Will be called after render to attach listeners to tag badges
+    }
+    
+    collectAllTags() {
+        this.allTags = new Set();
+        [...this.notes, ...this.highlights].forEach(item => {
+            if (item.tags && Array.isArray(item.tags)) {
+                item.tags.forEach(tag => this.allTags.add(tag.toLowerCase()));
+            }
+        });
+        return this.allTags;
+    }
+    
+    addTagToItem(itemId, tag) {
+        const item = this.getItemById(itemId);
+        if (!item) return false;
+        
+        const normalizedTag = tag.trim().toLowerCase();
+        if (!normalizedTag) return false;
+        
+        if (!item.tags) item.tags = [];
+        
+        // Don't add duplicate tags
+        if (item.tags.includes(normalizedTag)) return false;
+        
+        item.tags.push(normalizedTag);
+        this.saveToStorage();
+        this.render();
+        return true;
+    }
+    
+    removeTagFromItem(itemId, tag) {
+        const item = this.getItemById(itemId);
+        if (!item || !item.tags) return false;
+        
+        const normalizedTag = tag.toLowerCase();
+        const index = item.tags.indexOf(normalizedTag);
+        
+        if (index > -1) {
+            item.tags.splice(index, 1);
+            this.saveToStorage();
+            this.render();
+            return true;
+        }
+        return false;
+    }
+    
+    showAddTagDialog(itemId) {
+        const item = this.getItemById(itemId);
+        if (!item) return;
+        
+        // Collect existing tags for suggestions
+        this.collectAllTags();
+        const existingTags = item.tags || [];
+        const suggestedTags = [...this.allTags].filter(t => !existingTags.includes(t));
+        
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog" style="max-width: 400px;">
+                <div class="note-dialog-header">
+                    <h3>🏷️ Add Tags</h3>
+                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    <div class="tag-input-container">
+                        <input type="text" id="tagInput" class="tag-input" placeholder="Type a tag and press Enter..." autocomplete="off">
+                    </div>
+                    ${existingTags.length > 0 ? `
+                        <div class="current-tags-section">
+                            <label>Current tags:</label>
+                            <div class="current-tags-list">
+                                ${existingTags.map(tag => `
+                                    <span class="tag-badge" data-tag="${this.escapeHtml(tag)}">
+                                        ${this.escapeHtml(tag)}
+                                        <button class="tag-remove-btn" onclick="notesManager.removeTagFromItem('${itemId}', '${this.escapeHtml(tag)}'); this.closest('.tag-badge').remove();">×</button>
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${suggestedTags.length > 0 ? `
+                        <div class="suggested-tags-section">
+                            <label>Suggested tags (click to add):</label>
+                            <div class="suggested-tags-list">
+                                ${suggestedTags.slice(0, 10).map(tag => `
+                                    <span class="tag-badge suggested" onclick="notesManager.addTagFromSuggestion('${itemId}', '${this.escapeHtml(tag)}', this)">${this.escapeHtml(tag)}</span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Done</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        
+        // Focus input
+        const input = dialog.querySelector('#tagInput');
+        input.focus();
+        
+        // Handle Enter key to add tag
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const tag = input.value.trim();
+                if (tag) {
+                    if (this.addTagToItem(itemId, tag)) {
+                        // Add tag badge to current tags section
+                        let currentTagsList = dialog.querySelector('.current-tags-list');
+                        if (!currentTagsList) {
+                            // Create section if it doesn't exist
+                            const section = document.createElement('div');
+                            section.className = 'current-tags-section';
+                            section.innerHTML = `<label>Current tags:</label><div class="current-tags-list"></div>`;
+                            dialog.querySelector('.tag-input-container').after(section);
+                            currentTagsList = section.querySelector('.current-tags-list');
+                        }
+                        
+                        const badge = document.createElement('span');
+                        badge.className = 'tag-badge';
+                        badge.dataset.tag = tag.toLowerCase();
+                        badge.innerHTML = `${this.escapeHtml(tag.toLowerCase())} <button class="tag-remove-btn" onclick="notesManager.removeTagFromItem('${itemId}', '${this.escapeHtml(tag.toLowerCase())}'); this.closest('.tag-badge').remove();">×</button>`;
+                        currentTagsList.appendChild(badge);
+                        
+                        // Remove from suggestions if present
+                        const suggestedBadge = dialog.querySelector(`.suggested-tags-list .tag-badge[onclick*="'${tag.toLowerCase()}'"]`);
+                        if (suggestedBadge) suggestedBadge.remove();
+                    }
+                    input.value = '';
+                }
+            }
+        });
+    }
+    
+    addTagFromSuggestion(itemId, tag, element) {
+        if (this.addTagToItem(itemId, tag)) {
+            // Remove from suggestions
+            element.remove();
+            
+            // Find dialog and add to current tags
+            const dialog = document.querySelector('.note-dialog-overlay');
+            if (dialog) {
+                let currentTagsList = dialog.querySelector('.current-tags-list');
+                if (!currentTagsList) {
+                    const section = document.createElement('div');
+                    section.className = 'current-tags-section';
+                    section.innerHTML = `<label>Current tags:</label><div class="current-tags-list"></div>`;
+                    dialog.querySelector('.tag-input-container').after(section);
+                    currentTagsList = section.querySelector('.current-tags-list');
+                }
+                
+                const badge = document.createElement('span');
+                badge.className = 'tag-badge';
+                badge.dataset.tag = tag;
+                badge.innerHTML = `${this.escapeHtml(tag)} <button class="tag-remove-btn" onclick="notesManager.removeTagFromItem('${itemId}', '${this.escapeHtml(tag)}'); this.closest('.tag-badge').remove();">×</button>`;
+                currentTagsList.appendChild(badge);
+            }
+        }
+    }
+    
+    setTagFilter(tag) {
+        if (this.activeTagFilter === tag) {
+            // Clicking same tag clears filter
+            this.activeTagFilter = null;
+        } else {
+            this.activeTagFilter = tag ? tag.toLowerCase() : null;
+        }
+        this.render();
+    }
+    
+    renderTagFilterBar() {
+        this.collectAllTags();
+        
+        if (this.allTags.size === 0) return '';
+        
+        const tagsArray = [...this.allTags].sort();
+        
+        return `
+            <div class="tag-filter-bar">
+                <span class="tag-filter-label">🏷️ Filter by tag:</span>
+                <div class="tag-filter-list">
+                    ${tagsArray.map(tag => `
+                        <span class="tag-filter-badge ${this.activeTagFilter === tag ? 'active' : ''}" 
+                              onclick="notesManager.setTagFilter('${this.escapeHtml(tag)}')"
+                              data-tag="${this.escapeHtml(tag)}">
+                            ${this.escapeHtml(tag)}
+                        </span>
+                    `).join('')}
+                    ${this.activeTagFilter ? `
+                        <span class="tag-filter-clear" onclick="notesManager.setTagFilter(null)">✕ Clear</span>
+                    ` : ''}
+                </div>
+            </div>
+        `;
     }
 }
 
