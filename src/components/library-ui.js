@@ -222,16 +222,20 @@ class LibraryUI {
                     <span class="folder-icon">${folder.icon}</span>
                     <span class="folder-name">${this.escapeHtml(folder.name)}</span>
                     <span class="folder-count">${fileCount}</span>
-                    ${folder.tags && folder.tags.length > 0 ? `
-                        <div class="folder-tags-inline">
-                            ${folder.tags.slice(0, 2).map(tag => {
-                                const tagName = this.libraryManager.getTagName(tag);
-                                const tagColor = this.libraryManager.getTagColor(tag);
-                                return `<span class="folder-tag-mini tag-${tagColor}">${this.escapeHtml(tagName)}</span>`;
-                            }).join('')}
-                            ${folder.tags.length > 2 ? `<span class="folder-tag-mini">+${folder.tags.length - 2}</span>` : ''}
-                        </div>
-                    ` : ''}
+                    ${folder.tags && folder.tags.length > 0 ? (() => {
+                        const allTagNames = folder.tags.map(t => this.libraryManager.getTagName(t));
+                        const tooltipText = `Tags: ${allTagNames.join(', ')}`;
+                        return `
+                            <div class="folder-tags-inline" title="${this.escapeHtml(tooltipText)}">
+                                ${folder.tags.slice(0, 2).map(tag => {
+                                    const tagName = this.libraryManager.getTagName(tag);
+                                    const tagColor = this.libraryManager.getTagColor(tag);
+                                    return `<span class="folder-tag-mini tag-${tagColor}">${this.escapeHtml(tagName)}</span>`;
+                                }).join('')}
+                                ${folder.tags.length > 2 ? `<span class="folder-tag-mini" title="${this.escapeHtml(tooltipText)}">+${folder.tags.length - 2}</span>` : ''}
+                            </div>
+                        `;
+                    })() : ''}
                 </div>
                 
                 ${shouldExpand ? `
@@ -625,8 +629,9 @@ class LibraryUI {
         if (!folder) return;
         
         const existingTags = folder.tags || [];
-        const allTags = this.libraryManager.getAllFolderTags();
-        const suggestedTags = allTags.filter(t => !existingTags.includes(t));
+        const existingTagNames = existingTags.map(t => this.libraryManager.getTagName(t));
+        const allTagsWithColors = this.libraryManager.getAllFolderTagsWithColors();
+        const suggestedTags = allTagsWithColors.filter(t => !existingTagNames.includes(t.name));
         
         const dialog = document.createElement('div');
         dialog.className = 'note-dialog-overlay';
@@ -676,7 +681,7 @@ class LibraryUI {
                             <label>Suggested:</label>
                             <div class="suggested-tags-list">
                                 ${suggestedTags.map(tag => `
-                                    <span class="tag-badge suggested" onclick="libraryUI.addFolderTag('${folderId}', '${this.escapeHtml(tag)}', this)">${this.escapeHtml(tag)}</span>
+                                    <span class="tag-badge tag-${tag.color} suggested" onclick="libraryUI.addFolderTag('${folderId}', '${this.escapeHtml(tag.name)}', this, '${tag.color}')">${this.escapeHtml(tag.name)}</span>
                                 `).join('')}
                             </div>
                         </div>

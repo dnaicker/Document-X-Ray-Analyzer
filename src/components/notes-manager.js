@@ -969,9 +969,10 @@ class NotesManager {
         }
         
         // Collect existing tags for suggestions
-        this.collectAllTags();
         const existingTags = item.tags || [];
-        const suggestedTags = [...this.allTags].filter(t => !existingTags.includes(t));
+        const existingTagNames = existingTags.map(t => this.getTagName(t).toLowerCase());
+        const allTagsWithColors = this.collectAllTagsWithColors();
+        const suggestedTags = allTagsWithColors.filter(t => !existingTagNames.includes(t.name));
         
         // Create enhanced edit dialog with tags
         const dialog = document.createElement('div');
@@ -1026,7 +1027,7 @@ class NotesManager {
                                 <label style="display: block; font-size: 11px; color: #999; margin-bottom: 6px;">Click to add:</label>
                                 <div class="suggested-tags-list" id="editSuggestedTags" style="display: flex; flex-wrap: wrap; gap: 6px;">
                                     ${suggestedTags.slice(0, 8).map(tag => `
-                                        <span class="tag-badge suggested" data-suggest-tag="${this.escapeHtml(tag)}">${this.escapeHtml(tag)}</span>
+                                        <span class="tag-badge tag-${tag.color} suggested" data-suggest-tag="${this.escapeHtml(tag.name)}" data-suggest-color="${tag.color}">${this.escapeHtml(tag.name)}</span>
                                     `).join('')}
                                 </div>
                             </div>
@@ -1156,7 +1157,9 @@ class NotesManager {
             suggestedTagsList.addEventListener('click', (e) => {
                 const suggestBadge = e.target.closest('[data-suggest-tag]');
                 if (suggestBadge) {
-                    addTag(suggestBadge.dataset.suggestTag, 'green'); // Default color for suggested tags
+                    const tagName = suggestBadge.dataset.suggestTag;
+                    const tagColor = suggestBadge.dataset.suggestColor || 'green';
+                    addTag(tagName, tagColor);
                 }
             });
         }
@@ -1894,6 +1897,23 @@ class NotesManager {
         return this.allTags;
     }
     
+    collectAllTagsWithColors() {
+        const tagsMap = new Map(); // Map<tagName, tagObject>
+        [...this.notes, ...this.highlights].forEach(item => {
+            if (item.tags && Array.isArray(item.tags)) {
+                item.tags.forEach(tag => {
+                    const tagName = this.getTagName(tag).toLowerCase();
+                    const tagColor = this.getTagColor(tag);
+                    // Store the tag object (prefer existing color if already seen)
+                    if (!tagsMap.has(tagName)) {
+                        tagsMap.set(tagName, { name: tagName, color: tagColor });
+                    }
+                });
+            }
+        });
+        return Array.from(tagsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }
+    
     addTagToItem(itemId, tag, color = 'green') {
         const item = this.getItemById(itemId);
         if (!item) return false;
@@ -1954,9 +1974,10 @@ class NotesManager {
         if (!item) return;
         
         // Collect existing tags for suggestions
-        this.collectAllTags();
         const existingTags = item.tags || [];
-        const suggestedTags = [...this.allTags].filter(t => !existingTags.includes(t));
+        const existingTagNames = existingTags.map(t => this.getTagName(t).toLowerCase());
+        const allTagsWithColors = this.collectAllTagsWithColors();
+        const suggestedTags = allTagsWithColors.filter(t => !existingTagNames.includes(t.name));
         
         // Create dialog
         const dialog = document.createElement('div');
@@ -2007,7 +2028,7 @@ class NotesManager {
                             <label>Suggested tags (click to add):</label>
                             <div class="suggested-tags-list">
                                 ${suggestedTags.slice(0, 10).map(tag => `
-                                    <span class="tag-badge suggested" onclick="notesManager.addTagFromSuggestion('${itemId}', '${this.escapeHtml(tag)}', this)">${this.escapeHtml(tag)}</span>
+                                    <span class="tag-badge tag-${tag.color} suggested" onclick="notesManager.addTagFromSuggestion('${itemId}', '${this.escapeHtml(tag.name)}', this, '${tag.color}')">${this.escapeHtml(tag.name)}</span>
                                 `).join('')}
                             </div>
                         </div>
@@ -2094,8 +2115,8 @@ class NotesManager {
         });
     }
     
-    addTagFromSuggestion(itemId, tag, element) {
-        if (this.addTagToItem(itemId, tag)) {
+    addTagFromSuggestion(itemId, tag, element, color = 'green') {
+        if (this.addTagToItem(itemId, tag, color)) {
             // Remove from suggestions
             element.remove();
             
@@ -2112,7 +2133,7 @@ class NotesManager {
                 }
                 
                 const badge = document.createElement('span');
-                badge.className = 'tag-badge';
+                badge.className = `tag-badge tag-${color}`;
                 badge.dataset.tag = tag;
                 badge.innerHTML = `${this.escapeHtml(tag)} <button class="tag-remove-btn" onclick="notesManager.removeTagFromItem('${itemId}', '${this.escapeHtml(tag)}'); this.closest('.tag-badge').remove();">×</button>`;
                 currentTagsList.appendChild(badge);

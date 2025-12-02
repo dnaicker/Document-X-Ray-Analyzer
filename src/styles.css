@@ -4281,6 +4281,7 @@ input:checked + .slider:before {
     display: flex;
     gap: 2px;
     flex-shrink: 0;
+    cursor: help; /* Show help cursor on hover to indicate tooltip */
 }
 
 .folder-tag-mini {

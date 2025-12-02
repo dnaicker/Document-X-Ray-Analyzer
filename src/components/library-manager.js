@@ -270,6 +270,23 @@ class LibraryManager {
         return [...tags].sort();
     }
     
+    getAllFolderTagsWithColors() {
+        const tagsMap = new Map(); // Map<tagName, tagObject>
+        Object.values(this.library.folders).forEach(folder => {
+            if (folder.tags) {
+                folder.tags.forEach(tag => {
+                    const tagName = this.getTagName(tag);
+                    const tagColor = this.getTagColor(tag);
+                    // Store the tag object (prefer existing color if already seen)
+                    if (!tagsMap.has(tagName)) {
+                        tagsMap.set(tagName, { name: tagName, color: tagColor });
+                    }
+                });
+            }
+        });
+        return Array.from(tagsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }
+    
     // ========== FILE OPERATIONS ==========
     
     addFile(filePath, fileName, folderId = 'unfiled') {
