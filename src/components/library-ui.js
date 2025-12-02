@@ -4,7 +4,6 @@ class LibraryUI {
         this.libraryManager = libraryManager;
         this.container = null;
         this.searchQuery = '';
-        this.activeTagFilter = null;
         this.contextMenuTarget = null;
         
         // Listen for library updates
@@ -62,12 +61,8 @@ class LibraryUI {
                         <input type="text" 
                                id="librarySearchInput" 
                                class="library-search-input" 
-                               placeholder="🔍 Search files and folders..."
+                               placeholder="🔍 Search files, folders, and tags..."
                                value="">
-                    </div>
-                    
-                    <div id="libraryTagFilter" class="library-tag-filter-container">
-                        ${this.renderTagFilter()}
                     </div>
                     
                     <div class="library-tree" id="libraryTree">
@@ -98,37 +93,11 @@ class LibraryUI {
     }
     
     updateTreeAndFilters() {
-        // Update tag filter
-        const tagFilterContainer = document.getElementById('libraryTagFilter');
-        if (tagFilterContainer) {
-            tagFilterContainer.innerHTML = this.renderTagFilter();
-        }
-        
         // Update tree
         const treeContainer = document.getElementById('libraryTree');
         if (treeContainer) {
             treeContainer.innerHTML = this.renderFolderTree();
         }
-    }
-    
-    renderTagFilter() {
-        const tags = this.libraryManager.getAllTags(); // Get both folder and file tags
-        if (tags.length === 0) return '';
-        
-        return `
-            <div class="library-tag-filter">
-                <span class="tag-filter-label">🏷️ Filter:</span>
-                ${tags.map(tag => `
-                    <span class="library-tag-badge ${this.activeTagFilter === tag ? 'active' : ''}"
-                          onclick="libraryUI.setTagFilter('${this.escapeHtml(tag)}')">
-                        ${this.escapeHtml(tag)}
-                    </span>
-                `).join('')}
-                ${this.activeTagFilter ? `
-                    <span class="tag-filter-clear" onclick="libraryUI.setTagFilter(null)">✕ Clear</span>
-                ` : ''}
-            </div>
-        `;
     }
     
     folderMatchesSearch(folder, query) {
@@ -180,26 +149,6 @@ class LibraryUI {
                 console.log(`Folder "${folder.name}": matches=${matches}, query="${query}"`);
                 
                 if (!matches) return '';
-            }
-            // Apply tag filter only when NOT searching
-            else if (this.activeTagFilter) {
-                const folderTagNames = folder.tags ? folder.tags.map(t => this.libraryManager.getTagName(t).toLowerCase()) : [];
-                const hasFolderTag = folderTagNames.includes(this.activeTagFilter);
-                
-                // Check if any files in this folder have the tag
-                const hasFileWithTag = folder.files && folder.files.some(filePath => {
-                    const file = library.files[filePath];
-                    if (!file || !file.tags) return false;
-                    const fileTagNames = file.tags.map(t => {
-                        const tagName = typeof t === 'string' ? t : t.name;
-                        return tagName.toLowerCase();
-                    });
-                    return fileTagNames.includes(this.activeTagFilter);
-                });
-                
-                if (!hasFolderTag && !hasFileWithTag) {
-                    return '';
-                }
             }
             
             return this.renderFolder(folder, 0);
@@ -307,19 +256,8 @@ class LibraryUI {
                 
                 return matchesFileName || matchesFileTags;
             }
-            // If tag filter is active (and not searching), apply tag filter
-            else if (this.activeTagFilter) {
-                const fileTagNames = file.tags ? file.tags.map(t => {
-                    const tagName = typeof t === 'string' ? t : t.name;
-                    return tagName.toLowerCase();
-                }) : [];
-                
-                return fileTagNames.includes(this.activeTagFilter);
-            }
-            // No filters active, show all files
-            else {
-                return true;
-            }
+            // No search active, show all files
+            return true;
         });
         
         // If no files to show, return empty
@@ -1007,15 +945,6 @@ class LibraryUI {
         if (window.openFileBtn) {
             window.openFileBtn.click();
         }
-    }
-    
-    setTagFilter(tag) {
-        if (this.activeTagFilter === tag) {
-            this.activeTagFilter = null;
-        } else {
-            this.activeTagFilter = tag ? tag.toLowerCase() : null;
-        }
-        this.updateTreeAndFilters();
     }
     
     handleFileClick(event) {
