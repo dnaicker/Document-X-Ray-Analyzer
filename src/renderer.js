@@ -438,6 +438,13 @@ document.addEventListener('DOMContentLoaded', () => {
     setStatus('Ready to analyze PDFs');
     recentFilesManager.render();
     
+    // Initialize Library UI
+    if (typeof LibraryUI !== 'undefined' && typeof libraryManager !== 'undefined') {
+        libraryUI = new LibraryUI(libraryManager);
+        libraryUI.initialize('libraryView');
+        console.log('Library UI initialized');
+    }
+    
     // Initialize translation UI
     initializeTranslation();
     
@@ -1429,6 +1436,11 @@ openFileBtn.addEventListener('click', async () => {
             currentFileType = result.fileType || 'pdf';
             fileNameDisplay.textContent = currentFileName;
             
+            // Add file to library (unfiled by default)
+            if (typeof libraryManager !== 'undefined') {
+                libraryManager.addFile(currentFilePath, currentFileName, 'unfiled');
+            }
+            
             let extractedText = '';
             
             // Handle different file types
@@ -1441,6 +1453,9 @@ openFileBtn.addEventListener('click', async () => {
             } else {
                 throw new Error(`Unsupported file type: ${currentFileType}`);
             }
+            
+            // Hide library view when file is opened
+            hideLibraryView();
         }
     } catch (error) {
         console.error('Error opening file:', error);
@@ -4066,6 +4081,66 @@ function showLoading(message = 'Processing...', indeterminate = false) {
         progressBar.parentElement.style.display = 'block';
     }
 }
+
+// Library View Functions
+function showLibraryView() {
+    const libraryView = document.getElementById('libraryView');
+    const pdfCanvas = document.getElementById('pdfCanvas');
+    
+    if (libraryView) libraryView.style.display = 'block';
+    if (pdfCanvas) pdfCanvas.style.display = 'none';
+    
+    // Hide EPUB/DOCX containers
+    const pdfContainer = document.getElementById('pdfViewerContainer');
+    if (pdfContainer) {
+        const epubContainer = pdfContainer.querySelector('.epub-container');
+        if (epubContainer) epubContainer.style.display = 'none';
+        
+        const docxContainer = pdfContainer.querySelector('.docx-content');
+        if (docxContainer) docxContainer.style.display = 'none';
+    }
+}
+
+function hideLibraryView() {
+    const libraryView = document.getElementById('libraryView');
+    if (libraryView) libraryView.style.display = 'none';
+}
+
+// Open file from library
+window.openFileFromLibrary = async function(filePath) {
+    try {
+        // Determine file type from extension
+        const ext = filePath.split('.').pop().toLowerCase();
+        let fileType = 'pdf';
+        if (ext === 'epub') fileType = 'epub';
+        else if (ext === 'docx' || ext === 'doc') fileType = 'docx';
+        
+        currentFilePath = filePath;
+        currentFileName = filePath.split(/[\\/]/).pop();
+        currentFileType = fileType;
+        fileNameDisplay.textContent = currentFileName;
+        
+        // Update last opened in library
+        if (typeof libraryManager !== 'undefined') {
+            libraryManager.updateFileLastOpened(filePath);
+        }
+        
+        // Load the file
+        if (fileType === 'pdf') {
+            await loadPDFFile(filePath);
+        } else if (fileType === 'epub') {
+            await loadEPUBFile(filePath);
+        } else if (fileType === 'docx') {
+            await loadDOCXFile(filePath);
+        }
+        
+        hideLibraryView();
+    } catch (error) {
+        console.error('Error opening file from library:', error);
+        setStatus('❌ Error: ' + error.message);
+        hideLoading();
+    }
+};
 
 function hideLoading() {
     loadingOverlay.classList.add('hidden');

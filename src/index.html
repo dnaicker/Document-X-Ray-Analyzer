@@ -96,6 +96,11 @@
                 </div>
             </div>
             <div id="pdfViewerContainer" class="pdf-viewer-container">
+                <!-- Library View (shown when no file is open) -->
+                <div id="libraryView" class="library-view">
+                    <!-- Library UI will be rendered here -->
+                </div>
+                
                 <!-- PDF Loading Overlay -->
                 <div id="pdfLoadingOverlay" class="pdf-loading-overlay hidden">
                     <div class="pdf-loading-content">
@@ -761,6 +766,8 @@
     <script src="components/notes-manager.js"></script>
     <script src="components/figures-manager.js"></script>
     <script src="components/tab-manager.js"></script>
+    <script src="components/library-manager.js"></script>
+    <script src="components/library-ui.js"></script>
     <script src="renderer.js"></script>
 </body>
 </html>
