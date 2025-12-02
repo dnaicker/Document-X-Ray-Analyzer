@@ -64,6 +64,12 @@ class MindmapManager {
         this.canvas.addEventListener('wheel', this.handleWheel);
         window.addEventListener('resize', this.handleResize);
 
+        // Watch for container size changes (when panels are toggled)
+        this.resizeObserver = new ResizeObserver(() => {
+            this.handleResize();
+        });
+        this.resizeObserver.observe(this.container);
+
         // Initial resize
         this.handleResize();
         
@@ -108,10 +114,32 @@ class MindmapManager {
         this.nodes = allItems.map((item, index) => {
             const existing = existingNodesMap.get(item.id) || layoutMap.get(item.id);
             
-            // Calculate height based on text content roughly
-            const text = item.text || item.note || '';
-            const lines = Math.ceil(text.length / 25); // Approx chars per line
-            const height = this.HEADER_HEIGHT + (lines * this.LINE_HEIGHT) + (this.NODE_PADDING * 2);
+            // Calculate height based on text content
+            let estimatedLines = 0;
+            const charsPerLine = 22; // Approximate characters per line (more conservative)
+            
+            if (item.type === 'highlight') {
+                const highlightedText = item.text || '';
+                const comment = item.comment || '';
+                
+                // Highlighted text (max 3 lines, smaller font)
+                const highlightLines = Math.min(Math.ceil(highlightedText.length / charsPerLine), 3);
+                estimatedLines += highlightLines;
+                
+                // If there's a comment, add separator space + comment lines
+                if (comment) {
+                    estimatedLines += 1; // Separator space
+                    const commentLines = Math.ceil(comment.length / charsPerLine);
+                    estimatedLines += Math.min(commentLines, 10); // Max 10 lines for comment
+                }
+            } else {
+                // Regular note
+                const text = item.text || item.note || '';
+                const noteLines = Math.ceil(text.length / charsPerLine);
+                estimatedLines = Math.min(noteLines, 10); // Max 10 lines for notes
+            }
+            
+            const height = this.HEADER_HEIGHT + (estimatedLines * this.LINE_HEIGHT) + (this.NODE_PADDING * 3);
             
             // Basic grid layout for new nodes
             const col = index % 5;
@@ -123,7 +151,7 @@ class MindmapManager {
                 x: existing ? existing.x : 100 + (col * (this.NODE_WIDTH + 50)),
                 y: existing ? existing.y : 100 + (row * 200),
                 width: this.NODE_WIDTH,
-                height: Math.max(height, 100),
+                height: Math.max(height, 120),
                 color: item.color || 'yellow',
                 isSelected: false
             };
@@ -171,8 +199,25 @@ class MindmapManager {
 
     handleResize() {
         if (!this.container || !this.canvas) return;
-        this.canvas.width = this.container.clientWidth;
-        this.canvas.height = this.container.clientHeight;
+        
+        // Get the actual display size
+        const displayWidth = this.container.clientWidth;
+        const displayHeight = this.container.clientHeight;
+        
+        // Get device pixel ratio for crisp rendering on high-DPI displays
+        const dpr = window.devicePixelRatio || 1;
+        
+        // Set the canvas internal size (accounting for device pixel ratio)
+        this.canvas.width = displayWidth * dpr;
+        this.canvas.height = displayHeight * dpr;
+        
+        // Set the canvas display size
+        this.canvas.style.width = displayWidth + 'px';
+        this.canvas.style.height = displayHeight + 'px';
+        
+        // Scale the context to account for device pixel ratio
+        this.ctx.scale(dpr, dpr);
+        
         this.render();
     }
 
@@ -695,7 +740,7 @@ class MindmapManager {
             // Always show the highlighted text first (in italic, lighter color)
             this.ctx.fillStyle = '#888';
             this.ctx.font = `italic ${this.FONT_SIZE - 1}px Arial`;
-            const highlightLines = this.wrapTextWithReturn(highlightedText, x + 15, currentY, w - 30, 16, 2);
+            const highlightLines = this.wrapTextWithReturn(highlightedText, x + 15, currentY, w - 30, 16, 3);
             currentY += highlightLines * 16;
             
             // If there's a comment, show it below with a separator
@@ -713,14 +758,14 @@ class MindmapManager {
                 // Show comment in regular style
                 this.ctx.fillStyle = '#444';
                 this.ctx.font = `${this.FONT_SIZE}px Arial`;
-                this.wrapTextWithReturn(comment, x + 15, currentY, w - 30, 18, 3);
+                this.wrapTextWithReturn(comment, x + 15, currentY, w - 30, 18, 10);
             }
         } else {
             // For notes, show the note text
             this.ctx.fillStyle = '#444';
             this.ctx.font = `${this.FONT_SIZE}px Arial`;
             const text = node.data.text || node.data.note || '';
-            this.wrapTextWithReturn(text, x + 15, currentY, w - 30, 18, 5);
+            this.wrapTextWithReturn(text, x + 15, currentY, w - 30, 18, 10);
         }
     }
 
