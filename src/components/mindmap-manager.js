@@ -17,6 +17,12 @@ class MindmapManager {
         this.lastMouseX = 0;
         this.lastMouseY = 0;
         
+        // Link dragging state
+        this.isLinkDragging = false;
+        this.linkDragSource = null;
+        this.linkDragX = 0;
+        this.linkDragY = 0;
+        
         // Constants
         this.NODE_WIDTH = 200;
         this.NODE_PADDING = 15;
@@ -125,19 +131,24 @@ class MindmapManager {
         this.connections = [];
         this.nodes.forEach(sourceNode => {
             if (sourceNode.data.links) {
+                console.log(`Node ${sourceNode.id} has ${sourceNode.data.links.length} links:`, sourceNode.data.links);
                 sourceNode.data.links.forEach(link => {
                     const linkId = typeof link === 'string' ? link : link.id;
                     const targetNode = this.nodes.find(n => n.id === linkId);
                     if (targetNode) {
+                        console.log(`Creating connection: ${sourceNode.id} -> ${targetNode.id}`);
                         this.connections.push({
                             source: sourceNode,
                             target: targetNode
                         });
+                    } else {
+                        console.log(`Target node not found for link: ${linkId}`);
                     }
                 });
             }
         });
 
+        console.log(`Total connections built: ${this.connections.length}`);
         this.render();
     }
 
@@ -195,6 +206,23 @@ class MindmapManager {
                 worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
                 
                 if (e.button === 0) { // Left click
+                    // Check if clicking on link handle (small circle on right edge)
+                    const handleX = node.x + node.width - 10;
+                    const handleY = node.y + node.height / 2;
+                    const handleRadius = 8;
+                    const distToHandle = Math.sqrt(Math.pow(worldPos.x - handleX, 2) + Math.pow(worldPos.y - handleY, 2));
+                    
+                    if (distToHandle <= handleRadius) {
+                        // Start link dragging
+                        this.isLinkDragging = true;
+                        this.linkDragSource = node;
+                        this.linkDragX = worldPos.x;
+                        this.linkDragY = worldPos.y;
+                        this.canvas.style.cursor = 'crosshair';
+                        return;
+                    }
+                    
+                    // Otherwise, drag the node
                     this.isDragging = true;
                     this.draggedNode = node;
                     // Bring to front
@@ -218,8 +246,28 @@ class MindmapManager {
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
+        const worldPos = this.screenToWorld(mouseX, mouseY);
 
-        if (this.isDragging && this.draggedNode) {
+        if (this.isLinkDragging) {
+            // Update link drag position
+            this.linkDragX = worldPos.x;
+            this.linkDragY = worldPos.y;
+            
+            // Check if hovering over a node
+            let hoverNode = null;
+            for (let i = this.nodes.length - 1; i >= 0; i--) {
+                const node = this.nodes[i];
+                if (node !== this.linkDragSource &&
+                    worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
+                    worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
+                    hoverNode = node;
+                    break;
+                }
+            }
+            
+            this.linkDragTarget = hoverNode;
+            this.render();
+        } else if (this.isDragging && this.draggedNode) {
             const dx = (mouseX - this.lastMouseX) / this.scale;
             const dy = (mouseY - this.lastMouseY) / this.scale;
             
@@ -242,6 +290,44 @@ class MindmapManager {
     }
 
     handleMouseUp(e) {
+        if (this.isLinkDragging) {
+            console.log('Link drag ended. Source:', this.linkDragSource?.id, 'Target:', this.linkDragTarget?.id);
+            
+            // Check if released over a valid target node
+            if (this.linkDragTarget && this.linkDragSource) {
+                console.log('Creating link between', this.linkDragSource.id, 'and', this.linkDragTarget.id);
+                console.log('Source data:', this.linkDragSource.data);
+                console.log('Target data:', this.linkDragTarget.data);
+                console.log('Target filePath:', this.linkDragTarget.data.filePath);
+                
+                // Create the link
+                const result = this.notesManager.toggleLink(
+                    this.linkDragSource.id,
+                    this.linkDragTarget.id,
+                    this.linkDragTarget.data.filePath
+                );
+                console.log('toggleLink result:', result);
+                
+                this.notesManager.render();
+                
+                // Small delay to ensure notesManager has updated
+                setTimeout(() => {
+                    console.log('Refreshing mindmap data...');
+                    this.refreshData();
+                }, 100);
+            } else {
+                console.log('No valid target found');
+            }
+            
+            // Reset link dragging state
+            this.isLinkDragging = false;
+            this.linkDragSource = null;
+            this.linkDragTarget = null;
+            this.canvas.style.cursor = 'default';
+            this.render();
+            return;
+        }
+        
         if (this.isDragging) {
             this.saveLayout();
         }
@@ -303,9 +389,37 @@ class MindmapManager {
             this.drawBezierCurve(conn.source, conn.target);
         });
 
+        // Draw temporary link arrow if dragging
+        if (this.isLinkDragging && this.linkDragSource) {
+            this.ctx.strokeStyle = this.linkDragTarget ? '#4CAF50' : '#999';
+            this.ctx.lineWidth = 2;
+            this.ctx.setLineDash([5, 5]);
+            
+            const handleX = this.linkDragSource.x + this.linkDragSource.width - 10;
+            const handleY = this.linkDragSource.y + this.linkDragSource.height / 2;
+            
+            this.ctx.beginPath();
+            this.ctx.moveTo(handleX, handleY);
+            this.ctx.lineTo(this.linkDragX, this.linkDragY);
+            this.ctx.stroke();
+            
+            // Draw arrow at cursor
+            const dx = this.linkDragX - handleX;
+            const dy = this.linkDragY - handleY;
+            const angle = Math.atan2(dy, dx);
+            this.drawArrow(this.linkDragX, this.linkDragY, angle);
+            
+            this.ctx.setLineDash([]);
+        }
+
         // Draw nodes
         this.nodes.forEach(node => {
             this.drawNode(node);
+        });
+        
+        // Draw link handles on nodes
+        this.nodes.forEach(node => {
+            this.drawLinkHandle(node);
         });
 
         this.ctx.restore();
@@ -431,14 +545,17 @@ class MindmapManager {
         const h = node.height;
         const radius = 8;
 
+        // Highlight if this is a valid link target
+        const isLinkTarget = this.isLinkDragging && this.linkDragTarget === node;
+        
         // Shadow
-        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
-        this.ctx.shadowBlur = 10;
+        this.ctx.shadowColor = isLinkTarget ? 'rgba(76, 175, 80, 0.4)' : 'rgba(0, 0, 0, 0.1)';
+        this.ctx.shadowBlur = isLinkTarget ? 20 : 10;
         this.ctx.shadowOffsetX = 2;
         this.ctx.shadowOffsetY = 2;
 
         // Background
-        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillStyle = isLinkTarget ? '#e8f5e9' : '#ffffff';
         this.drawRoundedRect(x, y, w, h, radius);
         this.ctx.fill();
         
@@ -539,6 +656,30 @@ class MindmapManager {
             }
         }
         this.ctx.fillText(line, x, y);
+    }
+
+    drawLinkHandle(node) {
+        const handleX = node.x + node.width - 10;
+        const handleY = node.y + node.height / 2;
+        const handleRadius = 8;
+        
+        // Draw outer circle (background)
+        this.ctx.fillStyle = '#fff';
+        this.ctx.strokeStyle = '#666';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.arc(handleX, handleY, handleRadius, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.stroke();
+        
+        // Draw link icon (small arrow or plus)
+        this.ctx.fillStyle = '#666';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('→', handleX, handleY);
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'alphabetic';
     }
 
     handleContextMenu(e) {

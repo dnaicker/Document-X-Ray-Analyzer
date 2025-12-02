@@ -1579,13 +1579,17 @@ class NotesManager {
         if (linkIndex > -1) {
             // Remove link
             sourceItem.links.splice(linkIndex, 1);
-            element.classList.remove('linked');
-            element.querySelector('.link-item-status').textContent = 'Click to link';
+            if (element) {
+                element.classList.remove('linked');
+                element.querySelector('.link-item-status').textContent = 'Click to link';
+            }
         } else {
             // Add link
             sourceItem.links.push(linkObj);
-            element.classList.add('linked');
-            element.querySelector('.link-item-status').textContent = '✓ Linked';
+            if (element) {
+                element.classList.add('linked');
+                element.querySelector('.link-item-status').textContent = '✓ Linked';
+            }
         }
         
         this.saveToStorage();
