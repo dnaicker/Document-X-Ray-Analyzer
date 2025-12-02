@@ -38,51 +38,76 @@ class LibraryUI {
     render() {
         if (!this.container) return;
         
-        const html = `
-            <div class="library-container">
-                <div class="library-header">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h2>📚 My Library</h2>
-                    </div>
-                    <div class="library-actions">
-                        <button class="btn-library" onclick="libraryUI.showCreateFolderDialog()" title="New Folder (Ctrl+N)">
-                            ➕ Folder
-                        </button>
-                        <button class="btn-library" onclick="libraryUI.showImportDialog()" title="Import Files">
-                            📥 Import
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="library-search">
-                    <input type="text" 
-                           id="librarySearchInput" 
-                           class="library-search-input" 
-                           placeholder="🔍 Search files and folders..."
-                           value="${this.escapeHtml(this.searchQuery)}">
-                </div>
-                
-                ${this.renderTagFilter()}
-                
-                <div class="library-tree">
-                    ${this.renderFolderTree()}
-                </div>
-                
-                <div class="library-context-menu hidden" id="libraryContextMenu">
-                    <!-- Context menu content -->
-                </div>
-            </div>
-        `;
+        // Check if this is initial render
+        const isInitialRender = !this.container.querySelector('.library-container');
         
-        this.container.innerHTML = html;
+        if (isInitialRender) {
+            const html = `
+                <div class="library-container">
+                    <div class="library-header">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h2>📚 My Library</h2>
+                        </div>
+                        <div class="library-actions">
+                            <button class="btn-library" onclick="libraryUI.showCreateFolderDialog()" title="New Folder (Ctrl+N)">
+                                ➕ Folder
+                            </button>
+                            <button class="btn-library" onclick="libraryUI.showImportDialog()" title="Import Files">
+                                📥 Import
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="library-search">
+                        <input type="text" 
+                               id="librarySearchInput" 
+                               class="library-search-input" 
+                               placeholder="🔍 Search files and folders..."
+                               value="">
+                    </div>
+                    
+                    <div id="libraryTagFilter" class="library-tag-filter-container">
+                        ${this.renderTagFilter()}
+                    </div>
+                    
+                    <div class="library-tree" id="libraryTree">
+                        ${this.renderFolderTree()}
+                    </div>
+                    
+                    <div class="library-context-menu hidden" id="libraryContextMenu">
+                        <!-- Context menu content -->
+                    </div>
+                </div>
+            `;
+            
+            this.container.innerHTML = html;
+            
+            // Setup search listener (only once)
+            const searchInput = document.getElementById('librarySearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    this.searchQuery = e.target.value;
+                    console.log('Search query updated:', this.searchQuery);
+                    this.updateTreeAndFilters();
+                });
+            }
+        } else {
+            // Just update the tree and filters without re-rendering search input
+            this.updateTreeAndFilters();
+        }
+    }
+    
+    updateTreeAndFilters() {
+        // Update tag filter
+        const tagFilterContainer = document.getElementById('libraryTagFilter');
+        if (tagFilterContainer) {
+            tagFilterContainer.innerHTML = this.renderTagFilter();
+        }
         
-        // Setup search
-        const searchInput = document.getElementById('librarySearchInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.searchQuery = e.target.value;
-                this.render();
-            });
+        // Update tree
+        const treeContainer = document.getElementById('libraryTree');
+        if (treeContainer) {
+            treeContainer.innerHTML = this.renderFolderTree();
         }
     }
     
@@ -106,6 +131,31 @@ class LibraryUI {
         `;
     }
     
+    folderMatchesSearch(folder, query) {
+        const library = this.libraryManager.library;
+        
+        // Check folder itself
+        const matchesFolderName = folder.name.toLowerCase().includes(query);
+        const matchesFolderTags = folder.tags && folder.tags.some(tag => tag.toLowerCase().includes(query));
+        
+        // Check files in this folder
+        const hasMatchingFiles = folder.files && folder.files.some(filePath => {
+            const file = library.files[filePath];
+            if (!file) return false;
+            const matchesFileName = file.name.toLowerCase().includes(query);
+            const matchesFileTags = file.tags && file.tags.some(tag => tag.toLowerCase().includes(query));
+            return matchesFileName || matchesFileTags;
+        });
+        
+        // Check children recursively
+        const hasMatchingChildren = folder.children && folder.children.some(childId => {
+            const child = library.folders[childId];
+            return child ? this.folderMatchesSearch(child, query) : false;
+        });
+        
+        return matchesFolderName || matchesFolderTags || hasMatchingFiles || hasMatchingChildren;
+    }
+    
     renderFolderTree() {
         const library = this.libraryManager.library;
         
@@ -115,17 +165,18 @@ class LibraryUI {
             if (!folder) return '';
             
             // Apply search filter
-            if (this.searchQuery) {
-                const matchesSearch = folder.name.toLowerCase().includes(this.searchQuery.toLowerCase());
-                const hasMatchingFiles = folder.files.some(filePath => {
-                    const file = library.files[filePath];
-                    return file && file.name.toLowerCase().includes(this.searchQuery.toLowerCase());
-                });
+            if (this.searchQuery && this.searchQuery.trim()) {
+                const query = this.searchQuery.toLowerCase().trim();
                 
-                if (!matchesSearch && !hasMatchingFiles) return '';
+                // Use recursive helper to check if folder or any descendants match
+                const matches = this.folderMatchesSearch(folder, query);
+                
+                console.log(`Folder "${folder.name}": matches=${matches}, query="${query}"`);
+                
+                if (!matches) return '';
             }
             
-            // Apply tag filter
+            // Apply tag filter (only applies to folders, not search)
             if (this.activeTagFilter && !folder.tags.includes(this.activeTagFilter)) {
                 return '';
             }
@@ -138,11 +189,26 @@ class LibraryUI {
         const library = this.libraryManager.library;
         const indent = depth * 20;
         const hasChildren = folder.children && folder.children.length > 0;
-        const expandIcon = hasChildren ? (folder.expanded ? '▼' : '▶') : '';
+        
+        // When searching, auto-expand folders that have matching descendants
+        let shouldExpand = folder.expanded;
+        if (this.searchQuery && this.searchQuery.trim() && hasChildren) {
+            const query = this.searchQuery.toLowerCase().trim();
+            // Check if any children match
+            const hasMatchingDescendants = folder.children.some(childId => {
+                const child = library.folders[childId];
+                return child ? this.folderMatchesSearch(child, query) : false;
+            });
+            if (hasMatchingDescendants) {
+                shouldExpand = true;
+            }
+        }
+        
+        const expandIcon = hasChildren ? (shouldExpand ? '▼' : '▶') : '';
         const fileCount = folder.files ? folder.files.length : 0;
         
         let html = `
-            <div class="library-folder ${folder.expanded ? 'expanded' : ''}" 
+            <div class="library-folder ${shouldExpand ? 'expanded' : ''}" 
                  data-folder-id="${folder.id}"
                  style="padding-left: ${indent}px;">
                 <div class="folder-header folder-drop-target" 
@@ -166,12 +232,22 @@ class LibraryUI {
                     ` : ''}
                 </div>
                 
-                ${folder.expanded ? `
+                ${shouldExpand ? `
                     <div class="folder-content">
                         ${this.renderFolderFiles(folder)}
                         ${hasChildren ? folder.children.map(childId => {
                             const child = library.folders[childId];
-                            return child ? this.renderFolder(child, depth + 1) : '';
+                            if (!child) return '';
+                            
+                            // When searching, only show children that match
+                            if (this.searchQuery && this.searchQuery.trim()) {
+                                const query = this.searchQuery.toLowerCase().trim();
+                                if (!this.folderMatchesSearch(child, query)) {
+                                    return '';
+                                }
+                            }
+                            
+                            return this.renderFolder(child, depth + 1);
                         }).join('') : ''}
                     </div>
                 ` : ''}
@@ -186,14 +262,28 @@ class LibraryUI {
         
         const library = this.libraryManager.library;
         
-        return `<div class="folder-files-container">${folder.files.map(filePath => {
+        // Filter files based on search
+        const filesToShow = folder.files.filter(filePath => {
             const file = library.files[filePath];
-            if (!file) return '';
+            if (!file) return false;
             
-            // Apply search filter
-            if (this.searchQuery && !file.name.toLowerCase().includes(this.searchQuery.toLowerCase())) {
-                return '';
-            }
+            // If no search query, show all files
+            if (!this.searchQuery || !this.searchQuery.trim()) return true;
+            
+            const query = this.searchQuery.toLowerCase().trim();
+            const matchesFileName = file.name.toLowerCase().includes(query);
+            const matchesFileTags = file.tags && file.tags.some(tag => tag.toLowerCase().includes(query));
+            
+            console.log(`  File "${file.name}": name=${matchesFileName}, tags=${matchesFileTags}, query="${query}"`);
+            
+            return matchesFileName || matchesFileTags;
+        });
+        
+        // If no files to show, return empty
+        if (filesToShow.length === 0) return '';
+        
+        return `<div class="folder-files-container">${filesToShow.map(filePath => {
+            const file = library.files[filePath];
             
             const fileExt = file.name.split('.').pop().toLowerCase();
             const fileIcon = this.getFileIcon(fileExt);
@@ -778,9 +868,9 @@ class LibraryUI {
         if (this.activeTagFilter === tag) {
             this.activeTagFilter = null;
         } else {
-            this.activeTagFilter = tag;
+            this.activeTagFilter = tag ? tag.toLowerCase() : null;
         }
-        this.render();
+        this.updateTreeAndFilters();
     }
     
     handleFileClick(event) {
