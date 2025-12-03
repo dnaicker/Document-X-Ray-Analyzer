@@ -5,7 +5,7 @@ let currentPdfData = null;
 let currentAnalysis = null;
 let currentFileName = '';
 let currentFilePath = '';
-let currentFileType = 'pdf'; // 'pdf', 'epub', 'docx', or 'md'
+let currentFileType = 'pdf'; // 'pdf', 'epub', 'docx', 'md', or 'txt'
 let translationState = {
     isTranslating: false,
     isComplete: false,
@@ -584,6 +584,8 @@ async function openRecentFile(filePath) {
             await loadDOCXFileFromPath(filePath);
         } else if (ext === 'md') {
             await loadMarkdownFileFromPath(filePath);
+        } else if (ext === 'txt') {
+            await loadTxtFileFromPath(filePath);
         } else {
             throw new Error(`Unsupported file type: ${ext}`);
         }
@@ -991,6 +993,88 @@ async function loadMarkdownFileFromPath(filePath) {
     }
 }
 
+// Load Text file from path (for recent files)
+async function loadTxtFileFromPath(filePath) {
+    try {
+        currentFileType = 'txt';
+        updateUILabels('txt');
+        const fileData = await ipcRenderer.invoke('read-txt-file', filePath);
+        
+        if (fileData.success) {
+            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+            const result = await txtReader.loadFromBuffer(arrayBuffer);
+            
+            if (result.success && result.text && result.text.trim().length > 0) {
+                document.getElementById('rawTextContent').innerHTML = 
+                    `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
+                
+                const pdfContainer = document.getElementById('pdfViewerContainer');
+                
+                // Hide PDF canvas wrapper
+                const pdfCanvas = document.getElementById('pdfCanvas');
+                if (pdfCanvas) pdfCanvas.style.display = 'none';
+                
+                // Disable snip button for Text files
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                    snipBtn.style.cursor = 'not-allowed';
+                }
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = 'txt-content';
+                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px;';
+                wrapper.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.text)}</pre>`;
+                
+                pdfContainer.appendChild(wrapper);
+                
+                // Restore saved location
+                const lastLocation = recentFilesManager.getLastLocation(filePath);
+                if (lastLocation && lastLocation.scrollTop) {
+                    setTimeout(() => {
+                        wrapper.scrollTop = lastLocation.scrollTop;
+                    }, 100);
+                }
+                
+                if (closePdfBtn) closePdfBtn.disabled = false;
+                if (exportBtn) exportBtn.disabled = false;
+                
+                notesManager.loadNotesForFile(filePath);
+                
+                // Add tab
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, 'txt');
+                }
+                
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+                
+                hideLoading();
+                setStatus(`Loaded: ${currentFileName}`);
+                
+                setTimeout(() => {
+                    performAnalysis();
+                }, 100);
+            } else {
+                hideLoading();
+                setStatus('⚠️ No text found in file');
+            }
+        } else {
+            hideLoading();
+            setStatus('Error: Could not load text file', 'error');
+            alert('Failed to load text file.');
+        }
+    } catch (error) {
+        console.error('Error loading text from path:', error);
+        hideLoading();
+        setStatus('Error loading file', 'error');
+        alert(`Failed to open file: ${error.message}`);
+    }
+}
+
 // Update UI Labels based on file type
 function updateUILabels(fileType) {
     const viewerTitle = document.getElementById('viewerTitle');
@@ -1048,6 +1132,18 @@ function updateUILabels(fileType) {
             typeLabel = 'Markdown';
             icon = '📝';
             // Hide all nav controls for scrolling Markdown
+            if(prevPageBtn) prevPageBtn.style.display = 'none';
+            if(nextPageBtn) nextPageBtn.style.display = 'none';
+            if(pageInfo) pageInfo.style.display = 'none';
+            if(zoomOutBtn) zoomOutBtn.style.display = 'none';
+            if(zoomInBtn) zoomInBtn.style.display = 'none';
+            if(zoomLevel) zoomLevel.style.display = 'none';
+            break;
+            
+        case 'txt':
+            typeLabel = 'Text';
+            icon = '📄';
+            // Hide all nav controls for scrolling Text
             if(prevPageBtn) prevPageBtn.style.display = 'none';
             if(nextPageBtn) nextPageBtn.style.display = 'none';
             if(pageInfo) pageInfo.style.display = 'none';
@@ -1359,6 +1455,8 @@ async function closeCurrentFile() {
         docxReader.destroy();
     } else if (currentFileType === 'md') {
         markdownReader.clear();
+    } else if (currentFileType === 'txt') {
+        txtReader.clear();
     }
     
     // Restore navigation controls
@@ -1412,9 +1510,11 @@ async function closeCurrentFile() {
         const epubContent = pdfContainer.querySelector('.epub-container');
         const docxContent = pdfContainer.querySelector('.docx-content');
         const mdContent = pdfContainer.querySelector('.markdown-content');
+        const txtContent = pdfContainer.querySelector('.txt-content');
         if (epubContent) epubContent.remove();
         if (docxContent) docxContent.remove();
         if (mdContent) mdContent.remove();
+        if (txtContent) txtContent.remove();
         
         // Clear any other dynamically added content EXCEPT the pdfCanvas wrapper
         Array.from(pdfContainer.children).forEach(child => {
@@ -1515,6 +1615,8 @@ function showNewTabScreen() {
         if (docxContent) docxContent.style.display = 'none';
         const mdContent = pdfContainer.querySelector('.markdown-content');
         if (mdContent) mdContent.style.display = 'none';
+        const txtContent = pdfContainer.querySelector('.txt-content');
+        if (txtContent) txtContent.style.display = 'none';
     }
     
     // Reset UI controls
@@ -1616,6 +1718,8 @@ if (openFileBtn) {
                 await loadDOCXFile(result.filePath);
             } else if (currentFileType === 'md') {
                 await loadMarkdownFile(result.filePath);
+            } else if (currentFileType === 'txt') {
+                await loadTxtFile(result.filePath);
             } else {
                 throw new Error(`Unsupported file type: ${currentFileType}`);
             }
@@ -1663,6 +1767,9 @@ async function loadPDFFile(filePath, cachedState = null) {
             
             const mdContainer = pdfContainer.querySelector('.markdown-content');
             if (mdContainer) mdContainer.remove();
+            
+            const txtContainer = pdfContainer.querySelector('.txt-content');
+            if (txtContainer) txtContainer.remove();
         }
         
         // Show PDF canvas
@@ -2656,6 +2763,231 @@ async function loadMarkdownFile(filePath, cachedState = null) {
     }
 }
 
+// Load Text file
+async function loadTxtFile(filePath, cachedState = null) {
+    try {
+        showLoading('Loading text file...');
+        resetPOSCounts();
+        statsPanel.reset();
+        currentFileType = 'txt';
+        currentPdfData = null;
+        updateUILabels('txt');
+        resetTranslationState();
+        
+        // Clear map view for new document
+        if (mapGrid) {
+            mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 Loading document...</p></div>';
+        }
+        
+        // Hide PDF canvas and clean up containers
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        if (pdfCanvas) pdfCanvas.style.display = 'none';
+        
+        const pdfContainer = document.getElementById('pdfViewerContainer');
+        if (pdfContainer) {
+            const epubContainer = pdfContainer.querySelector('.epub-container');
+            if (epubContainer) epubContainer.remove();
+            const docxContainer = pdfContainer.querySelector('.docx-content');
+            if (docxContainer) docxContainer.remove();
+            const mdContainer = pdfContainer.querySelector('.markdown-content');
+            if (mdContainer) mdContainer.remove();
+            const txtContainer = pdfContainer.querySelector('.txt-content');
+            if (txtContainer) txtContainer.remove();
+        }
+        
+        // 1. Try to restore from Persistent Cache (localStorage)
+        if (typeof analysisCache !== 'undefined') {
+            const persistentCache = analysisCache.loadAnalysis(filePath);
+            if (persistentCache && persistentCache.analysis) {
+                console.log('Restoring text file from persistent cache (localStorage)...');
+                currentAnalysis = persistentCache.analysis;
+                
+                // Restore HTML Content & Stats IMMEDIATELY
+                if (persistentCache.rawTextHTML) document.getElementById('rawTextContent').innerHTML = persistentCache.rawTextHTML;
+                if (persistentCache.highlightedTextHTML) document.getElementById('highlightedTextContent').innerHTML = persistentCache.highlightedTextHTML;
+                
+                if (currentAnalysis) {
+                    statsPanel.renderStats(currentAnalysis);
+                    updatePOSCounts(currentAnalysis);
+                }
+                
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                    snipBtn.style.cursor = 'not-allowed';
+                }
+                
+                if (exportBtn) exportBtn.disabled = false;
+                
+                notesManager.loadNotesForFile(filePath);
+                
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, 'txt');
+                }
+                
+                // Clear figures for Text (not supported)
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+                
+                // Hide Figures button for Text
+                if (figuresBtn) {
+                    figuresBtn.style.display = 'none';
+                }
+                
+                // Restore View Selection immediately
+                const lastLocation = recentFilesManager.getLastLocation(filePath);
+                if (lastLocation && lastLocation.view) {
+                    switchView(lastLocation.view);
+                }
+                
+                setStatus(`✅ Restored: ${currentFileName}`);
+                hideLoading();
+                
+                // Refresh map if it's the active view
+                const mapView = document.getElementById('mapView');
+                if (mapView && mapView.classList.contains('active')) {
+                    renderMap().catch(err => console.error('Error rendering map:', err));
+                }
+                
+                // Show loading overlay
+                const pdfLoadingOverlay = document.getElementById('pdfLoadingOverlay');
+                if (pdfLoadingOverlay) {
+                    pdfLoadingOverlay.classList.remove('hidden');
+                }
+                
+                // Load Text Viewer in background
+                (async () => {
+                    try {
+                        const fileData = await ipcRenderer.invoke('read-txt-file', filePath);
+                        if (fileData.success) {
+                            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+                            const result = await txtReader.loadFromBuffer(arrayBuffer);
+                            
+                            if (result && result.success && result.text) {
+                                const container = document.getElementById('pdfViewerContainer');
+                                if (!container) return;
+                                
+                                let txtContainer = container.querySelector('.txt-content');
+                                if (!txtContainer) {
+                                    txtContainer = document.createElement('div');
+                                    txtContainer.className = 'txt-content';
+                                    txtContainer.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px;';
+                                    container.appendChild(txtContainer);
+                                }
+                                
+                                txtContainer.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.text)}</pre>`;
+                                
+                                if (lastLocation && lastLocation.scrollTop) {
+                                    txtContainer.scrollTop = lastLocation.scrollTop;
+                                }
+                            }
+                        }
+                        if (pdfLoadingOverlay) pdfLoadingOverlay.classList.add('hidden');
+                    } catch (e) {
+                        console.error('Background text load error:', e);
+                        if (pdfLoadingOverlay) pdfLoadingOverlay.classList.add('hidden');
+                    }
+                })();
+                
+                return;
+            }
+        }
+        
+        // Read Text file
+        const fileData = await ipcRenderer.invoke('read-txt-file', filePath);
+        
+        if (fileData.success) {
+            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+            
+            // Load Text
+            const result = await txtReader.loadFromBuffer(arrayBuffer);
+            
+            if (result.success && result.text && result.text.trim().length > 0) {
+                // Display text in raw text view
+                document.getElementById('rawTextContent').innerHTML = 
+                    `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
+                
+                // Render Text in PDF viewer container
+                const pdfContainer = document.getElementById('pdfViewerContainer');
+                
+                // Hide PDF canvas wrapper
+                const pdfCanvas = document.getElementById('pdfCanvas');
+                if (pdfCanvas) pdfCanvas.style.display = 'none';
+                
+                // Disable snip button for Text
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                    snipBtn.style.cursor = 'not-allowed';
+                }
+                
+                // Create wrapper for Text
+                const wrapper = document.createElement('div');
+                wrapper.className = 'txt-content';
+                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px;';
+                wrapper.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.text)}</pre>`;
+                
+                pdfContainer.appendChild(wrapper);
+                
+                // Restore saved location
+                const lastLocation = recentFilesManager.getLastLocation(filePath);
+                if (lastLocation) {
+                    if (lastLocation.scrollTop) {
+                        setTimeout(() => {
+                            wrapper.scrollTop = lastLocation.scrollTop;
+                        }, 100);
+                    }
+                    if (lastLocation.view) {
+                        switchView(lastLocation.view);
+                    }
+                }
+                
+                if (closePdfBtn) closePdfBtn.disabled = false;
+                if (exportBtn) exportBtn.disabled = false;
+                
+                notesManager.loadNotesForFile(filePath);
+                
+                // Add tab
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, 'txt');
+                }
+                
+                // Clear figures for Text (not supported)
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+                
+                // Hide Figures button for Text
+                if (figuresBtn) {
+                    figuresBtn.style.display = 'none';
+                }
+                
+                hideLoading();
+                setStatus(`Loaded: ${currentFileName}`);
+                
+                setTimeout(() => {
+                    performAnalysis();
+                }, 100);
+            } else {
+                setStatus('❌ No text found in file');
+                hideLoading();
+            }
+        } else {
+            setStatus('❌ Error reading text file');
+            hideLoading();
+        }
+    } catch (error) {
+        console.error('Error loading text file:', error);
+        setStatus('❌ Error: ' + error.message);
+        hideLoading();
+    }
+}
+
 // OCR Scan logic removed
 // OCR Scan
 // ocrScanBtn.addEventListener('click', async () => {
@@ -2707,6 +3039,7 @@ window.openFileFromPath = async function(filePath, targetNoteId = null, cachedSt
             if (ext === 'epub') type = 'epub';
             else if (ext === 'docx') type = 'docx';
             else if (ext === 'md') type = 'md';
+            else if (ext === 'txt') type = 'txt';
             
             result = {
                 exists: true, // Assume exists, load will fail gracefully if not
@@ -2736,6 +3069,8 @@ window.openFileFromPath = async function(filePath, targetNoteId = null, cachedSt
             await loadDOCXFile(filePath, cachedState);
         } else if (currentFileType === 'md') {
             await loadMarkdownFile(filePath, cachedState);
+        } else if (currentFileType === 'txt') {
+            await loadTxtFile(filePath, cachedState);
         }
         
         // After file is loaded, navigate to the target note if specified
@@ -4534,6 +4869,7 @@ window.openFileFromLibrary = async function(filePath) {
         if (ext === 'epub') fileType = 'epub';
         else if (ext === 'docx' || ext === 'doc') fileType = 'docx';
         else if (ext === 'md') fileType = 'md';
+        else if (ext === 'txt') fileType = 'txt';
         
         currentFilePath = filePath;
         currentFileName = filePath.split(/[\\/]/).pop();
@@ -4554,6 +4890,8 @@ window.openFileFromLibrary = async function(filePath) {
             await loadDOCXFile(filePath);
         } else if (fileType === 'md') {
             await loadMarkdownFile(filePath);
+        } else if (fileType === 'txt') {
+            await loadTxtFile(filePath);
         }
     } catch (error) {
         console.error('Error opening file from library:', error);

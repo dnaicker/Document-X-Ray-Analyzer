@@ -106,11 +106,12 @@ ipcMain.handle('open-file-dialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
       filters: [
-        { name: 'Supported Documents', extensions: ['pdf', 'epub', 'docx', 'md'] },
+        { name: 'Supported Documents', extensions: ['pdf', 'epub', 'docx', 'md', 'txt'] },
         { name: 'PDF Files', extensions: ['pdf'] },
         { name: 'EPUB Files', extensions: ['epub'] },
         { name: 'Word Documents', extensions: ['docx'] },
         { name: 'Markdown Files', extensions: ['md'] },
+        { name: 'Text Files', extensions: ['txt'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     });
@@ -196,6 +197,22 @@ ipcMain.handle('read-markdown-file', async (event, filePath) => {
   }
 });
 
+// Read Text file
+ipcMain.handle('read-txt-file', async (event, filePath) => {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    return {
+      success: true,
+      data: Array.from(new Uint8Array(buffer))
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
 // Open folder dialog
 ipcMain.handle('open-folder-dialog', async () => {
   try {
@@ -221,7 +238,7 @@ ipcMain.handle('open-folder-dialog', async () => {
 // Scan folder for supported files
 ipcMain.handle('scan-folder', async (event, folderPath) => {
   try {
-    const supportedExtensions = ['.pdf', '.epub', '.docx', '.md'];
+    const supportedExtensions = ['.pdf', '.epub', '.docx', '.md', '.txt'];
     const files = [];
     
     function scanDirectory(dirPath, relativePath = '') {
@@ -241,6 +258,7 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
             if (ext === '.epub') fileType = 'epub';
             else if (ext === '.docx') fileType = 'docx';
             else if (ext === '.md') fileType = 'md';
+            else if (ext === '.txt') fileType = 'txt';
             
             files.push({
               fileName: entry.name,
@@ -330,6 +348,7 @@ ipcMain.handle('get-file-info', async (event, filePath) => {
     if (ext === '.epub') fileType = 'epub';
     else if (ext === '.docx') fileType = 'docx';
     else if (ext === '.md') fileType = 'md';
+    else if (ext === '.txt') fileType = 'txt';
     
     return {
       exists: true,
