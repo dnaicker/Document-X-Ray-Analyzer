@@ -23,6 +23,7 @@ class MindmapManager {
         this.linkDragX = 0;
         this.linkDragY = 0;
         this.hoveredConnection = null;
+        this.selectedConnection = null; // Connection with open context menu
         
         // Constants
         this.NODE_WIDTH = 200;
@@ -82,10 +83,24 @@ class MindmapManager {
         this.contextMenu.className = 'context-menu hidden';
         document.body.appendChild(this.contextMenu);
         
+        // Prevent context menu from triggering canvas interactions
+        this.contextMenu.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+        });
+        
+        this.contextMenu.addEventListener('mouseup', (e) => {
+            e.stopPropagation();
+        });
+        
         // Close context menu on click elsewhere
         document.addEventListener('click', (e) => {
             if (!this.contextMenu.contains(e.target)) {
                 this.contextMenu.classList.add('hidden');
+                // Clear selected connection when menu closes
+                if (this.selectedConnection) {
+                    this.selectedConnection = null;
+                    this.render();
+                }
             }
         });
     }
@@ -111,6 +126,68 @@ class MindmapManager {
         // Reuse existing positions if available, or create new nodes
         const existingNodesMap = new Map(this.nodes.map(n => [n.id, n]));
         
+        // Collect all external document references and load their highlights
+        const documentRefs = new Map(); // Map<filePath, {fileName, linkedFrom: [noteIds]}>
+        const externalHighlights = []; // Array of highlights from external documents
+        
+        allItems.forEach(item => {
+            if (item.links && Array.isArray(item.links)) {
+                item.links.forEach(link => {
+                    // Check if this is an external document link (has filePath)
+                    if (typeof link === 'object' && link.filePath && link.fileName) {
+                        const docId = `doc-ref-${link.filePath}`;
+                        if (!documentRefs.has(docId)) {
+                            documentRefs.set(docId, {
+                                id: docId,
+                                fileName: link.fileName,
+                                filePath: link.filePath,
+                                linkedFrom: []
+                            });
+                            
+                            // Load highlights from this external document
+                            const externalData = this.notesManager.getNotesForFile(link.filePath);
+                            if (externalData && externalData.highlights) {
+                                externalData.highlights.forEach(highlight => {
+                                    // Create a unique ID for the external highlight
+                                    const extHighlightId = `ext-${link.filePath}-${highlight.id}`;
+                                    
+                                    externalHighlights.push({
+                                        id: extHighlightId,
+                                        type: 'external-highlight',
+                                        text: highlight.text,
+                                        comment: highlight.comment,
+                                        color: highlight.color || 'blue',
+                                        sourceFile: link.filePath,
+                                        sourceFileName: link.fileName,
+                                        originalId: highlight.id,
+                                        linkedFrom: [] // Will be populated below
+                                    });
+                                });
+                            }
+                        }
+                        documentRefs.get(docId).linkedFrom.push(item.id);
+                    }
+                });
+            }
+        });
+        
+        // Map which source notes link to which external highlights
+        allItems.forEach(item => {
+            if (item.links && Array.isArray(item.links)) {
+                item.links.forEach(link => {
+                    if (typeof link === 'object' && link.filePath) {
+                        // Find all external highlights from this file
+                        externalHighlights.forEach(extHighlight => {
+                            if (extHighlight.sourceFile === link.filePath) {
+                                extHighlight.linkedFrom.push(item.id);
+                            }
+                        });
+                    }
+                });
+            }
+        });
+        
+        // Create nodes for notes/highlights
         this.nodes = allItems.map((item, index) => {
             const existing = existingNodesMap.get(item.id) || layoutMap.get(item.id);
             
@@ -157,24 +234,149 @@ class MindmapManager {
             };
         });
 
+        // Add external highlight nodes
+        let extHighlightIndex = 0;
+        externalHighlights.forEach(extHighlight => {
+            const existing = existingNodesMap.get(extHighlight.id) || layoutMap.get(extHighlight.id);
+            
+            // Calculate height for external highlight
+            let estimatedLines = 0;
+            const charsPerLine = 22;
+            const highlightedText = extHighlight.text || '';
+            const comment = extHighlight.comment || '';
+            
+            const highlightLines = Math.min(Math.ceil(highlightedText.length / charsPerLine), 3);
+            estimatedLines += highlightLines;
+            
+            if (comment) {
+                estimatedLines += 1;
+                const commentLines = Math.ceil(comment.length / charsPerLine);
+                estimatedLines += Math.min(commentLines, 10);
+            }
+            
+            const height = this.HEADER_HEIGHT + (estimatedLines * this.LINE_HEIGHT) + (this.NODE_PADDING * 3);
+            
+            // Position external highlights in the middle area (between source notes and doc refs)
+            const col = extHighlightIndex % 3;
+            const row = Math.floor(extHighlightIndex / 3);
+            
+            this.nodes.push({
+                id: extHighlight.id,
+                data: extHighlight,
+                x: existing ? existing.x : 500 + (col * (this.NODE_WIDTH + 30)),
+                y: existing ? existing.y : 100 + (row * 180),
+                width: this.NODE_WIDTH,
+                height: Math.max(height, 120),
+                color: extHighlight.color || 'blue',
+                isSelected: false,
+                isExternalHighlight: true
+            });
+            extHighlightIndex++;
+        });
+
+        // Add document reference nodes
+        let docRefIndex = 0;
+        documentRefs.forEach((docRef, docId) => {
+            const existing = existingNodesMap.get(docId) || layoutMap.get(docId);
+            
+            // Position document refs to the right of the canvas
+            const col = docRefIndex % 3;
+            const row = Math.floor(docRefIndex / 3);
+            
+            this.nodes.push({
+                id: docId,
+                data: {
+                    type: 'document-reference',
+                    fileName: docRef.fileName,
+                    filePath: docRef.filePath,
+                    linkedFrom: docRef.linkedFrom
+                },
+                x: existing ? existing.x : 800 + (col * 250),
+                y: existing ? existing.y : 100 + (row * 150),
+                width: 220,
+                height: 100,
+                color: 'lightblue',
+                isSelected: false,
+                isDocumentRef: true
+            });
+            docRefIndex++;
+        });
+
         // Build connections
         this.connections = [];
+        
+        // 1. Connect source notes to external highlights and document refs
         this.nodes.forEach(sourceNode => {
             if (sourceNode.data.links) {
                 console.log(`Node ${sourceNode.id} has ${sourceNode.data.links.length} links:`, sourceNode.data.links);
                 sourceNode.data.links.forEach(link => {
                     const linkId = typeof link === 'string' ? link : link.id;
-                    const targetNode = this.nodes.find(n => n.id === linkId);
-                    if (targetNode) {
-                        console.log(`Creating connection: ${sourceNode.id} -> ${targetNode.id}`);
-                        this.connections.push({
-                            source: sourceNode,
-                            target: targetNode
-                        });
+                    
+                    // Check if it's a document reference
+                    if (typeof link === 'object' && link.filePath) {
+                        // Try to find specific external highlight matching this link ID
+                        const specificExternalHighlight = this.nodes.find(n => 
+                            n.isExternalHighlight && 
+                            n.data.sourceFile === link.filePath && 
+                            n.data.originalId === link.id
+                        );
+
+                        if (specificExternalHighlight) {
+                             // Match found! Connect to specific external highlight
+                             console.log(`Creating connection to specific external highlight: ${sourceNode.id} -> ${specificExternalHighlight.id}`);
+                             this.connections.push({
+                                 source: sourceNode,
+                                 target: specificExternalHighlight,
+                                 isDocumentLink: true,
+                                 linkId: link.id // Store original link ID for deletion
+                             });
+                        } else {
+                            // No specific highlight found, check for generic document connection
+                            // This happens if the link points to a file but not a specific loaded highlight, or if highlights are missing
+                            const docRefId = `doc-ref-${link.filePath}`;
+                            const targetNode = this.nodes.find(n => n.id === docRefId);
+                            
+                            if (targetNode) {
+                                console.log(`Creating connection to document: ${sourceNode.id} -> ${targetNode.id}`);
+                                this.connections.push({
+                                    source: sourceNode,
+                                    target: targetNode,
+                                    isDocumentLink: true,
+                                    linkId: link.id // Store original link ID for deletion
+                                });
+                            }
+                        }
                     } else {
-                        console.log(`Target node not found for link: ${linkId}`);
+                        // Regular note-to-note link
+                        const targetNode = this.nodes.find(n => n.id === linkId);
+                        if (targetNode) {
+                            console.log(`Creating connection: ${sourceNode.id} -> ${targetNode.id}`);
+                            this.connections.push({
+                                source: sourceNode,
+                                target: targetNode,
+                                linkId: linkId
+                            });
+                        } else {
+                            console.log(`Target node not found for link: ${linkId}`);
+                        }
                     }
                 });
+            }
+        });
+        
+        // 2. Connect external highlights to their document references
+        this.nodes.forEach(extHighlightNode => {
+            if (extHighlightNode.isExternalHighlight) {
+                const docRefId = `doc-ref-${extHighlightNode.data.sourceFile}`;
+                const docRefNode = this.nodes.find(n => n.id === docRefId);
+                if (docRefNode) {
+                    console.log(`Creating connection from external highlight to document: ${extHighlightNode.id} -> ${docRefNode.id}`);
+                    this.connections.push({
+                        source: extHighlightNode,
+                        target: docRefNode,
+                        isDocumentLink: true
+                    });
+                }
             }
         });
 
@@ -238,6 +440,11 @@ class MindmapManager {
 
     // Interaction Handlers
     handleMouseDown(e) {
+        // Don't process canvas clicks if context menu is open
+        if (this.contextMenu && !this.contextMenu.classList.contains('hidden')) {
+            return;
+        }
+        
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
@@ -245,15 +452,6 @@ class MindmapManager {
 
         this.lastMouseX = mouseX;
         this.lastMouseY = mouseY;
-
-        // Check if clicking on a connection arrow (before checking nodes)
-        if (e.button === 0) { // Left click only
-            const clickedConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
-            if (clickedConnection) {
-                this.promptDeleteConnection(clickedConnection);
-                return;
-            }
-        }
 
         // Check if clicking a node (reverse order to check top nodes first)
         for (let i = this.nodes.length - 1; i >= 0; i--) {
@@ -431,9 +629,30 @@ class MindmapManager {
             const node = this.nodes[i];
             if (worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
                 worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
-                this.editNode(node);
+                
+                // If it's a document reference node, open the document
+                if (node.isDocumentRef && node.data.type === 'document-reference') {
+                    this.openDocumentReference(node);
+                } else {
+                    this.editNode(node);
+                }
                 return;
             }
+        }
+    }
+    
+    openDocumentReference(node) {
+        if (!node.data.filePath) {
+            console.error('Document reference has no file path');
+            return;
+        }
+        
+        // Open the referenced document
+        if (typeof window.openFileFromPath === 'function') {
+            console.log(`Opening document from mindmap: ${node.data.filePath}`);
+            window.openFileFromPath(node.data.filePath, null, null);
+        } else {
+            alert('Cannot open document: openFileFromPath function not available');
         }
     }
 
@@ -484,9 +703,19 @@ class MindmapManager {
 
         // Draw connections
         this.connections.forEach(conn => {
-            const isHovered = this.hoveredConnection === conn;
-            this.ctx.strokeStyle = isHovered ? '#2196F3' : '#ccc';
-            this.ctx.lineWidth = isHovered ? 3 : 2;
+            const isHovered = this.hoveredConnection === conn || this.selectedConnection === conn;
+            
+            // Different styling for document links
+            if (conn.isDocumentLink) {
+                this.ctx.strokeStyle = isHovered ? '#1976d2' : '#64b5f6';
+                this.ctx.lineWidth = isHovered ? 3 : 2;
+                this.ctx.setLineDash([8, 4]); // Dashed line for document links
+            } else {
+                this.ctx.strokeStyle = isHovered ? '#2196F3' : '#ccc';
+                this.ctx.lineWidth = isHovered ? 3 : 2;
+                this.ctx.setLineDash([]); // Solid line for regular links
+            }
+            
             this.drawBezierCurve(conn.source, conn.target, isHovered);
         });
 
@@ -645,12 +874,191 @@ class MindmapManager {
         this.ctx.restore();
     }
 
+    drawExternalHighlightNode(node) {
+        const x = node.x;
+        const y = node.y;
+        const w = node.width;
+        const h = node.height;
+        const radius = 8;
+        
+        // Shadow with a teal tint
+        this.ctx.shadowColor = 'rgba(0, 150, 136, 0.3)';
+        this.ctx.shadowBlur = 12;
+        this.ctx.shadowOffsetX = 2;
+        this.ctx.shadowOffsetY = 2;
+        
+        // Background with subtle gradient
+        const gradient = this.ctx.createLinearGradient(x, y, x, y + h);
+        gradient.addColorStop(0, '#e0f2f1');
+        gradient.addColorStop(1, '#ffffff');
+        this.ctx.fillStyle = gradient;
+        this.drawRoundedRect(x, y, w, h, radius);
+        this.ctx.fill();
+        
+        // Remove shadow for content
+        this.ctx.shadowColor = 'transparent';
+        
+        // Teal border (thicker to distinguish)
+        this.ctx.strokeStyle = '#00897b';
+        this.ctx.lineWidth = 2;
+        this.drawRoundedRect(x, y, w, h, radius);
+        this.ctx.stroke();
+        
+        // Color strip on left (same as regular highlights)
+        const colors = {
+            'yellow': '#ffd54f',
+            'green': '#81c784',
+            'blue': '#64b5f6',
+            'pink': '#f06292',
+            'purple': '#ba68c8',
+            'orange': '#ffb74d'
+        };
+        this.ctx.fillStyle = colors[node.color] || colors['blue'];
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + 5, y);
+        this.ctx.lineTo(x + 5, y + h);
+        this.ctx.lineTo(x + radius, y + h);
+        this.ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.quadraticCurveTo(x, y, x + radius, y);
+        this.ctx.fill();
+        
+        // Header with external indicator
+        this.ctx.fillStyle = '#00695c';
+        this.ctx.font = `bold ${this.FONT_SIZE}px Arial`;
+        this.ctx.fillText('📎 External Highlight', x + 15, y + 20);
+        
+        // Source file name (smaller, on right)
+        this.ctx.fillStyle = '#00897b';
+        this.ctx.font = '9px Arial';
+        const sourceFileName = node.data.sourceFileName || 'Unknown';
+        const maxFileNameWidth = 80;
+        const fileNameText = this.truncateText(sourceFileName, maxFileNameWidth);
+        this.ctx.fillText(fileNameText, x + w - maxFileNameWidth - 5, y + 20);
+        
+        // Divider
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, y + 30);
+        this.ctx.lineTo(x + w, y + 30);
+        this.ctx.strokeStyle = '#b2dfdb';
+        this.ctx.lineWidth = 1;
+        this.ctx.stroke();
+        
+        // Body Text
+        let currentY = y + 50;
+        const comment = node.data.comment || '';
+        const highlightedText = node.data.text || '';
+        
+        // Always show the highlighted text first (in italic, lighter color)
+        this.ctx.fillStyle = '#00695c';
+        this.ctx.font = `italic ${this.FONT_SIZE - 1}px Arial`;
+        const highlightLines = this.wrapTextWithReturn(highlightedText, x + 15, currentY, w - 30, 16, 3);
+        currentY += highlightLines * 16;
+        
+        // If there's a comment, show it below with a separator
+        if (comment) {
+            currentY += 8; // Spacing
+            
+            // Small separator line
+            this.ctx.beginPath();
+            this.ctx.moveTo(x + 15, currentY);
+            this.ctx.lineTo(x + w - 15, currentY);
+            this.ctx.strokeStyle = '#b2dfdb';
+            this.ctx.stroke();
+            
+            currentY += 12;
+            
+            // Comment text
+            this.ctx.fillStyle = '#333';
+            this.ctx.font = `${this.FONT_SIZE}px Arial`;
+            this.wrapTextWithReturn(comment, x + 15, currentY, w - 30, this.LINE_HEIGHT, 10);
+        }
+    }
+
+    drawDocumentReferenceNode(node) {
+        const x = node.x;
+        const y = node.y;
+        const w = node.width;
+        const h = node.height;
+        const radius = 8;
+        
+        // Shadow
+        this.ctx.shadowColor = 'rgba(33, 150, 243, 0.2)';
+        this.ctx.shadowBlur = 15;
+        this.ctx.shadowOffsetX = 2;
+        this.ctx.shadowOffsetY = 2;
+        
+        // Background with gradient
+        const gradient = this.ctx.createLinearGradient(x, y, x, y + h);
+        gradient.addColorStop(0, '#e3f2fd');
+        gradient.addColorStop(1, '#bbdefb');
+        this.ctx.fillStyle = gradient;
+        this.drawRoundedRect(x, y, w, h, radius);
+        this.ctx.fill();
+        
+        // Remove shadow for content
+        this.ctx.shadowColor = 'transparent';
+        
+        // Border
+        this.ctx.strokeStyle = '#2196f3';
+        this.ctx.lineWidth = 2;
+        this.drawRoundedRect(x, y, w, h, radius);
+        this.ctx.stroke();
+        
+        // Document icon strip on left
+        this.ctx.fillStyle = '#1976d2';
+        this.ctx.fillRect(x, y + radius, 5, h - radius * 2);
+        
+        // Header
+        this.ctx.fillStyle = '#1565c0';
+        this.ctx.font = `bold ${this.FONT_SIZE}px Arial`;
+        this.ctx.fillText('📄 Document', x + 15, y + 22);
+        
+        // Divider
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, y + 32);
+        this.ctx.lineTo(x + w, y + 32);
+        this.ctx.strokeStyle = '#2196f3';
+        this.ctx.lineWidth = 1;
+        this.ctx.stroke();
+        
+        // File name
+        this.ctx.fillStyle = '#0d47a1';
+        this.ctx.font = `${this.FONT_SIZE}px Arial`;
+        const fileName = node.data.fileName || 'Unknown';
+        this.wrapTextWithReturn(fileName, x + 15, y + 50, w - 30, this.LINE_HEIGHT, 2);
+        
+        // Connection count
+        const linkCount = node.data.linkedFrom ? node.data.linkedFrom.length : 0;
+        this.ctx.fillStyle = '#666';
+        this.ctx.font = '11px Arial';
+        this.ctx.fillText(`🔗 ${linkCount} linked note${linkCount !== 1 ? 's' : ''}`, x + 15, y + h - 10);
+        
+        // Clickable indicator
+        this.ctx.fillStyle = '#1976d2';
+        this.ctx.font = 'bold 11px Arial';
+        this.ctx.fillText('(double-click to open)', x + w - 130, y + h - 10);
+    }
+
     drawNode(node) {
         const x = node.x;
         const y = node.y;
         const w = node.width;
         const h = node.height;
         const radius = 8;
+
+        // Check if this is a document reference node
+        if (node.isDocumentRef && node.data.type === 'document-reference') {
+            this.drawDocumentReferenceNode(node);
+            return;
+        }
+        
+        // Check if this is an external highlight node
+        if (node.isExternalHighlight && node.data.type === 'external-highlight') {
+            this.drawExternalHighlightNode(node);
+            return;
+        }
 
         // Highlight if this is a valid link target
         const isLinkTarget = this.isLinkDragging && this.linkDragTarget === node;
@@ -839,6 +1247,33 @@ class MindmapManager {
         return lineCount + 1;
     }
 
+    truncateText(text, maxWidth) {
+        const metrics = this.ctx.measureText(text);
+        if (metrics.width <= maxWidth) {
+            return text;
+        }
+        
+        // Binary search for the right length
+        let left = 0;
+        let right = text.length;
+        let result = '';
+        
+        while (left < right) {
+            const mid = Math.floor((left + right + 1) / 2);
+            const testText = text.substring(0, mid) + '...';
+            const testMetrics = this.ctx.measureText(testText);
+            
+            if (testMetrics.width <= maxWidth) {
+                result = testText;
+                left = mid;
+            } else {
+                right = mid - 1;
+            }
+        }
+        
+        return result || text.substring(0, 3) + '...';
+    }
+
     drawLinkHandle(node) {
         const handleX = node.x + node.width - 10;
         const handleY = node.y + node.height / 2;
@@ -881,6 +1316,17 @@ class MindmapManager {
             }
         }
 
+        // Check if clicked on a connection (if no node was clicked)
+        if (!clickedNode) {
+            const clickedConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
+            if (clickedConnection) {
+                this.selectedConnection = clickedConnection;
+                this.showConnectionContextMenu(clickedConnection, e.clientX, e.clientY);
+                this.render();
+                return;
+            }
+        }
+
         this.showContextMenu(e.clientX, e.clientY, clickedNode, worldPos);
     }
 
@@ -891,27 +1337,154 @@ class MindmapManager {
         this.contextMenu.classList.remove('hidden');
 
         if (node) {
-            // Node options
-            this.addMenuItem('✏️ Edit Note', () => this.editNode(node));
-            this.addMenuItem('🎨 Change Color', () => this.showColorPicker(node));
-            this.addMenuItem('🔗 Link to...', () => this.showLinkDialog(node));
-            this.addMenuItem('🗑️ Delete Note', () => this.deleteNode(node), true);
+            // Check if it's a document reference or external highlight (read-only)
+            if (node.isDocumentRef && node.data.type === 'document-reference') {
+                // Document reference options (read-only)
+                const header = document.createElement('div');
+                header.className = 'context-menu-header';
+                header.style.cssText = 'padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 11px; color: #666; background: #f9f9f9;';
+                header.innerHTML = `
+                    <div style="margin-bottom: 4px; font-weight: 600;">📄 Document Reference</div>
+                    <div style="font-size: 10px; color: #555;">${this.escapeHtml(node.data.fileName || 'Unknown')}</div>
+                    <div style="font-size: 9px; color: #999; margin-top: 4px;">Read-only - cannot be edited</div>
+                `;
+                this.contextMenu.appendChild(header);
+                
+                this.addMenuItem('📂 Open Document', () => {
+                    this.contextMenu.classList.add('hidden');
+                    this.openDocumentReference(node);
+                });
+                
+                this.addMenuItem('❌ Cancel', () => {
+                    this.contextMenu.classList.add('hidden');
+                });
+            } else if (node.isExternalHighlight && node.data.type === 'external-highlight') {
+                // External highlight options (read-only)
+                const header = document.createElement('div');
+                header.className = 'context-menu-header';
+                header.style.cssText = 'padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 11px; color: #666; background: #f9f9f9;';
+                const displayText = (node.data.text || node.data.comment || 'External Highlight').substring(0, 30);
+                header.innerHTML = `
+                    <div style="margin-bottom: 4px; font-weight: 600;">📎 External Highlight</div>
+                    <div style="font-size: 10px; color: #555;">"${this.escapeHtml(displayText)}${displayText.length >= 30 ? '...' : ''}"</div>
+                    <div style="font-size: 9px; color: #999; margin-top: 4px;">From: ${this.escapeHtml(node.data.sourceFileName || 'Unknown')}</div>
+                    <div style="font-size: 9px; color: #999; margin-top: 2px;">Read-only - cannot be edited</div>
+                `;
+                this.contextMenu.appendChild(header);
+                
+                this.addMenuItem('📂 Open Source Document', () => {
+                    this.contextMenu.classList.add('hidden');
+                    if (node.data.sourceFile && typeof window.openFileFromPath === 'function') {
+                        window.openFileFromPath(node.data.sourceFile, null, null);
+                    }
+                });
+                
+                this.addMenuItem('❌ Cancel', () => {
+                    this.contextMenu.classList.add('hidden');
+                });
+            } else {
+                // Regular note/highlight options (editable)
+                this.addMenuItem('✏️ Edit Note', () => this.editNode(node));
+                this.addMenuItem('🎨 Change Color', () => this.showColorPicker(node));
+                this.addMenuItem('🔗 Link to...', () => this.showLinkDialog(node));
+                this.addMenuItem('🗑️ Delete Note', () => this.deleteNode(node), true);
+            }
         } else {
             // Background options
             this.addMenuItem('📝 Add Note', () => this.addNote(worldPos.x, worldPos.y));
         }
     }
 
+    showConnectionContextMenu(connection, x, y) {
+        this.contextMenu.innerHTML = '';
+        this.contextMenu.style.left = x + 'px';
+        this.contextMenu.style.top = y + 'px';
+        this.contextMenu.classList.remove('hidden');
+
+        // Connection options
+        // Get display text for source
+        let sourceText = '';
+        let sourceIcon = '📝';
+        if (connection.source.data.type === 'document-reference') {
+            sourceText = connection.source.data.fileName || 'Document';
+            sourceIcon = '📄';
+        } else if (connection.source.data.type === 'external-highlight') {
+            sourceText = connection.source.data.text || connection.source.data.comment || 'External Highlight';
+            sourceIcon = '📎';
+        } else if (connection.source.data.type === 'highlight') {
+            sourceText = connection.source.data.text || connection.source.data.comment || 'Highlight';
+            sourceIcon = '🖍️';
+        } else {
+            sourceText = connection.source.data.note || connection.source.data.text || 'Note';
+            sourceIcon = '📝';
+        }
+        
+        // Get display text for target
+        let targetText = '';
+        let targetIcon = '📝';
+        if (connection.target.data.type === 'document-reference') {
+            targetText = connection.target.data.fileName || 'Document';
+            targetIcon = '📄';
+        } else if (connection.target.data.type === 'external-highlight') {
+            targetText = connection.target.data.text || connection.target.data.comment || 'External Highlight';
+            targetIcon = '📎';
+        } else if (connection.target.data.type === 'highlight') {
+            targetText = connection.target.data.text || connection.target.data.comment || 'Highlight';
+            targetIcon = '🖍️';
+        } else {
+            targetText = connection.target.data.note || connection.target.data.text || 'Note';
+            targetIcon = '📝';
+        }
+        
+        sourceText = sourceText.substring(0, 35);
+        targetText = targetText.substring(0, 35);
+        
+        // Add header showing what's connected
+        const header = document.createElement('div');
+        header.className = 'context-menu-header';
+        header.style.cssText = 'padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 11px; color: #666; background: #f9f9f9; pointer-events: none; user-select: none;';
+        header.innerHTML = `
+            <div style="margin-bottom: 6px; font-weight: 600;">🔗 Link Options</div>
+            <div style="font-size: 10px; color: #555; margin-bottom: 2px;">${sourceIcon} "${this.escapeHtml(sourceText)}${sourceText.length >= 35 ? '...' : ''}"</div>
+            <div style="font-size: 10px; color: #999; margin: 3px 0;">↓</div>
+            <div style="font-size: 10px; color: #555;">${targetIcon} "${this.escapeHtml(targetText)}${targetText.length >= 35 ? '...' : ''}"</div>
+        `;
+        this.contextMenu.appendChild(header);
+        
+        // Add menu options
+        this.addMenuItem('🗑️ Delete Link', () => {
+            this.contextMenu.classList.add('hidden');
+            this.selectedConnection = null;
+            this.promptDeleteConnection(connection);
+            this.render();
+        }, true);
+        
+        this.addMenuItem('❌ Cancel', () => {
+            this.contextMenu.classList.add('hidden');
+            this.selectedConnection = null;
+            this.render();
+        });
+    }
+
     addMenuItem(text, onClick, isDanger = false) {
         const item = document.createElement('div');
         item.className = 'context-menu-item' + (isDanger ? ' delete-item' : '');
         item.textContent = text;
-        item.addEventListener('click', onClick);
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onClick();
+        });
+        // Prevent mousedown from triggering canvas interactions
+        item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
         this.contextMenu.appendChild(item);
     }
 
     getConnectionAtPoint(x, y) {
-        const threshold = 10; // Click detection threshold in world units
+        const threshold = 20; // Click detection threshold in world units (increased for easier selection)
         
         for (const conn of this.connections) {
             // Get connection points
@@ -939,7 +1512,8 @@ class MindmapManager {
             }
             
             // Sample points along the bezier curve and check distance
-            for (let t = 0; t <= 1; t += 0.05) {
+            // Use finer sampling (0.04 instead of 0.05) for more accurate detection
+            for (let t = 0; t <= 1; t += 0.04) {
                 const point = this.getBezierPoint(start, cp1, cp2, end, t);
                 const distToPoint = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(y - point.y, 2));
                 
@@ -1007,10 +1581,33 @@ class MindmapManager {
         // Handle confirm button
         document.getElementById('confirmDeleteLinkBtn').addEventListener('click', () => {
             // Remove the link
+            
+            // Determine the correct target ID to pass to toggleLink
+            // If it's an external link, we might need the stored linkId or originalId
+            let targetId = connection.target.id;
+            let targetFilePath = connection.target.data.filePath;
+
+            if (connection.isDocumentLink) {
+                if (connection.linkId) {
+                    // If we stored the specific link ID (best case)
+                    targetId = connection.linkId;
+                } else if (connection.target.isExternalHighlight && connection.target.data.originalId) {
+                    // If it's an external highlight node, use its original ID
+                    targetId = connection.target.data.originalId;
+                    targetFilePath = connection.target.data.sourceFile;
+                } else if (connection.target.isDocumentRef) {
+                    // If it's a generic document ref without a stored linkId, 
+                    // it might be a direct link to the document (not a highlight)
+                    // In this case targetId is likely just the doc ref ID, which might not match stored link.
+                    // But usually buildConnections will now store linkId.
+                    targetFilePath = connection.target.data.filePath;
+                }
+            }
+
             this.notesManager.toggleLink(
                 connection.source.id,
-                connection.target.id,
-                connection.target.data.filePath
+                targetId,
+                targetFilePath
             );
             this.notesManager.render();
             

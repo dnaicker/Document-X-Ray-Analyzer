@@ -778,31 +778,36 @@
                 </div>
                 
                 <div id="syncActions" class="hidden" style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
-                    <h4>Sync Data</h4>
+                    <h4>📁 Complete Library Backup</h4>
                     <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
-                        Sync your notes, highlights, and settings to Google Drive.
+                        Backup your entire library to Google Drive including:
+                        <br>• 📂 Folder structure
+                        <br>• 📄 All document files
+                        <br>• 📝 Notes and highlights
+                        <br>• 🧠 Analysis cache
                     </p>
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <button id="syncUploadBtn" class="btn-primary">⬆️ Upload to Drive</button>
-                        <button id="syncDownloadBtn" class="btn-secondary">⬇️ Download from Drive</button>
-                    </div>
-                    
-                    <div style="margin-top: 15px; margin-bottom: 15px;">
-                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.9em;">
-                            <input type="checkbox" id="syncDocumentsCheck" checked> 
-                            Also upload current document file
-                        </label>
-                    </div>
-                    
-                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
-                        <h4>📁 Sync Library Structure</h4>
-                        <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
-                            Sync your entire library with folders and files to Google Drive for portability across devices.
-                        </p>
-                        <div style="display: flex; gap: 10px;">
-                            <button id="syncLibraryUploadBtn" class="btn-primary">📤 Backup Library to Drive</button>
-                            <button id="syncLibraryDownloadBtn" class="btn-secondary">📥 Restore from Drive</button>
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <button id="syncLibraryUploadBtn" class="btn-primary" style="flex: 1;">📤 Backup Everything to Drive</button>
+                            <button id="syncLibraryDownloadBtn" class="btn-secondary" style="flex: 1;">📥 Restore Everything from Drive</button>
                         </div>
+                        
+                        <!-- Legacy Sync Data (for current document only) -->
+                        <details style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                            <summary style="cursor: pointer; font-weight: 600; margin-bottom: 10px; user-select: none;">
+                                ⚙️ Advanced: Sync Current Document Only
+                            </summary>
+                            <p style="font-size: 0.9em; color: #666; margin: 10px 0;">
+                                Quick sync for just the currently open document (notes, highlights, settings).
+                            </p>
+                            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                <button id="syncUploadBtn" class="btn-primary" style="font-size: 0.9em; padding: 8px 12px;">⬆️ Upload Current</button>
+                                <button id="syncDownloadBtn" class="btn-secondary" style="font-size: 0.9em; padding: 8px 12px;">⬇️ Download Current</button>
+                            </div>
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.85em;">
+                                <input type="checkbox" id="syncDocumentsCheck" checked> 
+                                Also upload current document file
+                            </label>
+                        </details>
                         <div id="librarySyncProgress" class="hidden" style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
                             <div style="font-size: 0.9em;" id="librarySyncStatus">Preparing...</div>
                             <div style="margin-top: 5px;">

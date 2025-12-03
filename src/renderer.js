@@ -1897,6 +1897,12 @@ async function loadPDFFile(filePath, cachedState = null) {
                 if (mapView && mapView.classList.contains('active')) {
                     renderMap().catch(err => console.error('Error rendering map:', err));
                 }
+
+                // Refresh Mindmap if it's the active view
+                const mindmapView = document.getElementById('mindmapView');
+                if (mindmapView && mindmapView.classList.contains('active') && typeof mindmapManager !== 'undefined') {
+                    setTimeout(() => mindmapManager.refreshData(), 50);
+                }
                 
                 // Show PDF loading overlay
                 const pdfLoadingOverlay = document.getElementById('pdfLoadingOverlay');
@@ -2184,6 +2190,12 @@ async function loadEPUBFile(filePath, cachedState = null) {
                 if (mapView && mapView.classList.contains('active')) {
                     renderMap().catch(err => console.error('Error rendering map:', err));
                 }
+
+                // Refresh Mindmap if it's the active view
+                const mindmapView = document.getElementById('mindmapView');
+                if (mindmapView && mindmapView.classList.contains('active') && typeof mindmapManager !== 'undefined') {
+                    setTimeout(() => mindmapManager.refreshData(), 50);
+                }
                 
                 // Show loading overlay for EPUB rendering
                 const pdfLoadingOverlay = document.getElementById('pdfLoadingOverlay');
@@ -2464,6 +2476,12 @@ async function loadDOCXFile(filePath) {
                 if (mapView && mapView.classList.contains('active')) {
                     renderMap().catch(err => console.error('Error rendering map:', err));
                 }
+
+                // Refresh Mindmap if it's the active view
+                const mindmapView = document.getElementById('mindmapView');
+                if (mindmapView && mindmapView.classList.contains('active') && typeof mindmapManager !== 'undefined') {
+                    setTimeout(() => mindmapManager.refreshData(), 50);
+                }
                 
                 // Show loading overlay
                 const pdfLoadingOverlay = document.getElementById('pdfLoadingOverlay');
@@ -2688,6 +2706,12 @@ async function loadMarkdownFile(filePath, cachedState = null) {
                 const mapView = document.getElementById('mapView');
                 if (mapView && mapView.classList.contains('active')) {
                     renderMap().catch(err => console.error('Error rendering map:', err));
+                }
+
+                // Refresh Mindmap if it's the active view
+                const mindmapView = document.getElementById('mindmapView');
+                if (mindmapView && mindmapView.classList.contains('active') && typeof mindmapManager !== 'undefined') {
+                    setTimeout(() => mindmapManager.refreshData(), 50);
                 }
                 
                 // Show loading overlay
@@ -2922,6 +2946,12 @@ async function loadTxtFile(filePath, cachedState = null) {
                 const mapView = document.getElementById('mapView');
                 if (mapView && mapView.classList.contains('active')) {
                     renderMap().catch(err => console.error('Error rendering map:', err));
+                }
+
+                // Refresh Mindmap if it's the active view
+                const mindmapView = document.getElementById('mindmapView');
+                if (mindmapView && mindmapView.classList.contains('active') && typeof mindmapManager !== 'undefined') {
+                    setTimeout(() => mindmapManager.refreshData(), 50);
                 }
                 
                 // Show loading overlay
@@ -3244,6 +3274,11 @@ async function performAnalysis() {
         // Pre-render map in background so it's ready when user switches to it
         setTimeout(() => {
             renderMap().catch(err => console.error('Error pre-rendering map:', err));
+            
+            // Also refresh mindmap data so it's ready
+            if (typeof mindmapManager !== 'undefined') {
+                mindmapManager.refreshData();
+            }
         }, 100);
         
         setTimeout(() => {
@@ -5277,12 +5312,34 @@ if (syncLibraryUploadBtn) {
             syncLibraryUploadBtn.disabled = true;
             syncLibraryUploadBtn.textContent = 'Backing up...';
             librarySyncProgress.classList.remove('hidden');
-            librarySyncStatus.textContent = 'Starting backup...';
+            librarySyncStatus.textContent = 'Starting complete backup...';
             librarySyncProgressBar.style.width = '0%';
             
             const library = libraryManager.library;
             
-            const result = await driveSync.syncLibraryStructure(library, (current, total, message) => {
+            // Gather all notes from localStorage
+            const allNotes = {};
+            if (typeof notesManager !== 'undefined') {
+                Object.keys(library.files || {}).forEach(filePath => {
+                    const notes = notesManager.loadNotesForFileSync(filePath);
+                    if (notes && notes.length > 0) {
+                        allNotes[filePath] = notes;
+                    }
+                });
+            }
+            
+            // Gather all analysis cache from localStorage
+            const allAnalysis = {};
+            if (typeof analysisCache !== 'undefined') {
+                Object.keys(library.files || {}).forEach(filePath => {
+                    const cachedData = analysisCache.loadAnalysis(filePath);
+                    if (cachedData) {
+                        allAnalysis[filePath] = cachedData;
+                    }
+                });
+            }
+            
+            const result = await driveSync.syncLibraryStructure(library, allNotes, allAnalysis, (current, total, message) => {
                 librarySyncStatus.textContent = message;
                 const percent = (current / total) * 100;
                 librarySyncProgressBar.style.width = `${percent}%`;
@@ -5290,12 +5347,14 @@ if (syncLibraryUploadBtn) {
             
             librarySyncProgress.classList.add('hidden');
             
-            let message = `✅ Library Backup Complete!\n\n`;
-            message += `📁 Folders created: ${result.foldersCreated}\n`;
-            message += `📄 Files uploaded: ${result.filesUploaded}\n`;
+            let message = `✅ Complete Backup Successful!\n\n`;
+            message += `📁 Folders: ${result.foldersCreated}\n`;
+            message += `📄 Files: ${result.filesUploaded}\n`;
+            message += `📝 Notes & Highlights: ${result.notesBackedUp} files\n`;
+            message += `🧠 Analysis Cache: ${result.analysisBackedUp} files\n`;
             
             if (result.filesSkipped > 0) {
-                message += `⏭️ Files skipped (already exist): ${result.filesSkipped}\n`;
+                message += `\n⏭️ Files skipped (already exist): ${result.filesSkipped}\n`;
             }
             
             if (result.errors.length > 0) {
@@ -5338,10 +5397,10 @@ if (syncLibraryDownloadBtn) {
             syncLibraryDownloadBtn.disabled = true;
             syncLibraryDownloadBtn.textContent = 'Restoring...';
             librarySyncProgress.classList.remove('hidden');
-            librarySyncStatus.textContent = 'Downloading library structure...';
-            librarySyncProgressBar.style.width = '50%';
+            librarySyncStatus.textContent = 'Downloading complete backup...';
+            librarySyncProgressBar.style.width = '25%';
             
-            const data = await driveSync.downloadLibraryStructure();
+            const data = await driveSync.downloadCompleteBackup();
             
             if (!data || !data.library) {
                 alert('No library backup found in Google Drive.\n\nPlease backup your library first using "Backup Library to Drive".');
@@ -5349,8 +5408,8 @@ if (syncLibraryDownloadBtn) {
                 return;
             }
             
-            librarySyncStatus.textContent = 'Merging library structure...';
-            librarySyncProgressBar.style.width = '75%';
+            librarySyncStatus.textContent = 'Restoring library structure...';
+            librarySyncProgressBar.style.width = '40%';
             
             // Merge the library structure
             const currentLibrary = libraryManager.library;
@@ -5373,6 +5432,38 @@ if (syncLibraryDownloadBtn) {
             libraryManager.library = currentLibrary;
             libraryManager.saveLibrary();
             
+            librarySyncStatus.textContent = 'Restoring notes and highlights...';
+            librarySyncProgressBar.style.width = '60%';
+            
+            // Restore notes
+            let notesRestored = 0;
+            if (data.notes && typeof notesManager !== 'undefined') {
+                const currentNotes = notesManager.loadFromStorage();
+                Object.keys(data.notes).forEach(filePath => {
+                    // Merge notes (don't overwrite existing)
+                    if (!currentNotes[filePath]) {
+                        currentNotes[filePath] = data.notes[filePath];
+                        notesRestored++;
+                    }
+                });
+                localStorage.setItem(notesManager.storageKey, JSON.stringify(currentNotes));
+            }
+            
+            librarySyncStatus.textContent = 'Restoring analysis cache...';
+            librarySyncProgressBar.style.width = '80%';
+            
+            // Restore analysis cache
+            let analysisRestored = 0;
+            if (data.analysis && typeof analysisCache !== 'undefined') {
+                Object.keys(data.analysis).forEach(filePath => {
+                    const existing = analysisCache.loadAnalysis(filePath);
+                    if (!existing) {
+                        analysisCache.saveAnalysis(filePath, data.analysis[filePath]);
+                        analysisRestored++;
+                    }
+                });
+            }
+            
             librarySyncStatus.textContent = 'Complete!';
             librarySyncProgressBar.style.width = '100%';
             
@@ -5385,7 +5476,17 @@ if (syncLibraryDownloadBtn) {
             }
             
             const syncDate = data.syncDate ? new Date(data.syncDate).toLocaleString() : 'Unknown';
-            alert(`✅ Library Restored Successfully!\n\nBackup from: ${syncDate}\n\nYour library has been merged with the backup from Google Drive.`);
+            const stats = data.stats || {};
+            
+            let message = `✅ Complete Backup Restored!\n\n`;
+            message += `📅 Backup Date: ${syncDate}\n\n`;
+            message += `📁 Folders: ${stats.folders || 'N/A'}\n`;
+            message += `📄 Files: ${stats.files || 'N/A'}\n`;
+            message += `📝 Notes & Highlights: ${notesRestored} files restored\n`;
+            message += `🧠 Analysis Cache: ${analysisRestored} files restored\n\n`;
+            message += `Your complete library has been restored!`;
+            
+            alert(message);
             
         } catch (error) {
             console.error('Library restore error:', error);

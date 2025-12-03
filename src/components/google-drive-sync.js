@@ -342,18 +342,22 @@ class GoogleDriveSync {
     }
 
     /**
-     * Sync entire library structure to Google Drive
+     * Complete backup: Sync entire library structure + all notes/highlights/analysis to Google Drive
      * @param {object} library - Library object from LibraryManager
+     * @param {object} allNotes - All notes from NotesManager
+     * @param {object} allAnalysis - All analysis cache data
      * @param {function} progressCallback - Progress callback(current, total, message)
      * @returns {object} Sync result
      */
-    async syncLibraryStructure(library, progressCallback = null) {
+    async syncLibraryStructure(library, allNotes = null, allAnalysis = null, progressCallback = null) {
         const rootFolderId = await this.ensureFolder();
         const folderMap = new Map(); // Maps library folder IDs to Drive folder IDs
         const results = {
             foldersCreated: 0,
             filesUploaded: 0,
             filesSkipped: 0,
+            notesBackedUp: 0,
+            analysisBackedUp: 0,
             errors: []
         };
         
@@ -429,11 +433,55 @@ class GoogleDriveSync {
                 }
             }
             
-            // Upload library structure as JSON for easy restoration
-            await this.uploadJson('library-structure.json', {
+            // Backup notes for all files
+            if (allNotes) {
+                if (progressCallback) {
+                    progressCallback(0, Object.keys(allNotes).length, 'Backing up notes and highlights...');
+                }
+                
+                const notesData = {};
+                Object.keys(allNotes).forEach(filePath => {
+                    if (allNotes[filePath] && allNotes[filePath].length > 0) {
+                        notesData[filePath] = allNotes[filePath];
+                        results.notesBackedUp++;
+                    }
+                });
+                
+                if (Object.keys(notesData).length > 0) {
+                    await this.uploadJson('all-notes.json', notesData);
+                }
+            }
+            
+            // Backup analysis cache for all files
+            if (allAnalysis) {
+                if (progressCallback) {
+                    progressCallback(0, Object.keys(allAnalysis).length, 'Backing up analysis cache...');
+                }
+                
+                const analysisData = {};
+                Object.keys(allAnalysis).forEach(filePath => {
+                    if (allAnalysis[filePath]) {
+                        analysisData[filePath] = allAnalysis[filePath];
+                        results.analysisBackedUp++;
+                    }
+                });
+                
+                if (Object.keys(analysisData).length > 0) {
+                    await this.uploadJson('all-analysis.json', analysisData);
+                }
+            }
+            
+            // Upload complete backup metadata
+            await this.uploadJson('library-complete-backup.json', {
                 library: library,
                 syncDate: new Date().toISOString(),
-                folderMap: Array.from(folderMap.entries())
+                folderMap: Array.from(folderMap.entries()),
+                stats: {
+                    folders: results.foldersCreated,
+                    files: results.filesUploaded,
+                    notes: results.notesBackedUp,
+                    analysis: results.analysisBackedUp
+                }
             });
             
             return results;
@@ -454,15 +502,37 @@ class GoogleDriveSync {
     }
 
     /**
-     * Download and restore library structure from Google Drive
-     * @returns {object} Library structure
+     * Download and restore complete backup from Google Drive
+     * @returns {object} Complete backup data (library + notes + analysis)
      */
-    async downloadLibraryStructure() {
+    async downloadCompleteBackup() {
         try {
-            const data = await this.downloadJson('library-structure.json');
-            return data;
+            const backup = await this.downloadJson('library-complete-backup.json');
+            
+            if (!backup) {
+                // Fallback to old structure for backwards compatibility
+                return await this.downloadJson('library-structure.json');
+            }
+            
+            // Download notes
+            try {
+                const notes = await this.downloadJson('all-notes.json');
+                if (notes) backup.notes = notes;
+            } catch (e) {
+                console.log('No notes backup found');
+            }
+            
+            // Download analysis cache
+            try {
+                const analysis = await this.downloadJson('all-analysis.json');
+                if (analysis) backup.analysis = analysis;
+            } catch (e) {
+                console.log('No analysis backup found');
+            }
+            
+            return backup;
         } catch (error) {
-            console.error('Error downloading library structure:', error);
+            console.error('Error downloading backup:', error);
             return null;
         }
     }

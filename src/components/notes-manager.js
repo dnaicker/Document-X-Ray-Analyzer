@@ -564,6 +564,38 @@ class NotesManager {
         });
     }
     
+    loadNotesForFileSync(filePath) {
+        // Synchronous version that just returns the notes without setting state
+        const allData = this.loadFromStorage();
+        return allData[filePath] || [];
+    }
+    
+    getNotesForFile(filePath) {
+        // Get notes and highlights for a specific file without changing state
+        // Used by mindmap to load external highlights
+        const allData = this.loadFromStorage();
+        let fileData = allData[filePath];
+        
+        // Fallback: Match by filename if exact path not found
+        if (!fileData) {
+            try {
+                const targetFileName = filePath.split(/[\\/]/).pop();
+                const matchedPath = Object.keys(allData).find(storedPath => {
+                    const storedFileName = storedPath.split(/[\\/]/).pop();
+                    return storedFileName === targetFileName;
+                });
+                
+                if (matchedPath) {
+                    fileData = allData[matchedPath];
+                }
+            } catch (e) {
+                console.error('Error finding file data:', e);
+            }
+        }
+        
+        return fileData || { notes: [], highlights: [] };
+    }
+    
     loadNotesForFile(filePath) {
         this.currentFilePath = filePath;
         const allData = this.loadFromStorage();

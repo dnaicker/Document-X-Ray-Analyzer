@@ -1956,6 +1956,8 @@ input:checked + .slider:before {
     min-width: 200px;
     overflow: hidden;
     animation: contextMenuAppear 0.15s ease-out;
+    pointer-events: auto;
+    user-select: none;
 }
 
 .context-menu.hidden {
@@ -1981,6 +1983,9 @@ input:checked + .slider:before {
     color: #333;
     user-select: none;
     border-bottom: 1px solid #f0f0f0;
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
 }
 
 .context-menu-item:last-child {
