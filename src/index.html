@@ -189,25 +189,55 @@
                     <button class="btn-icon text-settings-btn" title="Text Appearance" style="margin-left: auto;">Aa</button>
                 </div>
                 <div class="highlight-options">
-                    <label style="font-weight: 600; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; margin-bottom: 4px; width: 100%;"><input type="checkbox" id="highlightSelectAll" checked> ✓ Select All</label>
-                    <label><input type="checkbox" id="highlightNouns" checked> 🔵 Nouns <span class="pos-count" id="countNouns">-</span></label>
-                    <label><input type="checkbox" id="highlightVerbs" checked> 🟢 Verbs <span class="pos-count" id="countVerbs">-</span></label>
-                    <label><input type="checkbox" id="highlightAdj"> 🟡 Adjectives <span class="pos-count" id="countAdj">-</span></label>
-                    <label><input type="checkbox" id="highlightAdv"> 🟠 Adverbs <span class="pos-count" id="countAdv">-</span></label>
-                    <label><input type="checkbox" id="highlightPrep"> 🟣 Prepositions <span class="pos-count" id="countPrep">-</span></label>
-                    <label><input type="checkbox" id="highlightConj"> 🟤 Conjunctions <span class="pos-count" id="countConj">-</span></label>
-                    <label><input type="checkbox" id="highlightInterj"> 🔴 Interjections <span class="pos-count" id="countInterj">-</span></label>
-                    <label><input type="checkbox" id="highlightDet"> ⚪ Determiners <span class="pos-count" id="countDet">-</span></label>
-                    <label><input type="checkbox" id="highlightPeople" checked> 👤 People <span class="pos-count" id="countPeople">-</span></label>
-                    <label><input type="checkbox" id="highlightPlaces" checked> 📍 Places <span class="pos-count" id="countPlaces">-</span></label>
-                    <label><input type="checkbox" id="highlightAbbr"> 🆎 Abbreviations <span class="pos-count" id="countAbbr">-</span></label>
-                    <label><input type="checkbox" id="highlightAcronyms"> 🅰️ Acronyms <span class="pos-count" id="countAcronyms">-</span></label>
-                    <label><input type="checkbox" id="highlightNumbers"> 🔢 Numbers <span class="pos-count" id="countNumbers">-</span></label>
-                    <label><input type="checkbox" id="highlightCurrencies"> 💵 Currencies <span class="pos-count" id="countCurrencies">-</span></label>
-                    <label><input type="checkbox" id="highlightDates"> 📅 Dates <span class="pos-count" id="countDates">-</span></label>
-                    <label><input type="checkbox" id="highlightCrypto"> 🪙 Crypto <span class="pos-count" id="countCrypto">-</span></label>
-                    <label><input type="checkbox" id="highlightCurrencyPairs"> 💱 Pairs <span class="pos-count" id="countCurrencyPairs">-</span></label>
-                    <label><input type="checkbox" id="highlightCurrencySymbols"> 💲 Symbols <span class="pos-count" id="countCurrencySymbols">-</span></label>
+                    <label style="font-weight: 600; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; margin-bottom: 8px; width: 100%;"><input type="checkbox" id="highlightSelectAll" checked> ✓ Select All</label>
+                    
+                    <!-- Basic Parts of Speech Section -->
+                    <div class="pos-section">
+                        <div class="pos-section-header" onclick="togglePOSSection('basicPOS')">
+                            <span class="pos-section-arrow" id="basicPOS-arrow">▼</span>
+                            <span style="font-weight: 600;">📚 Basic Parts of Speech</span>
+                        </div>
+                        <div class="pos-section-content" id="basicPOS-content">
+                            <label><input type="checkbox" id="highlightNouns" checked> 🔵 Nouns <span class="pos-count" id="countNouns">-</span></label>
+                            <label><input type="checkbox" id="highlightVerbs" checked> 🟢 Verbs <span class="pos-count" id="countVerbs">-</span></label>
+                            <label><input type="checkbox" id="highlightAdj"> 🟡 Adjectives <span class="pos-count" id="countAdj">-</span></label>
+                            <label><input type="checkbox" id="highlightAdv"> 🟠 Adverbs <span class="pos-count" id="countAdv">-</span></label>
+                            <label><input type="checkbox" id="highlightPrep"> 🟣 Prepositions <span class="pos-count" id="countPrep">-</span></label>
+                            <label><input type="checkbox" id="highlightConj"> 🟤 Conjunctions <span class="pos-count" id="countConj">-</span></label>
+                            <label><input type="checkbox" id="highlightInterj"> 🔴 Interjections <span class="pos-count" id="countInterj">-</span></label>
+                            <label><input type="checkbox" id="highlightDet"> ⚪ Determiners <span class="pos-count" id="countDet">-</span></label>
+                        </div>
+                    </div>
+                    
+                    <!-- Named Entities Section -->
+                    <div class="pos-section">
+                        <div class="pos-section-header" onclick="togglePOSSection('namedEntities')">
+                            <span class="pos-section-arrow" id="namedEntities-arrow">▼</span>
+                            <span style="font-weight: 600;">🏷️ Named Entities</span>
+                        </div>
+                        <div class="pos-section-content" id="namedEntities-content">
+                            <label><input type="checkbox" id="highlightPeople" checked> 👤 People <span class="pos-count" id="countPeople">-</span></label>
+                            <label><input type="checkbox" id="highlightPlaces" checked> 📍 Places <span class="pos-count" id="countPlaces">-</span></label>
+                        </div>
+                    </div>
+                    
+                    <!-- Special Entities Section -->
+                    <div class="pos-section">
+                        <div class="pos-section-header" onclick="togglePOSSection('specialEntities')">
+                            <span class="pos-section-arrow" id="specialEntities-arrow">▼</span>
+                            <span style="font-weight: 600;">🔢 Special Entities</span>
+                        </div>
+                        <div class="pos-section-content" id="specialEntities-content">
+                            <label><input type="checkbox" id="highlightAbbr"> 🆎 Abbreviations <span class="pos-count" id="countAbbr">-</span></label>
+                            <label><input type="checkbox" id="highlightAcronyms"> 🅰️ Acronyms <span class="pos-count" id="countAcronyms">-</span></label>
+                            <label><input type="checkbox" id="highlightNumbers"> 🔢 Numbers <span class="pos-count" id="countNumbers">-</span></label>
+                            <label><input type="checkbox" id="highlightCurrencies"> 💵 Currencies <span class="pos-count" id="countCurrencies">-</span></label>
+                            <label><input type="checkbox" id="highlightDates"> 📅 Dates <span class="pos-count" id="countDates">-</span></label>
+                            <label><input type="checkbox" id="highlightCrypto"> 🪙 Crypto <span class="pos-count" id="countCrypto">-</span></label>
+                            <label><input type="checkbox" id="highlightCurrencyPairs"> 💱 Pairs <span class="pos-count" id="countCurrencyPairs">-</span></label>
+                            <label><input type="checkbox" id="highlightCurrencySymbols"> 💲 Symbols <span class="pos-count" id="countCurrencySymbols">-</span></label>
+                        </div>
+                    </div>
                 </div>
                 <div class="text-content-wrapper">
                     <div id="highlightedTextContent" class="text-content">

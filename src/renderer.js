@@ -475,6 +475,37 @@ const statsPanelEl = document.getElementById('statsPanel');
 const resizer1 = document.getElementById('resizer1');
 const resizer2 = document.getElementById('resizer2');
 
+// Toggle POS Section
+window.togglePOSSection = function(sectionId) {
+    const content = document.getElementById(`${sectionId}-content`);
+    const arrow = document.getElementById(`${sectionId}-arrow`);
+    
+    if (content && arrow) {
+        content.classList.toggle('collapsed');
+        arrow.classList.toggle('collapsed');
+        
+        // Save state to localStorage
+        const isCollapsed = content.classList.contains('collapsed');
+        localStorage.setItem(`pos-section-${sectionId}`, isCollapsed ? 'collapsed' : 'expanded');
+    }
+};
+
+// Restore POS section states on load
+function restorePOSSectionStates() {
+    const sections = ['basicPOS', 'namedEntities', 'specialEntities'];
+    sections.forEach(sectionId => {
+        const state = localStorage.getItem(`pos-section-${sectionId}`);
+        if (state === 'collapsed') {
+            const content = document.getElementById(`${sectionId}-content`);
+            const arrow = document.getElementById(`${sectionId}-arrow`);
+            if (content && arrow) {
+                content.classList.add('collapsed');
+                arrow.classList.add('collapsed');
+            }
+        }
+    });
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Grammar Highlighter Desktop initialized');
@@ -510,6 +541,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize dropdown click behavior
     initializeDropdowns();
+    
+    // Restore POS section states
+    restorePOSSectionStates();
 });
 
 // Helper function to download missing file
