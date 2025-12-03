@@ -1600,9 +1600,9 @@ if (openFileBtn) {
             currentFileType = result.fileType || 'pdf';
             fileNameDisplay.textContent = currentFileName;
             
-            // Add file to library (unfiled by default)
+            // Add file to library (root by default)
             if (typeof libraryManager !== 'undefined') {
-                libraryManager.addFile(currentFilePath, currentFileName, 'unfiled');
+                libraryManager.addFile(currentFilePath, currentFileName, 'root');
             }
             
             let extractedText = '';

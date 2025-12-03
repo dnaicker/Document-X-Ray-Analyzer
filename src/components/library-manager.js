@@ -383,7 +383,7 @@ class LibraryManager {
     
     // ========== FILE OPERATIONS ==========
     
-    addFile(filePath, fileName, folderId = 'unfiled') {
+    addFile(filePath, fileName, folderId = 'root') {
         if (!this.library.files[filePath]) {
             this.library.files[filePath] = {
                 path: filePath,
