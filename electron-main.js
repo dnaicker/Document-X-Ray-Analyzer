@@ -33,6 +33,14 @@ function createWindow() {
           }
         },
         {
+          label: 'Open Folder...',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => {
+            if (mainWindow) mainWindow.webContents.send('menu-open-folder');
+          }
+        },
+        { type: 'separator' },
+        {
           label: 'Sync with Drive',
           click: () => {
             if (mainWindow) mainWindow.webContents.send('menu-sync-drive');
@@ -181,6 +189,80 @@ ipcMain.handle('read-markdown-file', async (event, filePath) => {
       data: Array.from(new Uint8Array(buffer))
     };
   } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// Open folder dialog
+ipcMain.handle('open-folder-dialog', async () => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory']
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return {
+        canceled: false,
+        folderPath: result.filePaths[0],
+        folderName: path.basename(result.filePaths[0])
+      };
+    }
+
+    return { canceled: true };
+  } catch (error) {
+    console.error('Error in open-folder-dialog handler:', error);
+    return { canceled: true, error: error.message };
+  }
+});
+
+// Scan folder for supported files
+ipcMain.handle('scan-folder', async (event, folderPath) => {
+  try {
+    const supportedExtensions = ['.pdf', '.epub', '.docx', '.md'];
+    const files = [];
+    
+    function scanDirectory(dirPath, relativePath = '') {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        const relPath = path.join(relativePath, entry.name);
+        
+        if (entry.isDirectory()) {
+          // Recursively scan subdirectories
+          scanDirectory(fullPath, relPath);
+        } else if (entry.isFile()) {
+          const ext = path.extname(entry.name).toLowerCase();
+          if (supportedExtensions.includes(ext)) {
+            let fileType = 'pdf';
+            if (ext === '.epub') fileType = 'epub';
+            else if (ext === '.docx') fileType = 'docx';
+            else if (ext === '.md') fileType = 'md';
+            
+            files.push({
+              fileName: entry.name,
+              filePath: fullPath,
+              relativePath: relPath,
+              folderPath: relativePath,
+              fileType: fileType
+            });
+          }
+        }
+      }
+    }
+    
+    scanDirectory(folderPath);
+    
+    return {
+      success: true,
+      files: files,
+      totalFiles: files.length
+    };
+  } catch (error) {
+    console.error('Error scanning folder:', error);
     return {
       success: false,
       error: error.message

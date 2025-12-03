@@ -941,9 +941,43 @@ class LibraryUI {
     }
     
     showImportDialog() {
+        // Show dialog with options
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-overlay';
+        dialog.innerHTML = `
+            <div class="modal-content" style="max-width: 400px;">
+                <h3>📥 Import to Library</h3>
+                <p style="margin: 16px 0; color: #666;">Choose what to import:</p>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <button class="btn-primary" onclick="libraryUI.importSingleFile(); this.closest('.modal-overlay').remove();" style="padding: 12px;">
+                        📄 Import Single File
+                    </button>
+                    <button class="btn-primary" onclick="libraryUI.importFolder(); this.closest('.modal-overlay').remove();" style="padding: 12px;">
+                        📁 Import Folder (with subdirectories)
+                    </button>
+                </div>
+                <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();" style="margin-top: 16px; width: 100%;">
+                    Cancel
+                </button>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+    }
+    
+    importSingleFile() {
         // Trigger file picker
         if (window.openFileBtn) {
             window.openFileBtn.click();
+        }
+    }
+    
+    async importFolder() {
+        // Trigger folder import - call the global function exposed by renderer.js
+        if (typeof window.triggerFolderImport === 'function') {
+            window.triggerFolderImport();
+        } else {
+            console.error('triggerFolderImport function not available');
+            alert('Folder import is not available. Please restart the application.');
         }
     }
     

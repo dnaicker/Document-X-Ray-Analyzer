@@ -1357,6 +1357,8 @@ async function closeCurrentFile() {
         epubReader.destroy();
     } else if (currentFileType === 'docx') {
         docxReader.destroy();
+    } else if (currentFileType === 'md') {
+        markdownReader.clear();
     }
     
     // Restore navigation controls
@@ -1404,13 +1406,15 @@ async function closeCurrentFile() {
     // Ensure welcome message is visible
     if (welcomeMsg) welcomeMsg.style.display = 'block';
     
-    // Clear PDF viewer container completely (for EPUB/DOCX content)
+    // Clear PDF viewer container completely (for EPUB/DOCX/Markdown content)
     if (pdfContainer) {
-        // Remove any EPUB/DOCX rendered content
+        // Remove any EPUB/DOCX/Markdown rendered content
         const epubContent = pdfContainer.querySelector('.epub-container');
         const docxContent = pdfContainer.querySelector('.docx-content');
+        const mdContent = pdfContainer.querySelector('.markdown-content');
         if (epubContent) epubContent.remove();
         if (docxContent) docxContent.remove();
+        if (mdContent) mdContent.remove();
         
         // Clear any other dynamically added content EXCEPT the pdfCanvas wrapper
         Array.from(pdfContainer.children).forEach(child => {
@@ -1503,12 +1507,14 @@ function showNewTabScreen() {
     // Hide actual content
     if (pdfCanvasElement) pdfCanvasElement.style.display = 'none';
     
-    // Hide EPUB/DOCX containers
+    // Hide EPUB/DOCX/Markdown containers
     if (pdfContainer) {
         const epubContent = pdfContainer.querySelector('.epub-container');
         if (epubContent) epubContent.style.display = 'none';
         const docxContent = pdfContainer.querySelector('.docx-content');
         if (docxContent) docxContent.style.display = 'none';
+        const mdContent = pdfContainer.querySelector('.markdown-content');
+        if (mdContent) mdContent.style.display = 'none';
     }
     
     // Reset UI controls
@@ -1646,7 +1652,7 @@ async function loadPDFFile(filePath, cachedState = null) {
             mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 Loading document...</p></div>';
         }
         
-        // Clean up EPUB/DOCX containers
+        // Clean up EPUB/DOCX/Markdown containers
         const pdfContainer = document.getElementById('pdfViewerContainer');
         if (pdfContainer) {
             const epubContainer = pdfContainer.querySelector('.epub-container');
@@ -1654,6 +1660,9 @@ async function loadPDFFile(filePath, cachedState = null) {
             
             const docxContainer = pdfContainer.querySelector('.docx-content');
             if (docxContainer) docxContainer.remove();
+            
+            const mdContainer = pdfContainer.querySelector('.markdown-content');
+            if (mdContainer) mdContainer.remove();
         }
         
         // Show PDF canvas
@@ -1946,6 +1955,8 @@ async function loadEPUBFile(filePath, cachedState = null) {
         if (pdfContainer) {
             const docxContainer = pdfContainer.querySelector('.docx-content');
             if (docxContainer) docxContainer.remove();
+            const mdContainer = pdfContainer.querySelector('.markdown-content');
+            if (mdContainer) mdContainer.remove();
         }
         
         // 1. Try to restore from Persistent Cache (localStorage)
@@ -2223,6 +2234,8 @@ async function loadDOCXFile(filePath) {
         if (pdfContainer) {
             const epubContainer = pdfContainer.querySelector('.epub-container');
             if (epubContainer) epubContainer.remove();
+            const mdContainer = pdfContainer.querySelector('.markdown-content');
+            if (mdContainer) mdContainer.remove();
         }
         
         // 1. Try to restore from Persistent Cache (localStorage)
@@ -2446,6 +2459,8 @@ async function loadMarkdownFile(filePath, cachedState = null) {
             if (epubContainer) epubContainer.remove();
             const docxContainer = pdfContainer.querySelector('.docx-content');
             if (docxContainer) docxContainer.remove();
+            const mdContainer = pdfContainer.querySelector('.markdown-content');
+            if (mdContainer) mdContainer.remove();
         }
         
         // 1. Try to restore from Persistent Cache (localStorage)
@@ -5003,6 +5018,92 @@ ipcRenderer.on('menu-sync-drive', () => {
     if (syncDriveBtn) {
         syncDriveBtn.click();
     }
+});
+
+// Folder import function
+async function importFolderWithSubdirectories() {
+    try {
+        showLoading('Opening folder...');
+        
+        // Open folder dialog
+        const result = await ipcRenderer.invoke('open-folder-dialog');
+        
+        if (!result.canceled) {
+            const folderPath = result.folderPath;
+            const folderName = result.folderName;
+            
+            setStatus(`Scanning folder: ${folderName}...`);
+            
+            // Scan folder for supported files
+            const scanResult = await ipcRenderer.invoke('scan-folder', folderPath);
+            
+            if (scanResult.success && scanResult.files.length > 0) {
+                setStatus(`Found ${scanResult.totalFiles} files. Importing...`);
+                
+                // Import folder into library
+                if (typeof libraryManager !== 'undefined') {
+                    const importResult = libraryManager.importFolder(
+                        folderName,
+                        scanResult.files,
+                        'root'
+                    );
+                    
+                    if (importResult.success) {
+                        hideLoading();
+                        
+                        // Show success message
+                        let message = `✅ Successfully imported folder "${folderName}"!\n\n`;
+                        message += `📁 Folders created: ${importResult.foldersCreated}\n`;
+                        message += `📄 Files imported: ${importResult.filesImported}`;
+                        
+                        if (importResult.filesSkipped > 0) {
+                            message += `\n⚠️ Files skipped: ${importResult.filesSkipped}`;
+                        }
+                        
+                        alert(message);
+                        setStatus(`✅ Imported ${importResult.filesImported} files from "${folderName}"`);
+                        
+                        // Refresh library UI
+                        if (typeof libraryUI !== 'undefined') {
+                            libraryUI.render();
+                        }
+                    } else {
+                        hideLoading();
+                        alert('Failed to import folder. Please try again.');
+                        setStatus('❌ Import failed');
+                    }
+                } else {
+                    hideLoading();
+                    alert('Library manager not available.');
+                    setStatus('❌ Import failed');
+                }
+            } else if (scanResult.success && scanResult.files.length === 0) {
+                hideLoading();
+                alert(`No supported files found in "${folderName}".\n\nSupported formats: PDF, EPUB, DOCX, Markdown`);
+                setStatus('No files found');
+            } else {
+                hideLoading();
+                alert(`Error scanning folder: ${scanResult.error}`);
+                setStatus('❌ Scan failed');
+            }
+        } else {
+            hideLoading();
+            setStatus('Folder import cancelled');
+        }
+    } catch (error) {
+        console.error('Error importing folder:', error);
+        hideLoading();
+        alert(`Error importing folder: ${error.message}`);
+        setStatus('❌ Error importing folder');
+    }
+}
+
+// Expose globally for library UI
+window.triggerFolderImport = importFolderWithSubdirectories;
+
+// Listen for menu trigger
+ipcRenderer.on('menu-open-folder', () => {
+    importFolderWithSubdirectories();
 });
 
 // ============================================

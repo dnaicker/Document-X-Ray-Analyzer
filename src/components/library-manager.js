@@ -310,6 +310,77 @@ class LibraryManager {
         return [...tags].sort();
     }
     
+    // ========== FOLDER IMPORT ==========
+    
+    /**
+     * Import a folder with all its files and subdirectories
+     * @param {string} folderName - Name of the root folder
+     * @param {Array} files - Array of file objects from scan-folder
+     * @param {string} parentId - Parent folder ID (default: 'root')
+     * @returns {Object} Import results
+     */
+    importFolder(folderName, files, parentId = 'root') {
+        const folderMap = new Map(); // Maps relative folder paths to folder IDs
+        const importedFiles = [];
+        const skippedFiles = [];
+        
+        // Create the root imported folder
+        const rootFolder = this.createFolder(folderName, parentId, '📁');
+        folderMap.set('', rootFolder.id);
+        
+        // Group files by their folder paths
+        const folderPaths = new Set();
+        files.forEach(file => {
+            if (file.folderPath) {
+                // Add all parent paths
+                const parts = file.folderPath.split(/[\\/]/).filter(p => p);
+                let currentPath = '';
+                parts.forEach(part => {
+                    currentPath = currentPath ? `${currentPath}/${part}` : part;
+                    folderPaths.add(currentPath);
+                });
+            }
+        });
+        
+        // Sort folder paths to create parent folders first
+        const sortedPaths = Array.from(folderPaths).sort();
+        
+        // Create all subdirectories
+        sortedPaths.forEach(folderPath => {
+            const parts = folderPath.split('/');
+            const folderName = parts[parts.length - 1];
+            const parentPath = parts.slice(0, -1).join('/');
+            const parentFolderId = folderMap.get(parentPath) || rootFolder.id;
+            
+            const newFolder = this.createFolder(folderName, parentFolderId, '📁');
+            folderMap.set(folderPath, newFolder.id);
+        });
+        
+        // Add all files to their respective folders
+        files.forEach(file => {
+            try {
+                const targetFolderId = file.folderPath ? 
+                    (folderMap.get(file.folderPath) || rootFolder.id) : 
+                    rootFolder.id;
+                
+                this.addFile(file.filePath, file.fileName, targetFolderId);
+                importedFiles.push(file.filePath);
+            } catch (error) {
+                console.error('Error importing file:', file.filePath, error);
+                skippedFiles.push({ file: file.filePath, error: error.message });
+            }
+        });
+        
+        return {
+            success: true,
+            rootFolderId: rootFolder.id,
+            foldersCreated: folderMap.size,
+            filesImported: importedFiles.length,
+            filesSkipped: skippedFiles.length,
+            skippedFiles: skippedFiles
+        };
+    }
+    
     // ========== FILE OPERATIONS ==========
     
     addFile(filePath, fileName, folderId = 'unfiled') {
