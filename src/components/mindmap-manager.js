@@ -130,11 +130,22 @@ class MindmapManager {
         const documentRefs = new Map(); // Map<filePath, {fileName, linkedFrom: [noteIds]}>
         const potentialExternalHighlights = new Map(); // Map<uniqueId, highlightData>
         
+        // Helper to normalize paths for comparison (handles \ vs / and case sensitivity on Windows)
+        const normalizePath = (path) => {
+            if (!path) return '';
+            return path.replace(/\\/g, '/').toLowerCase();
+        };
+        
+        const currentFilePath = normalizePath(this.notesManager.currentFilePath);
+        
         allItems.forEach(item => {
             if (item.links && Array.isArray(item.links)) {
                 item.links.forEach(link => {
-                    // Check if this is an external document link (has filePath)
-                    if (typeof link === 'object' && link.filePath && link.fileName) {
+                    // Check if this is an external document link (has filePath AND is different from current file)
+                    const linkPath = normalizePath(link.filePath);
+                    const isExternal = typeof link === 'object' && link.filePath && link.fileName && linkPath !== currentFilePath;
+                    
+                    if (isExternal) {
                         const docId = `doc-ref-${link.filePath}`;
                         if (!documentRefs.has(docId)) {
                             documentRefs.set(docId, {
@@ -176,7 +187,10 @@ class MindmapManager {
         allItems.forEach(item => {
             if (item.links && Array.isArray(item.links)) {
                 item.links.forEach(link => {
-                    if (typeof link === 'object' && link.filePath && link.id) {
+                    const linkPath = normalizePath(link.filePath);
+                    const isExternal = typeof link === 'object' && link.filePath && link.id && linkPath !== currentFilePath;
+                    
+                    if (isExternal) {
                         // Construct expected ID
                         const extId = `ext-${link.filePath}-${link.id}`;
                         if (potentialExternalHighlights.has(extId)) {
@@ -318,8 +332,11 @@ class MindmapManager {
                 sourceNode.data.links.forEach(link => {
                     const linkId = typeof link === 'string' ? link : link.id;
                     
-                    // Check if it's a document reference
-                    if (typeof link === 'object' && link.filePath) {
+                    // Check if it's an external document reference (not the current document)
+                    const linkPath = normalizePath(link.filePath);
+                    const isExternalDoc = typeof link === 'object' && link.filePath && linkPath !== currentFilePath;
+                    
+                    if (isExternalDoc) {
                         // Try to find specific external highlight matching this link ID
                         const specificExternalHighlight = this.nodes.find(n => 
                             n.isExternalHighlight && 
