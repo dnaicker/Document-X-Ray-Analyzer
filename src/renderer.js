@@ -775,6 +775,12 @@ async function loadEPUBFileFromPath(filePath) {
     try {
         currentFileType = 'epub';
         updateUILabels('epub');
+        
+        // Set current file info
+        currentFilePath = filePath;
+        currentFileName = filePath.split(/[\\/]/).pop();
+        fileNameDisplay.textContent = currentFileName;
+        
         const fileData = await ipcRenderer.invoke('read-epub-file', filePath);
         
         if (fileData.success) {
@@ -873,6 +879,12 @@ async function loadDOCXFileFromPath(filePath) {
     try {
         currentFileType = 'docx';
         updateUILabels('docx');
+        
+        // Set current file info
+        currentFilePath = filePath;
+        currentFileName = filePath.split(/[\\/]/).pop();
+        fileNameDisplay.textContent = currentFileName;
+        
         const fileData = await ipcRenderer.invoke('read-docx-file', filePath);
         
         if (fileData.success) {
@@ -955,6 +967,12 @@ async function loadMarkdownFileFromPath(filePath) {
     try {
         currentFileType = 'md';
         updateUILabels('md');
+        
+        // Set current file info
+        currentFilePath = filePath;
+        currentFileName = filePath.split(/[\\/]/).pop();
+        fileNameDisplay.textContent = currentFileName;
+        
         const fileData = await ipcRenderer.invoke('read-markdown-file', filePath);
         
         if (fileData.success) {
@@ -1049,6 +1067,12 @@ async function loadTxtFileFromPath(filePath) {
     try {
         currentFileType = 'txt';
         updateUILabels('txt');
+        
+        // Set current file info
+        currentFilePath = filePath;
+        currentFileName = filePath.split(/[\\/]/).pop();
+        fileNameDisplay.textContent = currentFileName;
+        
         const fileData = await ipcRenderer.invoke('read-txt-file', filePath);
         
         if (fileData.success) {

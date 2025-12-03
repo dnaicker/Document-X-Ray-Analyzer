@@ -389,6 +389,7 @@ class MindmapManager {
         const layout = this.nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
         // Use file-specific key to prevent layout sharing between documents
         const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
+        console.log(`Saving mindmap layout to key: ${key}`);
         localStorage.setItem(key, JSON.stringify(layout));
     }
 
@@ -397,11 +398,12 @@ class MindmapManager {
         try {
             // Try loading file-specific layout
             const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
+            console.log(`Loading mindmap layout from key: ${key}`);
             let stored = localStorage.getItem(key);
             
             // Fallback to legacy global layout ONLY if no specific layout exists
-            // (This helps transition existing users, though might copy 'wrong' layout once)
             if (!stored) {
+                console.log('No specific layout found, falling back to global layout.');
                 stored = localStorage.getItem('mindmap_layout');
             }
             
