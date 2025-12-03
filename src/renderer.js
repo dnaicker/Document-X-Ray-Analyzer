@@ -926,11 +926,23 @@ async function loadMarkdownFileFromPath(filePath) {
                 document.getElementById('rawTextContent').innerHTML = 
                     `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
                 
-                const pdfContainer = document.getElementById('pdfViewerContainer');
-                
                 // Hide PDF canvas wrapper
                 const pdfCanvas = document.getElementById('pdfCanvas');
                 if (pdfCanvas) pdfCanvas.style.display = 'none';
+                
+                const pdfContainer = document.getElementById('pdfViewerContainer');
+                
+                // Clean up ALL existing containers first
+                if (pdfContainer) {
+                    const epubContainer = pdfContainer.querySelector('.epub-container');
+                    if (epubContainer) epubContainer.remove();
+                    const docxContainer = pdfContainer.querySelector('.docx-content');
+                    if (docxContainer) docxContainer.remove();
+                    const mdContainer = pdfContainer.querySelector('.markdown-content');
+                    if (mdContainer) mdContainer.remove();
+                    const txtContainer = pdfContainer.querySelector('.txt-content');
+                    if (txtContainer) txtContainer.remove();
+                }
                 
                 // Disable snip button for Markdown (not supported)
                 const snipBtn = document.getElementById('snipBtn');
@@ -1008,11 +1020,23 @@ async function loadTxtFileFromPath(filePath) {
                 document.getElementById('rawTextContent').innerHTML = 
                     `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
                 
-                const pdfContainer = document.getElementById('pdfViewerContainer');
-                
                 // Hide PDF canvas wrapper
                 const pdfCanvas = document.getElementById('pdfCanvas');
                 if (pdfCanvas) pdfCanvas.style.display = 'none';
+                
+                const pdfContainer = document.getElementById('pdfViewerContainer');
+                
+                // Clean up ALL existing containers first
+                if (pdfContainer) {
+                    const epubContainer = pdfContainer.querySelector('.epub-container');
+                    if (epubContainer) epubContainer.remove();
+                    const docxContainer = pdfContainer.querySelector('.docx-content');
+                    if (docxContainer) docxContainer.remove();
+                    const mdContainer = pdfContainer.querySelector('.markdown-content');
+                    if (mdContainer) mdContainer.remove();
+                    const txtContainer = pdfContainer.querySelector('.txt-content');
+                    if (txtContainer) txtContainer.remove();
+                }
                 
                 // Disable snip button for Text files
                 const snipBtn = document.getElementById('snipBtn');
@@ -1025,8 +1049,8 @@ async function loadTxtFileFromPath(filePath) {
                 
                 const wrapper = document.createElement('div');
                 wrapper.className = 'txt-content';
-                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px;';
-                wrapper.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.text)}</pre>`;
+                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff !important; color: #000000 !important; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+                wrapper.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word; color: #000000 !important;">${escapeHtml(result.text)}</pre>`;
                 
                 pdfContainer.appendChild(wrapper);
                 
@@ -2645,13 +2669,21 @@ async function loadMarkdownFile(filePath, cachedState = null) {
                                 const container = document.getElementById('pdfViewerContainer');
                                 if (!container) return;
                                 
-                                let mdContainer = container.querySelector('.markdown-content');
-                                if (!mdContainer) {
-                                    mdContainer = document.createElement('div');
-                                    mdContainer.className = 'markdown-content';
-                                    mdContainer.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto;';
-                                    container.appendChild(mdContainer);
-                                }
+                                // Clean up any existing containers first
+                                const oldEpub = container.querySelector('.epub-container');
+                                if (oldEpub) oldEpub.remove();
+                                const oldDocx = container.querySelector('.docx-content');
+                                if (oldDocx) oldDocx.remove();
+                                const oldMd = container.querySelector('.markdown-content');
+                                if (oldMd) oldMd.remove();
+                                const oldTxt = container.querySelector('.txt-content');
+                                if (oldTxt) oldTxt.remove();
+                                
+                                // Create new markdown container
+                                const mdContainer = document.createElement('div');
+                                mdContainer.className = 'markdown-content';
+                                mdContainer.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto;';
+                                container.appendChild(mdContainer);
                                 
                                 mdContainer.innerHTML = result.html;
                                 
@@ -2779,12 +2811,13 @@ async function loadTxtFile(filePath, cachedState = null) {
             mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 Loading document...</p></div>';
         }
         
-        // Hide PDF canvas and clean up containers
+        // Hide PDF canvas and clean up ALL containers
         const pdfCanvas = document.getElementById('pdfCanvas');
         if (pdfCanvas) pdfCanvas.style.display = 'none';
         
         const pdfContainer = document.getElementById('pdfViewerContainer');
         if (pdfContainer) {
+            // Remove all document type containers
             const epubContainer = pdfContainer.querySelector('.epub-container');
             if (epubContainer) epubContainer.remove();
             const docxContainer = pdfContainer.querySelector('.docx-content');
@@ -2870,15 +2903,23 @@ async function loadTxtFile(filePath, cachedState = null) {
                                 const container = document.getElementById('pdfViewerContainer');
                                 if (!container) return;
                                 
-                                let txtContainer = container.querySelector('.txt-content');
-                                if (!txtContainer) {
-                                    txtContainer = document.createElement('div');
-                                    txtContainer.className = 'txt-content';
-                                    txtContainer.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px;';
-                                    container.appendChild(txtContainer);
-                                }
+                                // Clean up any existing containers first
+                                const oldEpub = container.querySelector('.epub-container');
+                                if (oldEpub) oldEpub.remove();
+                                const oldDocx = container.querySelector('.docx-content');
+                                if (oldDocx) oldDocx.remove();
+                                const oldMd = container.querySelector('.markdown-content');
+                                if (oldMd) oldMd.remove();
+                                const oldTxt = container.querySelector('.txt-content');
+                                if (oldTxt) oldTxt.remove();
                                 
-                                txtContainer.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.text)}</pre>`;
+                                // Create new text container
+                                const txtContainer = document.createElement('div');
+                                txtContainer.className = 'txt-content';
+                                txtContainer.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff !important; color: #000000 !important; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+                                container.appendChild(txtContainer);
+                                
+                                txtContainer.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word; color: #000000 !important;">${escapeHtml(result.text)}</pre>`;
                                 
                                 if (lastLocation && lastLocation.scrollTop) {
                                     txtContainer.scrollTop = lastLocation.scrollTop;
@@ -2929,8 +2970,8 @@ async function loadTxtFile(filePath, cachedState = null) {
                 // Create wrapper for Text
                 const wrapper = document.createElement('div');
                 wrapper.className = 'txt-content';
-                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px;';
-                wrapper.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(result.text)}</pre>`;
+                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff !important; color: #000000 !important; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.6; max-width: 900px; margin: 0 auto; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+                wrapper.innerHTML = `<pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word; color: #000000 !important;">${escapeHtml(result.text)}</pre>`;
                 
                 pdfContainer.appendChild(wrapper);
                 
