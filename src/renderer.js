@@ -4846,20 +4846,39 @@ document.querySelectorAll('.highlight-options input[type="checkbox"]').forEach(c
 });
 
 function getCleanRawText() {
-    // Only use pdfViewer if we are actually in PDF mode
+    let text = '';
+    
+    // Try PDF viewer first for PDF files
     if (currentFileType === 'pdf' && typeof pdfViewer !== 'undefined' && pdfViewer.totalPages > 0) {
-        let text = '';
         for (let i = 1; i <= pdfViewer.totalPages; i++) {
             text += (pdfViewer.getPageText(i) || '') + '\n\n';
         }
         if (text && text.trim().length > 0) {
+            console.log(`Extracted ${text.length} characters from PDF viewer`);
             return text;
         }
+        console.warn('PDF viewer returned no text, falling back to DOM');
     }
     
-    // Fallback for EPUB/DOCX or empty PDF
+    // Fallback for all file types: read from rawTextContent DOM element
     const content = document.getElementById('rawTextContent');
-    return content ? content.textContent : '';
+    if (content) {
+        text = content.textContent || content.innerText || '';
+        
+        // Remove page markers and clean up
+        text = text.replace(/---\s*Page\s+\d+\s*---/g, '').trim();
+        
+        console.log(`Extracted ${text.length} characters from rawTextContent DOM (file type: ${currentFileType})`);
+        
+        if (!text || text.length < 10) {
+            console.error('Text extraction failed or too short. rawTextContent HTML:', content.innerHTML.substring(0, 200));
+        }
+        
+        return text;
+    }
+    
+    console.error('No text source available for extraction - rawTextContent element not found');
+    return '';
 }
 
 function getHighlightOptions() {
@@ -5919,9 +5938,19 @@ async function startBackgroundTranslation(targetLang) {
     try {
         const originalText = getCleanRawText();
         if (!originalText || !originalText.trim()) {
-            alert('No text available to translate');
+            alert('No text available to translate. Please ensure the document is fully loaded and contains text.');
             return;
         }
+        
+        // Validate minimum text length
+        if (originalText.trim().length < 10) {
+            alert('The document text is too short to translate (less than 10 characters). Please check if the document loaded correctly.');
+            return;
+        }
+        
+        console.log(`Starting translation of ${originalText.length} characters to ${targetLang}`);
+        console.log(`First 100 characters: "${originalText.substring(0, 100)}..."`);
+
         
         // Update UI state
         translationState.isTranslating = true;
@@ -5965,6 +5994,11 @@ async function startBackgroundTranslation(targetLang) {
         ).then(async (translated) => {
             if (!translationState.isTranslating) return; // Cancelled
             
+            // Validate that we actually got translations
+            if (!translated || translated.length === 0) {
+                throw new Error('No translation results received. The text may be too short or the translation service may have failed.');
+            }
+            
             // Build translated HTML with hover tooltips
             let translatedHTML = '';
             for (const item of translated) {
@@ -5977,6 +6011,15 @@ async function startBackgroundTranslation(targetLang) {
                     const escapedTranslated = escapeHtml(item.translated);
                     translatedHTML += `<span class="translated-text" data-original="${escapedOriginal}">${escapedTranslated}</span> `;
                 }
+            }
+            
+            // Validate that the HTML actually contains text
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = translatedHTML;
+            const textContent = tempDiv.textContent.trim();
+            
+            if (!textContent || textContent.length < 10) {
+                throw new Error('Translation produced empty or too short result. Original text may not have been properly extracted.');
             }
             
             // Store translation

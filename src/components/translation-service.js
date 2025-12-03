@@ -111,21 +111,33 @@ class TranslationService {
                             q: chunk
                         });
                         
-                        const response = await fetch(`${this.apiEndpoint}?${params}`, {
+                        const url = `${this.apiEndpoint}?${params}`;
+                        console.log(`[Translation] Method 1: Translating ${chunk.length} chars to ${targetLang}`);
+                        
+                        const response = await fetch(url, {
                             method: 'GET',
                             headers: {
                                 'User-Agent': 'Mozilla/5.0'
                             }
                         });
                         
+                        console.log(`[Translation] Method 1 response status: ${response.status}`);
+                        
                         if (response.ok) {
                             const data = await response.json();
+                            console.log('[Translation] Method 1 data structure:', Array.isArray(data), data?.[0] ? 'has data[0]' : 'no data[0]');
+                            
                             if (data && data[0]) {
                                 translated = data[0].map(item => item[0]).join('');
+                                console.log(`[Translation] Method 1 success: ${translated.length} chars translated`);
+                            } else {
+                                console.warn('[Translation] Method 1: Response OK but invalid data structure');
                             }
+                        } else {
+                            console.warn(`[Translation] Method 1: HTTP ${response.status} - ${await response.text().catch(() => 'Could not read error')}`);
                         }
                     } catch (e) {
-                        console.warn('Method 1 failed:', e.message);
+                        console.error('[Translation] Method 1 failed:', e);
                     }
                     
                     // Method 2: Alternative endpoint
@@ -139,6 +151,7 @@ class TranslationService {
                                 q: chunk
                             });
                             
+                            console.log(`[Translation] Method 2: Trying alternative endpoint`);
                             const response = await fetch(`${altEndpoint}?${params}`, {
                                 method: 'GET',
                                 headers: {
@@ -146,20 +159,30 @@ class TranslationService {
                                 }
                             });
                             
+                            console.log(`[Translation] Method 2 response status: ${response.status}`);
+                            
                             if (response.ok) {
                                 const data = await response.json();
+                                console.log('[Translation] Method 2 data:', typeof data, Array.isArray(data));
+                                
                                 if (data && data[0]) {
                                     translated = data[0];
+                                    console.log(`[Translation] Method 2 success: ${translated.length} chars translated`);
+                                } else {
+                                    console.warn('[Translation] Method 2: Response OK but invalid data');
                                 }
+                            } else {
+                                console.warn(`[Translation] Method 2: HTTP ${response.status}`);
                             }
                         } catch (e) {
-                            console.warn('Method 2 failed:', e.message);
+                            console.error('[Translation] Method 2 failed:', e);
                         }
                     }
                     
                     // If all methods fail, return original
-                    if (!translated) {
-                        console.warn('All translation methods failed for chunk, using original');
+                    if (!translated || translated.trim().length === 0) {
+                        console.warn('[Translation] All translation methods failed for chunk, using original text');
+                        console.warn(`[Translation] Chunk preview: "${chunk.substring(0, 100)}..."`);
                         translated = chunk;
                     }
                     
@@ -246,53 +269,128 @@ class TranslationService {
         if (!rawText || !targetLang) return [];
         
         try {
-            // Split into sentences and translate in batches for speed
-            const sentences = rawText.match(/[^.!?]+[.!?]+|\n+/g) || [rawText];
+            // Split by lines and paragraphs, handling text with or without punctuation
+            // This is more robust than strict sentence splitting
+            const lines = rawText.split('\n');
+            const chunks = [];
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                
+                if (!trimmed) {
+                    // Empty line - keep as paragraph break
+                    chunks.push({
+                        text: '\n',
+                        isBreak: true
+                    });
+                } else {
+                    // Non-empty line - split by sentence punctuation if present
+                    const parts = trimmed.split(/([.!?]+\s+)/);
+                    let currentText = '';
+                    
+                    for (const part of parts) {
+                        if (part.match(/^[.!?]+\s+$/)) {
+                            currentText += part;
+                            if (currentText.trim().length > 1) {
+                                chunks.push({
+                                    text: currentText,
+                                    isBreak: false
+                                });
+                                currentText = '';
+                            }
+                        } else if (part.trim()) {
+                            currentText += part;
+                        }
+                    }
+                    
+                    // Push any remaining text
+                    if (currentText.trim().length > 1) {
+                        chunks.push({
+                            text: currentText + '\n', // Keep line break
+                            isBreak: false
+                        });
+                    }
+                }
+            }
+            
             const translations = [];
             
-            // Process in larger batches
-            const batchSize = 10; // Translate 10 sentences at once
+            console.log(`[Translation] Starting line-by-line translation: ${chunks.length} chunks to ${targetLang}`);
             
-            for (let i = 0; i < sentences.length; i += batchSize) {
-                const batch = sentences.slice(i, i + batchSize);
+            // Process in larger batches
+            const batchSize = 10; // Translate 10 chunks at once
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (let i = 0; i < chunks.length; i += batchSize) {
+                const batch = chunks.slice(i, i + batchSize);
                 
-                const batchPromises = batch.map(async (sentence) => {
-                    // Keep newlines as-is
-                    if (/^\n+$/.test(sentence)) {
+                const batchPromises = batch.map(async (chunkObj, idx) => {
+                    // Keep paragraph breaks as-is
+                    if (chunkObj.isBreak) {
                         return {
-                            original: sentence,
-                            translated: sentence,
+                            original: chunkObj.text,
+                            translated: chunkObj.text,
                             isNewline: true
                         };
                     }
                     
-                    const trimmed = sentence.trim();
-                    if (!trimmed) {
+                    const trimmed = chunkObj.text.trim();
+                    if (!trimmed || trimmed.length < 2) {
                         return {
-                            original: sentence,
-                            translated: sentence,
+                            original: chunkObj.text,
+                            translated: chunkObj.text,
                             isEmpty: true
                         };
                     }
                     
-                    const translated = await this.translateText(trimmed, targetLang, sourceLang);
-                    return {
-                        original: sentence,
-                        translated: translated
-                    };
+                    try {
+                        const translated = await this.translateText(trimmed, targetLang, sourceLang);
+                        const wasTranslated = translated && translated !== trimmed;
+                        
+                        if (wasTranslated) {
+                            successCount++;
+                        } else {
+                            failCount++;
+                        }
+                        
+                        if ((i + idx) < 5) {
+                            console.log(`[Translation] Chunk ${i + idx}: "${trimmed.substring(0, 50)}..." => "${translated.substring(0, 50)}..."`);
+                        }
+                        
+                        return {
+                            original: chunkObj.text,
+                            translated: translated || trimmed
+                        };
+                    } catch (err) {
+                        console.error(`[Translation] Failed to translate chunk ${i + idx}:`, err);
+                        failCount++;
+                        return {
+                            original: chunkObj.text,
+                            translated: chunkObj.text
+                        };
+                    }
                 });
                 
                 const batchResults = await Promise.all(batchPromises);
                 translations.push(...batchResults);
                 
                 if (progressCallback) {
-                    progressCallback(Math.min(100, ((i + batchSize) / sentences.length) * 100));
+                    progressCallback(Math.min(100, ((i + batchSize) / chunks.length) * 100));
                 }
+            }
+            
+            console.log(`[Translation] Complete: ${successCount} translated, ${failCount} failed/unchanged`);
+            console.log(`[Translation] Total result items: ${translations.length}`);
+            
+            if (successCount === 0 && failCount === 0) {
+                const nonEmpty = translations.filter(t => !t.isNewline && !t.isEmpty).length;
+                console.error(`[Translation] WARNING: No translations attempted! Non-empty chunks: ${nonEmpty}`);
             }
             
             return translations;
         } catch (error) {
-            console.error('Sentence translation error:', error);
+            console.error('[Translation] Sentence translation error:', error);
             throw error;
         }
     }
