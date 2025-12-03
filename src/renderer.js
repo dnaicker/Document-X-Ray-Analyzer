@@ -5,7 +5,7 @@ let currentPdfData = null;
 let currentAnalysis = null;
 let currentFileName = '';
 let currentFilePath = '';
-let currentFileType = 'pdf'; // 'pdf', 'epub', or 'docx'
+let currentFileType = 'pdf'; // 'pdf', 'epub', 'docx', or 'md'
 let translationState = {
     isTranslating: false,
     isComplete: false,
@@ -582,6 +582,8 @@ async function openRecentFile(filePath) {
             await loadEPUBFileFromPath(filePath);
         } else if (ext === 'docx') {
             await loadDOCXFileFromPath(filePath);
+        } else if (ext === 'md') {
+            await loadMarkdownFileFromPath(filePath);
         } else {
             throw new Error(`Unsupported file type: ${ext}`);
         }
@@ -907,6 +909,88 @@ async function loadDOCXFileFromPath(filePath) {
     }
 }
 
+// Load Markdown file from path (for recent files)
+async function loadMarkdownFileFromPath(filePath) {
+    try {
+        currentFileType = 'md';
+        updateUILabels('md');
+        const fileData = await ipcRenderer.invoke('read-markdown-file', filePath);
+        
+        if (fileData.success) {
+            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+            const result = await markdownReader.loadFromBuffer(arrayBuffer);
+            
+            if (result.success && result.text && result.text.trim().length > 0) {
+                document.getElementById('rawTextContent').innerHTML = 
+                    `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
+                
+                const pdfContainer = document.getElementById('pdfViewerContainer');
+                
+                // Hide PDF canvas wrapper
+                const pdfCanvas = document.getElementById('pdfCanvas');
+                if (pdfCanvas) pdfCanvas.style.display = 'none';
+                
+                // Disable snip button for Markdown (not supported)
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                    snipBtn.style.cursor = 'not-allowed';
+                }
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = 'markdown-content';
+                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto;';
+                wrapper.innerHTML = result.html;
+                
+                pdfContainer.appendChild(wrapper);
+                
+                // Restore saved location
+                const lastLocation = recentFilesManager.getLastLocation(filePath);
+                if (lastLocation && lastLocation.scrollTop) {
+                    setTimeout(() => {
+                        wrapper.scrollTop = lastLocation.scrollTop;
+                    }, 100);
+                }
+                
+                if (closePdfBtn) closePdfBtn.disabled = false;
+                if (exportBtn) exportBtn.disabled = false;
+                
+                notesManager.loadNotesForFile(filePath);
+                
+                // Add tab
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, 'md');
+                }
+                
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+                
+                hideLoading();
+                setStatus(`Loaded: ${currentFileName}`);
+                
+                setTimeout(() => {
+                    performAnalysis();
+                }, 100);
+            } else {
+                hideLoading();
+                setStatus('⚠️ No text found in Markdown file');
+            }
+        } else {
+            hideLoading();
+            setStatus('Error: Could not load Markdown file', 'error');
+            alert('Failed to load Markdown file.');
+        }
+    } catch (error) {
+        console.error('Error loading Markdown from path:', error);
+        hideLoading();
+        setStatus('Error loading file', 'error');
+        alert(`Failed to open file: ${error.message}`);
+    }
+}
+
 // Update UI Labels based on file type
 function updateUILabels(fileType) {
     const viewerTitle = document.getElementById('viewerTitle');
@@ -952,6 +1036,18 @@ function updateUILabels(fileType) {
             typeLabel = 'Word Document';
             icon = '📝';
             // Hide all nav controls for scrolling DOCX
+            if(prevPageBtn) prevPageBtn.style.display = 'none';
+            if(nextPageBtn) nextPageBtn.style.display = 'none';
+            if(pageInfo) pageInfo.style.display = 'none';
+            if(zoomOutBtn) zoomOutBtn.style.display = 'none';
+            if(zoomInBtn) zoomInBtn.style.display = 'none';
+            if(zoomLevel) zoomLevel.style.display = 'none';
+            break;
+            
+        case 'md':
+            typeLabel = 'Markdown';
+            icon = '📝';
+            // Hide all nav controls for scrolling Markdown
             if(prevPageBtn) prevPageBtn.style.display = 'none';
             if(nextPageBtn) nextPageBtn.style.display = 'none';
             if(pageInfo) pageInfo.style.display = 'none';
@@ -1512,6 +1608,8 @@ if (openFileBtn) {
                 await loadEPUBFile(result.filePath);
             } else if (currentFileType === 'docx') {
                 await loadDOCXFile(result.filePath);
+            } else if (currentFileType === 'md') {
+                await loadMarkdownFile(result.filePath);
             } else {
                 throw new Error(`Unsupported file type: ${currentFileType}`);
             }
@@ -2322,6 +2420,227 @@ async function loadDOCXFile(filePath) {
     }
 }
 
+// Load Markdown file
+async function loadMarkdownFile(filePath, cachedState = null) {
+    try {
+        showLoading('Loading Markdown...');
+        resetPOSCounts();
+        statsPanel.reset();
+        currentFileType = 'md';
+        currentPdfData = null;
+        updateUILabels('md');
+        resetTranslationState();
+        
+        // Clear map view for new document
+        if (mapGrid) {
+            mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 Loading document...</p></div>';
+        }
+        
+        // Hide PDF canvas and clean up containers
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        if (pdfCanvas) pdfCanvas.style.display = 'none';
+        
+        const pdfContainer = document.getElementById('pdfViewerContainer');
+        if (pdfContainer) {
+            const epubContainer = pdfContainer.querySelector('.epub-container');
+            if (epubContainer) epubContainer.remove();
+            const docxContainer = pdfContainer.querySelector('.docx-content');
+            if (docxContainer) docxContainer.remove();
+        }
+        
+        // 1. Try to restore from Persistent Cache (localStorage)
+        if (typeof analysisCache !== 'undefined') {
+            const persistentCache = analysisCache.loadAnalysis(filePath);
+            if (persistentCache && persistentCache.analysis) {
+                console.log('Restoring Markdown from persistent cache (localStorage)...');
+                currentAnalysis = persistentCache.analysis;
+                
+                // Restore HTML Content & Stats IMMEDIATELY
+                if (persistentCache.rawTextHTML) document.getElementById('rawTextContent').innerHTML = persistentCache.rawTextHTML;
+                if (persistentCache.highlightedTextHTML) document.getElementById('highlightedTextContent').innerHTML = persistentCache.highlightedTextHTML;
+                
+                if (currentAnalysis) {
+                    statsPanel.renderStats(currentAnalysis);
+                    updatePOSCounts(currentAnalysis);
+                }
+                
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                    snipBtn.style.cursor = 'not-allowed';
+                }
+                
+                if (exportBtn) exportBtn.disabled = false;
+                
+                notesManager.loadNotesForFile(filePath);
+                
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, 'md');
+                }
+                
+                // Clear figures for Markdown (not supported)
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+                
+                // Hide Figures button for Markdown
+                if (figuresBtn) {
+                    figuresBtn.style.display = 'none';
+                }
+                
+                // Restore View Selection immediately
+                const lastLocation = recentFilesManager.getLastLocation(filePath);
+                if (lastLocation && lastLocation.view) {
+                    switchView(lastLocation.view);
+                }
+                
+                setStatus(`✅ Restored: ${currentFileName}`);
+                hideLoading();
+                
+                // Refresh map if it's the active view
+                const mapView = document.getElementById('mapView');
+                if (mapView && mapView.classList.contains('active')) {
+                    renderMap().catch(err => console.error('Error rendering map:', err));
+                }
+                
+                // Show loading overlay
+                const pdfLoadingOverlay = document.getElementById('pdfLoadingOverlay');
+                if (pdfLoadingOverlay) {
+                    pdfLoadingOverlay.classList.remove('hidden');
+                }
+                
+                // Load Markdown Viewer in background
+                (async () => {
+                    try {
+                        const fileData = await ipcRenderer.invoke('read-markdown-file', filePath);
+                        if (fileData.success) {
+                            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+                            const result = await markdownReader.loadFromBuffer(arrayBuffer);
+                            
+                            if (result && result.success && result.html) {
+                                const container = document.getElementById('pdfViewerContainer');
+                                if (!container) return;
+                                
+                                let mdContainer = container.querySelector('.markdown-content');
+                                if (!mdContainer) {
+                                    mdContainer = document.createElement('div');
+                                    mdContainer.className = 'markdown-content';
+                                    mdContainer.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto;';
+                                    container.appendChild(mdContainer);
+                                }
+                                
+                                mdContainer.innerHTML = result.html;
+                                
+                                if (lastLocation && lastLocation.scrollTop) {
+                                    mdContainer.scrollTop = lastLocation.scrollTop;
+                                }
+                            }
+                        }
+                        if (pdfLoadingOverlay) pdfLoadingOverlay.classList.add('hidden');
+                    } catch (e) {
+                        console.error('Background Markdown load error:', e);
+                        if (pdfLoadingOverlay) pdfLoadingOverlay.classList.add('hidden');
+                    }
+                })();
+                
+                return;
+            }
+        }
+        
+        // Read Markdown file
+        const fileData = await ipcRenderer.invoke('read-markdown-file', filePath);
+        
+        if (fileData.success) {
+            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+            
+            // Load Markdown
+            const result = await markdownReader.loadFromBuffer(arrayBuffer);
+            
+            if (result.success && result.text && result.text.trim().length > 0) {
+                // Display text in raw text view
+                document.getElementById('rawTextContent').innerHTML = 
+                    `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
+                
+                // Render Markdown HTML in PDF viewer container
+                const pdfContainer = document.getElementById('pdfViewerContainer');
+                
+                // Hide PDF canvas wrapper
+                const pdfCanvas = document.getElementById('pdfCanvas');
+                if (pdfCanvas) pdfCanvas.style.display = 'none';
+                
+                // Disable snip button for Markdown
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                    snipBtn.style.cursor = 'not-allowed';
+                }
+                
+                // Create wrapper for Markdown
+                const wrapper = document.createElement('div');
+                wrapper.className = 'markdown-content';
+                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #ffffff; color: #000000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 900px; margin: 0 auto;';
+                wrapper.innerHTML = result.html;
+                
+                pdfContainer.appendChild(wrapper);
+                
+                // Restore saved location
+                const lastLocation = recentFilesManager.getLastLocation(filePath);
+                if (lastLocation) {
+                    if (lastLocation.scrollTop) {
+                        setTimeout(() => {
+                            wrapper.scrollTop = lastLocation.scrollTop;
+                        }, 100);
+                    }
+                    if (lastLocation.view) {
+                        switchView(lastLocation.view);
+                    }
+                }
+                
+                if (closePdfBtn) closePdfBtn.disabled = false;
+                if (exportBtn) exportBtn.disabled = false;
+                
+                notesManager.loadNotesForFile(filePath);
+                
+                // Add tab
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, 'md');
+                }
+                
+                // Clear figures for Markdown (not supported)
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+                
+                // Hide Figures button for Markdown
+                if (figuresBtn) {
+                    figuresBtn.style.display = 'none';
+                }
+                
+                hideLoading();
+                setStatus(`Loaded: ${currentFileName}`);
+                
+                setTimeout(() => {
+                    performAnalysis();
+                }, 100);
+            } else {
+                setStatus('❌ No text found in Markdown file');
+                hideLoading();
+            }
+        } else {
+            setStatus('❌ Error reading Markdown file');
+            hideLoading();
+        }
+    } catch (error) {
+        console.error('Error loading Markdown:', error);
+        setStatus('❌ Error: ' + error.message);
+        hideLoading();
+    }
+}
+
 // OCR Scan logic removed
 // OCR Scan
 // ocrScanBtn.addEventListener('click', async () => {
@@ -2372,6 +2691,7 @@ window.openFileFromPath = async function(filePath, targetNoteId = null, cachedSt
             let type = 'pdf';
             if (ext === 'epub') type = 'epub';
             else if (ext === 'docx') type = 'docx';
+            else if (ext === 'md') type = 'md';
             
             result = {
                 exists: true, // Assume exists, load will fail gracefully if not
@@ -2399,6 +2719,8 @@ window.openFileFromPath = async function(filePath, targetNoteId = null, cachedSt
             await loadEPUBFile(filePath, cachedState);
         } else if (currentFileType === 'docx') {
             await loadDOCXFile(filePath, cachedState);
+        } else if (currentFileType === 'md') {
+            await loadMarkdownFile(filePath, cachedState);
         }
         
         // After file is loaded, navigate to the target note if specified
@@ -4196,6 +4518,7 @@ window.openFileFromLibrary = async function(filePath) {
         let fileType = 'pdf';
         if (ext === 'epub') fileType = 'epub';
         else if (ext === 'docx' || ext === 'doc') fileType = 'docx';
+        else if (ext === 'md') fileType = 'md';
         
         currentFilePath = filePath;
         currentFileName = filePath.split(/[\\/]/).pop();
@@ -4214,6 +4537,8 @@ window.openFileFromLibrary = async function(filePath) {
             await loadEPUBFile(filePath);
         } else if (fileType === 'docx') {
             await loadDOCXFile(filePath);
+        } else if (fileType === 'md') {
+            await loadMarkdownFile(filePath);
         }
     } catch (error) {
         console.error('Error opening file from library:', error);

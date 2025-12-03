@@ -98,10 +98,11 @@ ipcMain.handle('open-file-dialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
       filters: [
-        { name: 'Supported Documents', extensions: ['pdf', 'epub', 'docx'] },
+        { name: 'Supported Documents', extensions: ['pdf', 'epub', 'docx', 'md'] },
         { name: 'PDF Files', extensions: ['pdf'] },
         { name: 'EPUB Files', extensions: ['epub'] },
         { name: 'Word Documents', extensions: ['docx'] },
+        { name: 'Markdown Files', extensions: ['md'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     });
@@ -157,6 +158,22 @@ ipcMain.handle('read-epub-file', async (event, filePath) => {
 
 // Read DOCX file
 ipcMain.handle('read-docx-file', async (event, filePath) => {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    return {
+      success: true,
+      data: Array.from(new Uint8Array(buffer))
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// Read Markdown file
+ipcMain.handle('read-markdown-file', async (event, filePath) => {
   try {
     const buffer = fs.readFileSync(filePath);
     return {
@@ -230,6 +247,7 @@ ipcMain.handle('get-file-info', async (event, filePath) => {
     
     if (ext === '.epub') fileType = 'epub';
     else if (ext === '.docx') fileType = 'docx';
+    else if (ext === '.md') fileType = 'md';
     
     return {
       exists: true,
