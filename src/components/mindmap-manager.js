@@ -128,7 +128,7 @@ class MindmapManager {
         
         // Collect all external document references and load their highlights
         const documentRefs = new Map(); // Map<filePath, {fileName, linkedFrom: [noteIds]}>
-        const externalHighlights = []; // Array of highlights from external documents
+        const potentialExternalHighlights = new Map(); // Map<uniqueId, highlightData>
         
         allItems.forEach(item => {
             if (item.links && Array.isArray(item.links)) {
@@ -151,7 +151,7 @@ class MindmapManager {
                                     // Create a unique ID for the external highlight
                                     const extHighlightId = `ext-${link.filePath}-${highlight.id}`;
                                     
-                                    externalHighlights.push({
+                                    potentialExternalHighlights.set(extHighlightId, {
                                         id: extHighlightId,
                                         type: 'external-highlight',
                                         text: highlight.text,
@@ -171,21 +171,27 @@ class MindmapManager {
             }
         });
         
-        // Map which source notes link to which external highlights
+        // Identify which external highlights are actually linked
+        const usedExternalHighlightIds = new Set();
         allItems.forEach(item => {
             if (item.links && Array.isArray(item.links)) {
                 item.links.forEach(link => {
-                    if (typeof link === 'object' && link.filePath) {
-                        // Find all external highlights from this file
-                        externalHighlights.forEach(extHighlight => {
-                            if (extHighlight.sourceFile === link.filePath) {
-                                extHighlight.linkedFrom.push(item.id);
-                            }
-                        });
+                    if (typeof link === 'object' && link.filePath && link.id) {
+                        // Construct expected ID
+                        const extId = `ext-${link.filePath}-${link.id}`;
+                        if (potentialExternalHighlights.has(extId)) {
+                            usedExternalHighlightIds.add(extId);
+                            // Add linkage info
+                            const extHighlight = potentialExternalHighlights.get(extId);
+                            extHighlight.linkedFrom.push(item.id);
+                        }
                     }
                 });
             }
         });
+
+        // Only use the external highlights that are actually linked
+        const externalHighlights = Array.from(usedExternalHighlightIds).map(id => potentialExternalHighlights.get(id));
         
         // Create nodes for notes/highlights
         this.nodes = allItems.map((item, index) => {
