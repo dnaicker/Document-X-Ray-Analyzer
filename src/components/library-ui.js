@@ -941,26 +941,84 @@ class LibraryUI {
     }
     
     showImportDialog() {
-        // Show dialog with options
+        // Show centered modal dialog with options
         const dialog = document.createElement('div');
         dialog.className = 'modal-overlay';
+        dialog.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            backdrop-filter: blur(2px);
+        `;
+        
         dialog.innerHTML = `
-            <div class="modal-content" style="max-width: 400px;">
-                <h3>📥 Import to Library</h3>
-                <p style="margin: 16px 0; color: #666;">Choose what to import:</p>
+            <div class="modal-content" style="
+                max-width: 400px;
+                background: white;
+                border-radius: 12px;
+                padding: 24px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                animation: modalFadeIn 0.2s ease-out;
+            ">
+                <h3 style="margin: 0 0 8px 0; font-size: 20px; color: #333;">📥 Import to Library</h3>
+                <p style="margin: 0 0 20px 0; color: #666; font-size: 14px;">Choose what to import:</p>
                 <div style="display: flex; flex-direction: column; gap: 12px;">
-                    <button class="btn-primary" onclick="libraryUI.importSingleFile(); this.closest('.modal-overlay').remove();" style="padding: 12px;">
+                    <button class="btn-primary" onclick="libraryUI.importSingleFile(); this.closest('.modal-overlay').remove();" style="
+                        padding: 14px 20px;
+                        font-size: 15px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
                         📄 Import Single File
                     </button>
-                    <button class="btn-primary" onclick="libraryUI.importFolder(); this.closest('.modal-overlay').remove();" style="padding: 12px;">
+                    <button class="btn-primary" onclick="libraryUI.importFolder(); this.closest('.modal-overlay').remove();" style="
+                        padding: 14px 20px;
+                        font-size: 15px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
                         📁 Import Folder (with subdirectories)
                     </button>
                 </div>
-                <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();" style="margin-top: 16px; width: 100%;">
+                <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();" style="
+                    margin-top: 16px;
+                    width: 100%;
+                    padding: 12px;
+                    background: #f5f5f5;
+                    color: #666;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: background 0.2s;
+                " onmouseover="this.style.background='#e0e0e0';" onmouseout="this.style.background='#f5f5f5';">
                     Cancel
                 </button>
             </div>
         `;
+        
+        // Close on overlay click
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        });
+        
         document.body.appendChild(dialog);
     }
     
