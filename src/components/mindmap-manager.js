@@ -385,13 +385,26 @@ class MindmapManager {
     }
 
     saveLayout() {
+        if (!this.notesManager || !this.notesManager.currentFilePath) return;
         const layout = this.nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
-        localStorage.setItem('mindmap_layout', JSON.stringify(layout));
+        // Use file-specific key to prevent layout sharing between documents
+        const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
+        localStorage.setItem(key, JSON.stringify(layout));
     }
 
     loadLayout() {
+        if (!this.notesManager || !this.notesManager.currentFilePath) return [];
         try {
-            const stored = localStorage.getItem('mindmap_layout');
+            // Try loading file-specific layout
+            const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
+            let stored = localStorage.getItem(key);
+            
+            // Fallback to legacy global layout ONLY if no specific layout exists
+            // (This helps transition existing users, though might copy 'wrong' layout once)
+            if (!stored) {
+                stored = localStorage.getItem('mindmap_layout');
+            }
+            
             return stored ? JSON.parse(stored) : [];
         } catch (e) {
             console.error('Error loading mindmap layout:', e);
