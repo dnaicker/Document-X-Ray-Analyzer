@@ -101,6 +101,11 @@ const syncUploadBtn = document.getElementById('syncUploadBtn');
 const syncDownloadBtn = document.getElementById('syncDownloadBtn');
 const syncDocumentsCheck = document.getElementById('syncDocumentsCheck');
 const lastSyncTime = document.getElementById('lastSyncTime');
+const syncLibraryUploadBtn = document.getElementById('syncLibraryUploadBtn');
+const syncLibraryDownloadBtn = document.getElementById('syncLibraryDownloadBtn');
+const librarySyncProgress = document.getElementById('librarySyncProgress');
+const librarySyncStatus = document.getElementById('librarySyncStatus');
+const librarySyncProgressBar = document.getElementById('librarySyncProgressBar');
 const showStatsTabBtn = document.getElementById('showStatsTabBtn');
 
 // Text Appearance Settings Manager
@@ -5250,6 +5255,145 @@ if (syncUploadBtn) {
         } finally {
             syncUploadBtn.disabled = false;
             syncUploadBtn.textContent = '⬆️ Upload to Drive';
+        }
+    });
+}
+
+// Library Structure Sync Handlers
+if (syncLibraryUploadBtn) {
+    syncLibraryUploadBtn.addEventListener('click', async () => {
+        try {
+            if (typeof libraryManager === 'undefined') {
+                alert('Library manager not available');
+                return;
+            }
+            
+            const confirmMsg = 'This will backup your entire library structure (folders and files) to Google Drive.\n\n' +
+                              'This may take some time depending on the number of files.\n\n' +
+                              'Continue?';
+            
+            if (!confirm(confirmMsg)) return;
+            
+            syncLibraryUploadBtn.disabled = true;
+            syncLibraryUploadBtn.textContent = 'Backing up...';
+            librarySyncProgress.classList.remove('hidden');
+            librarySyncStatus.textContent = 'Starting backup...';
+            librarySyncProgressBar.style.width = '0%';
+            
+            const library = libraryManager.library;
+            
+            const result = await driveSync.syncLibraryStructure(library, (current, total, message) => {
+                librarySyncStatus.textContent = message;
+                const percent = (current / total) * 100;
+                librarySyncProgressBar.style.width = `${percent}%`;
+            });
+            
+            librarySyncProgress.classList.add('hidden');
+            
+            let message = `✅ Library Backup Complete!\n\n`;
+            message += `📁 Folders created: ${result.foldersCreated}\n`;
+            message += `📄 Files uploaded: ${result.filesUploaded}\n`;
+            
+            if (result.filesSkipped > 0) {
+                message += `⏭️ Files skipped (already exist): ${result.filesSkipped}\n`;
+            }
+            
+            if (result.errors.length > 0) {
+                message += `\n⚠️ Errors: ${result.errors.length}\n`;
+                message += result.errors.slice(0, 5).join('\n');
+                if (result.errors.length > 5) {
+                    message += `\n... and ${result.errors.length - 5} more`;
+                }
+            }
+            
+            alert(message);
+            localStorage.setItem('gdrive_last_library_sync', new Date().toISOString());
+            
+        } catch (error) {
+            console.error('Library sync error:', error);
+            alert('Library backup failed: ' + error.message);
+        } finally {
+            syncLibraryUploadBtn.disabled = false;
+            syncLibraryUploadBtn.textContent = '📤 Backup Library to Drive';
+            librarySyncProgress.classList.add('hidden');
+        }
+    });
+}
+
+if (syncLibraryDownloadBtn) {
+    syncLibraryDownloadBtn.addEventListener('click', async () => {
+        try {
+            if (typeof libraryManager === 'undefined') {
+                alert('Library manager not available');
+                return;
+            }
+            
+            const confirmMsg = 'This will restore your library structure from Google Drive.\n\n' +
+                              '⚠️ Warning: This will merge with your current library.\n' +
+                              'Files with the same name will not be duplicated.\n\n' +
+                              'Continue?';
+            
+            if (!confirm(confirmMsg)) return;
+            
+            syncLibraryDownloadBtn.disabled = true;
+            syncLibraryDownloadBtn.textContent = 'Restoring...';
+            librarySyncProgress.classList.remove('hidden');
+            librarySyncStatus.textContent = 'Downloading library structure...';
+            librarySyncProgressBar.style.width = '50%';
+            
+            const data = await driveSync.downloadLibraryStructure();
+            
+            if (!data || !data.library) {
+                alert('No library backup found in Google Drive.\n\nPlease backup your library first using "Backup Library to Drive".');
+                librarySyncProgress.classList.add('hidden');
+                return;
+            }
+            
+            librarySyncStatus.textContent = 'Merging library structure...';
+            librarySyncProgressBar.style.width = '75%';
+            
+            // Merge the library structure
+            const currentLibrary = libraryManager.library;
+            const downloadedLibrary = data.library;
+            
+            // Merge folders
+            Object.keys(downloadedLibrary.folders || {}).forEach(folderId => {
+                if (!currentLibrary.folders[folderId]) {
+                    currentLibrary.folders[folderId] = downloadedLibrary.folders[folderId];
+                }
+            });
+            
+            // Merge files
+            Object.keys(downloadedLibrary.files || {}).forEach(filePath => {
+                if (!currentLibrary.files[filePath]) {
+                    currentLibrary.files[filePath] = downloadedLibrary.files[filePath];
+                }
+            });
+            
+            libraryManager.library = currentLibrary;
+            libraryManager.saveLibrary();
+            
+            librarySyncStatus.textContent = 'Complete!';
+            librarySyncProgressBar.style.width = '100%';
+            
+            setTimeout(() => {
+                librarySyncProgress.classList.add('hidden');
+            }, 1000);
+            
+            if (typeof libraryUI !== 'undefined') {
+                libraryUI.render();
+            }
+            
+            const syncDate = data.syncDate ? new Date(data.syncDate).toLocaleString() : 'Unknown';
+            alert(`✅ Library Restored Successfully!\n\nBackup from: ${syncDate}\n\nYour library has been merged with the backup from Google Drive.`);
+            
+        } catch (error) {
+            console.error('Library restore error:', error);
+            alert('Library restore failed: ' + error.message);
+        } finally {
+            syncLibraryDownloadBtn.disabled = false;
+            syncLibraryDownloadBtn.textContent = '📥 Restore from Drive';
+            librarySyncProgress.classList.add('hidden');
         }
     });
 }

@@ -270,7 +270,204 @@ class GoogleDriveSync {
         if (!response.ok) throw new Error('Document upload failed');
         return response.json();
     }
+
+    /**
+     * Create a folder in Google Drive
+     * @param {string} folderName - Name of the folder
+     * @param {string} parentId - Parent folder ID (or root if not specified)
+     * @returns {string} The created folder ID
+     */
+    async createDriveFolder(folderName, parentId = null) {
+        const actualParentId = parentId || await this.ensureFolder();
+        
+        // Check if folder already exists
+        const query = `name='${folderName}' and '${actualParentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+        const search = await this.callApi(`/files?q=${encodeURIComponent(query)}`);
+        
+        if (search.files && search.files.length > 0) {
+            return search.files[0].id;
+        }
+        
+        // Create new folder
+        const metadata = {
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [actualParentId]
+        };
+        
+        const result = await this.callApi('/files', 'POST', JSON.stringify(metadata));
+        return result.id;
+    }
+
+    /**
+     * Upload a file to a specific folder in Google Drive
+     * @param {string} filePath - Local file path
+     * @param {string} fileName - File name
+     * @param {string} driveFolderId - Google Drive folder ID
+     * @param {string} mimeType - MIME type
+     * @returns {object} Upload result
+     */
+    async uploadFileToFolder(filePath, fileName, driveFolderId, mimeType) {
+        // Check if file already exists in this folder
+        const query = `name='${fileName}' and '${driveFolderId}' in parents and trashed=false`;
+        const search = await this.callApi(`/files?q=${encodeURIComponent(query)}`);
+        
+        if (search.files && search.files.length > 0) {
+            return { id: search.files[0].id, existed: true };
+        }
+        
+        // Read file data
+        const fileData = await ipcRenderer.invoke('read-file-buffer', filePath);
+        if (!fileData.success) throw new Error('Could not read local file');
+        
+        const metadata = {
+            name: fileName,
+            parents: [driveFolderId]
+        };
+        
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', new Blob([new Uint8Array(fileData.data)], { type: mimeType || 'application/octet-stream' }));
+        
+        const token = await this.getAccessToken();
+        const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: form
+        });
+        
+        if (!response.ok) throw new Error('File upload failed');
+        const result = await response.json();
+        return { id: result.id, existed: false };
+    }
+
+    /**
+     * Sync entire library structure to Google Drive
+     * @param {object} library - Library object from LibraryManager
+     * @param {function} progressCallback - Progress callback(current, total, message)
+     * @returns {object} Sync result
+     */
+    async syncLibraryStructure(library, progressCallback = null) {
+        const rootFolderId = await this.ensureFolder();
+        const folderMap = new Map(); // Maps library folder IDs to Drive folder IDs
+        const results = {
+            foldersCreated: 0,
+            filesUploaded: 0,
+            filesSkipped: 0,
+            errors: []
+        };
+        
+        try {
+            // Map root to Drive root
+            folderMap.set('root', rootFolderId);
+            
+            // Get all folders sorted by hierarchy (parents before children)
+            const folders = Object.values(library.folders || {})
+                .filter(f => f.type === 'folder')
+                .sort((a, b) => {
+                    // Sort by depth (root first, then children)
+                    const depthA = this.getFolderDepth(a, library.folders);
+                    const depthB = this.getFolderDepth(b, library.folders);
+                    return depthA - depthB;
+                });
+            
+            // Create folders
+            for (const folder of folders) {
+                try {
+                    const parentDriveId = folderMap.get(folder.parent || 'root');
+                    if (!parentDriveId) {
+                        results.errors.push(`Parent not found for folder: ${folder.name}`);
+                        continue;
+                    }
+                    
+                    const driveFolderId = await this.createDriveFolder(folder.name, parentDriveId);
+                    folderMap.set(folder.id, driveFolderId);
+                    results.foldersCreated++;
+                    
+                    if (progressCallback) {
+                        progressCallback(results.foldersCreated, folders.length, `Creating folder: ${folder.name}`);
+                    }
+                } catch (error) {
+                    results.errors.push(`Error creating folder ${folder.name}: ${error.message}`);
+                }
+            }
+            
+            // Upload files
+            const files = Object.values(library.files || {});
+            let fileIndex = 0;
+            
+            for (const file of files) {
+                try {
+                    fileIndex++;
+                    const folderDriveId = folderMap.get(file.folder) || rootFolderId;
+                    
+                    // Determine MIME type
+                    const ext = file.path.split('.').pop().toLowerCase();
+                    const mimeTypes = {
+                        'pdf': 'application/pdf',
+                        'epub': 'application/epub+zip',
+                        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        'md': 'text/markdown',
+                        'txt': 'text/plain'
+                    };
+                    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+                    
+                    const result = await this.uploadFileToFolder(file.path, file.name, folderDriveId, mimeType);
+                    
+                    if (result.existed) {
+                        results.filesSkipped++;
+                    } else {
+                        results.filesUploaded++;
+                    }
+                    
+                    if (progressCallback) {
+                        progressCallback(fileIndex, files.length, `Uploading: ${file.name}`);
+                    }
+                } catch (error) {
+                    results.errors.push(`Error uploading ${file.name}: ${error.message}`);
+                    results.filesSkipped++;
+                }
+            }
+            
+            // Upload library structure as JSON for easy restoration
+            await this.uploadJson('library-structure.json', {
+                library: library,
+                syncDate: new Date().toISOString(),
+                folderMap: Array.from(folderMap.entries())
+            });
+            
+            return results;
+        } catch (error) {
+            results.errors.push(`Sync failed: ${error.message}`);
+            return results;
+        }
+    }
+
+    /**
+     * Helper to calculate folder depth
+     */
+    getFolderDepth(folder, allFolders, depth = 0) {
+        if (!folder.parent || folder.parent === 'root') return depth;
+        const parent = allFolders[folder.parent];
+        if (!parent) return depth;
+        return this.getFolderDepth(parent, allFolders, depth + 1);
+    }
+
+    /**
+     * Download and restore library structure from Google Drive
+     * @returns {object} Library structure
+     */
+    async downloadLibraryStructure() {
+        try {
+            const data = await this.downloadJson('library-structure.json');
+            return data;
+        } catch (error) {
+            console.error('Error downloading library structure:', error);
+            return null;
+        }
+    }
 }
+
 
 module.exports = GoogleDriveSync;
 

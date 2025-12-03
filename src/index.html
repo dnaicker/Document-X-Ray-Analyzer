@@ -787,11 +787,30 @@
                         <button id="syncDownloadBtn" class="btn-secondary">⬇️ Download from Drive</button>
                     </div>
                     
-                    <div style="margin-top: 15px;">
+                    <div style="margin-top: 15px; margin-bottom: 15px;">
                         <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.9em;">
                             <input type="checkbox" id="syncDocumentsCheck" checked> 
                             Also upload current document file
                         </label>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                        <h4>📁 Sync Library Structure</h4>
+                        <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
+                            Sync your entire library with folders and files to Google Drive for portability across devices.
+                        </p>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="syncLibraryUploadBtn" class="btn-primary">📤 Backup Library to Drive</button>
+                            <button id="syncLibraryDownloadBtn" class="btn-secondary">📥 Restore from Drive</button>
+                        </div>
+                        <div id="librarySyncProgress" class="hidden" style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+                            <div style="font-size: 0.9em;" id="librarySyncStatus">Preparing...</div>
+                            <div style="margin-top: 5px;">
+                                <div style="background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                                    <div id="librarySyncProgressBar" style="background: #4CAF50; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="lastSyncTime" style="margin-top: 10px; font-size: 0.85em; color: #888;"></div>
