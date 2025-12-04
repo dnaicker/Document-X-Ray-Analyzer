@@ -6495,6 +6495,7 @@ function setupSpeechSettings() {
     const voicesList = document.getElementById('availableVoicesList');
     const openSettingsBtn = document.getElementById('openWindowsSpeechSettingsBtn');
     const openMacSettingsBtn = document.getElementById('openMacSpeechSettingsBtn');
+    const linuxInstructions = document.getElementById('linuxVoiceInstructions');
     const voiceInstructions = document.getElementById('voiceInstallInstructions');
     const testVoiceBtn = document.getElementById('testVoiceBtn');
     const testVoiceSelect = document.getElementById('testVoiceSelect');
@@ -6504,6 +6505,7 @@ function setupSpeechSettings() {
     // Detect Platform
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const isWin = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
+    const isLinux = navigator.platform.toUpperCase().indexOf('LINUX') >= 0;
     
     // Update UI based on Platform
     if (isMac) {
@@ -6515,6 +6517,11 @@ function setupSpeechSettings() {
         if (openSettingsBtn) openSettingsBtn.classList.remove('hidden');
         if (voiceInstructions) {
             voiceInstructions.innerHTML = 'To get voices for other languages, install the <strong>Language Pack</strong> in Windows Settings.';
+        }
+    } else if (isLinux) {
+        if (linuxInstructions) linuxInstructions.classList.remove('hidden');
+        if (voiceInstructions) {
+            voiceInstructions.innerHTML = 'On Linux, text-to-speech uses system packages like <strong>espeak</strong> or <strong>speech-dispatcher</strong>.';
         }
     }
     
