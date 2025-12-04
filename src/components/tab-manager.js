@@ -4,11 +4,141 @@ class TabManager {
         this.activeFilePath = null;
         this.container = document.getElementById('documentTabs');
         this.storageKey = 'grammar-highlighter-workspace-tabs';
+        this.contextMenu = null;
         
         // Restore tabs from localStorage
         this.restoreTabs();
         
         this.render();
+        this.setupGlobalListeners();
+    }
+    
+    setupGlobalListeners() {
+        // Close context menu when clicking elsewhere
+        document.addEventListener('click', () => {
+            this.hideContextMenu();
+        });
+    }
+    
+    showContextMenu(event, filePath) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Remove existing context menu
+        this.hideContextMenu();
+        
+        const tab = this.tabs.find(t => t.filePath === filePath);
+        if (!tab) return;
+        
+        // Create context menu
+        this.contextMenu = document.createElement('div');
+        this.contextMenu.className = 'tab-context-menu';
+        this.contextMenu.style.position = 'fixed';
+        this.contextMenu.style.left = event.clientX + 'px';
+        this.contextMenu.style.top = event.clientY + 'px';
+        
+        // Build menu items
+        const items = [];
+        
+        // Close Tab
+        items.push(`
+            <div class="tab-context-menu-item" onclick="event.stopPropagation(); tabManager.removeTab('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); tabManager.hideContextMenu();">
+                <span>✕ Close Tab</span>
+            </div>
+        `);
+        
+        // Close Other Tabs (only if more than 1 tab)
+        if (this.tabs.length > 1) {
+            items.push(`
+                <div class="tab-context-menu-item" onclick="event.stopPropagation(); tabManager.closeOtherTabs('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); tabManager.hideContextMenu();">
+                    <span>✕ Close Other Tabs</span>
+                </div>
+            `);
+        }
+        
+        // Close All Tabs
+        items.push(`
+            <div class="tab-context-menu-item" onclick="event.stopPropagation(); tabManager.closeAllTabs(); tabManager.hideContextMenu();">
+                <span>✕✕ Close All Tabs</span>
+            </div>
+        `);
+        
+        // Close Tabs to the Right (only if not the last tab)
+        const tabIndex = this.tabs.findIndex(t => t.filePath === filePath);
+        if (tabIndex !== -1 && tabIndex < this.tabs.length - 1) {
+            items.push(`
+                <div class="tab-context-menu-item" onclick="event.stopPropagation(); tabManager.closeTabsToRight('${filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'); tabManager.hideContextMenu();">
+                    <span>→ Close Tabs to the Right</span>
+                </div>
+            `);
+        }
+        
+        this.contextMenu.innerHTML = items.join('');
+        document.body.appendChild(this.contextMenu);
+        
+        // Adjust position if menu goes off screen
+        const rect = this.contextMenu.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            this.contextMenu.style.left = (window.innerWidth - rect.width - 10) + 'px';
+        }
+        if (rect.bottom > window.innerHeight) {
+            this.contextMenu.style.top = (window.innerHeight - rect.height - 10) + 'px';
+        }
+    }
+    
+    hideContextMenu() {
+        if (this.contextMenu && this.contextMenu.parentNode) {
+            this.contextMenu.parentNode.removeChild(this.contextMenu);
+            this.contextMenu = null;
+        }
+    }
+    
+    closeAllTabs() {
+        // Close all tabs
+        this.tabs = [];
+        this.activeFilePath = null;
+        this.container.style.display = 'none';
+        this.clearWorkspace();
+        
+        // Trigger close file logic in renderer
+        if (window.closeCurrentFile) window.closeCurrentFile();
+        
+        this.render();
+    }
+    
+    closeOtherTabs(keepFilePath) {
+        // Keep only the specified tab
+        const keepTab = this.tabs.find(t => t.filePath === keepFilePath);
+        if (!keepTab) return;
+        
+        this.tabs = [keepTab];
+        
+        // If the kept tab wasn't active, switch to it
+        if (this.activeFilePath !== keepFilePath) {
+            this.switchTab(keepFilePath);
+        } else {
+            this.saveToStorage();
+            this.render();
+        }
+    }
+    
+    closeTabsToRight(fromFilePath) {
+        const index = this.tabs.findIndex(t => t.filePath === fromFilePath);
+        if (index === -1 || index === this.tabs.length - 1) return;
+        
+        // Check if we're closing the active tab
+        const closingActive = this.tabs.slice(index + 1).some(t => t.filePath === this.activeFilePath);
+        
+        // Remove all tabs to the right
+        this.tabs = this.tabs.slice(0, index + 1);
+        
+        // If we closed the active tab, switch to the rightmost remaining tab
+        if (closingActive) {
+            this.switchTab(this.tabs[this.tabs.length - 1].filePath);
+        } else {
+            this.saveToStorage();
+            this.render();
+        }
     }
     
     saveToStorage() {
@@ -214,6 +344,8 @@ class TabManager {
             if (tab.fileType === 'pdf') icon = '📕';
             else if (tab.fileType === 'epub') icon = '📘';
             else if (tab.fileType === 'docx') icon = '📝';
+            else if (tab.fileType === 'markdown' || tab.fileType === 'md') icon = '📝';
+            else if (tab.fileType === 'txt') icon = '📄';
             else if (tab.fileType === 'new') icon = '✨';
 
             // Handle backslashes for JS string escaping
@@ -221,7 +353,9 @@ class TabManager {
             const safeName = this.escapeHtml(tab.fileName);
 
             return `
-                <div class="doc-tab ${isActive ? 'active' : ''}" onclick="tabManager.switchTab('${safePath}')">
+                <div class="doc-tab ${isActive ? 'active' : ''}" 
+                     onclick="tabManager.switchTab('${safePath}')"
+                     oncontextmenu="tabManager.showContextMenu(event, '${safePath}')">
                     <span class="doc-tab-icon">${icon}</span>
                     <span class="doc-tab-title" title="${safeName}">${safeName}</span>
                     <span class="doc-tab-close" onclick="event.stopPropagation(); tabManager.removeTab('${safePath}')">×</span>
