@@ -20,6 +20,22 @@ let translationState = {
 let currentMapRenderPath = null; // Track which document the map is rendering for
 let mindmapManager = null;
 
+// Performance optimization: Debounce utility
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Debounced renderMap function
+let renderMapDebounced = null;
+
 // Recent Files Manager
 // Tooltip Manager
 class TooltipManager {
@@ -3562,14 +3578,25 @@ function switchView(view) {
         case 'highlighted':
             highlightedTextBtn.classList.add('active');
             highlightedTextView.classList.add('active');
+            // Apply highlights when switching to highlighted view
+            if (typeof notesManager !== 'undefined') {
+                setTimeout(() => notesManager.applyHighlights(), 10);
+            }
             break;
         case 'notes':
             notesBtn.classList.add('active');
             notesView.classList.add('active');
+            // Refresh notes list
+            if (typeof notesManager !== 'undefined') {
+                setTimeout(() => notesManager.render(), 10);
+            }
             break;
         case 'translate':
             translateTabBtn.classList.add('active');
             translateView.classList.add('active');
+            if (typeof notesManager !== 'undefined') {
+                setTimeout(() => notesManager.applyHighlights(), 10);
+            }
             updateCachedTranslationsUI();
             break;
         case 'map':
@@ -3751,11 +3778,20 @@ function processPOSTokens(text, filterWord, posSets) {
     }).join('');
 }
 
+// Cache color mapping for better performance
+const COLOR_MAP = {
+    'yellow': '#ffeb3b',
+    'green': '#a5d6a7',
+    'blue': '#90caf9',
+    'pink': '#f48fb1',
+    'purple': '#ce93d8'
+};
+
 function processThumbnailText(text, filterWord, posSets, pageHighlights = [], sectionStartOffset = 0) {
     if (!filterWord && (!posSets || Object.keys(posSets).length === 0) && (!pageHighlights || pageHighlights.length === 0)) return escapeHtml(text);
     
-    // 1. Build Character Map for Highlights
-    const charInfo = new Array(text.length).fill(null);
+    // 1. Build Character Map for Highlights (optimized with sparse array)
+    const charInfo = {}; // Use object for sparse storage instead of full array
     
     if (pageHighlights.length > 0) {
         pageHighlights.forEach(h => {
@@ -3774,9 +3810,9 @@ function processThumbnailText(text, filterWord, posSets, pageHighlights = [], se
                     const localStart = Math.max(0, hStart - sStart);
                     const localEnd = Math.min(text.length, hEnd - sStart);
                     
-                    const color = h.color || 'yellow';
-                    const info = { color, id: h.id };
+                    const info = { color: h.color || 'yellow', id: h.id, start: localStart, end: localEnd };
                     
+                    // Store range instead of individual chars for better performance
                     for (let k = localStart; k < localEnd; k++) {
                         charInfo[k] = info;
                     }
@@ -3821,13 +3857,8 @@ function processThumbnailText(text, filterWord, posSets, pageHighlights = [], se
     // 3. Render Segments
     return segments.map(seg => {
         if (seg.info) {
-            // User Highlight Segment
-            let hex = seg.info.color;
-            if (hex === 'yellow') hex = '#ffeb3b';
-            if (hex === 'green') hex = '#a5d6a7';
-            if (hex === 'blue') hex = '#90caf9';
-            if (hex === 'pink') hex = '#f48fb1';
-            if (hex === 'purple') hex = '#ce93d8';
+            // User Highlight Segment - use cached color map
+            const hex = COLOR_MAP[seg.info.color] || seg.info.color;
             
             const highlightIdAttr = seg.info.id ? ` data-highlight-id="${seg.info.id}"` : '';
             const highlightClass = 'map-user-highlight';
@@ -3851,6 +3882,12 @@ function processThumbnailText(text, filterWord, posSets, pageHighlights = [], se
             return processPOSTokens(seg.text, filterWord, posSets);
         }
     }).join('');
+}
+
+// Initialize debounced renderMap after functions are defined
+// Use 300ms delay to batch multiple rapid updates
+if (typeof renderMapDebounced === 'undefined' || renderMapDebounced === null) {
+    renderMapDebounced = debounce(renderMap, 300);
 }
 
 // Map Search Navigation State
@@ -3948,7 +3985,17 @@ function collectMapPOSSets() {
     return posSets;
 }
 
+let mapRenderJobId = 0;
+
 async function renderMap(filterWord = null) {
+    const jobId = ++mapRenderJobId;
+
+    // Check if map view is active
+    const mapView = document.getElementById('mapView');
+    if (!mapView || !mapView.classList.contains('active')) {
+        return;
+    }
+
     // Check if any document is loaded
     if (!currentFilePath) {
         mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 No document loaded</p></div>';
@@ -3972,7 +4019,7 @@ async function renderMap(filterWord = null) {
             // Collect POS Sets first
             const posSets = collectMapPOSSets();
             
-            renderMapForTextDocument(filterWord, posSets);
+            await renderMapForTextDocument(filterWord, posSets);
             return;
         }
         
@@ -4012,7 +4059,7 @@ async function renderMap(filterWord = null) {
     
     // For EPUB/DOCX/MD/TXT, show a simplified view based on highlights only
     if (['epub', 'docx', 'md', 'txt'].includes(currentFileType)) {
-        renderMapForTextDocument(filterWord, posSets);
+        await renderMapForTextDocument(filterWord, posSets);
         return;
     }
     
@@ -4026,10 +4073,24 @@ async function renderMap(filterWord = null) {
     const notes = notesManager.notes;
     const highlights = notesManager.highlights;
     
-    let html = '';
+    // Instead of one giant string, append chunks to DOM
+    // First, clear existing content (we are about to render new map)
+    mapGrid.innerHTML = '';
+    
+    let chunkHtml = '';
+    let hasContent = false;
     let currentOffset = 0;
+    const CHUNK_SIZE = 10;
     
     for (let i = 1; i <= totalPages; i++) {
+        // Check for cancellation
+        if (mapRenderJobId !== jobId) return;
+
+        // Yield to main thread to prevent UI freezing
+        if (i > 1 && i % CHUNK_SIZE === 1) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
         // Check periodically if document changed (every 10 pages)
         if (i % 10 === 0 && currentFilePath !== renderingForPath) {
             console.log(`Document changed during map render at page ${i}, aborting`);
@@ -4043,17 +4104,6 @@ async function renderMap(filterWord = null) {
         
         // Get page text
         const fullPageText = pdfViewer.getPageText(i);
-        
-        // Debug: Check page text content
-        if (i === 38) {
-            console.log(`Page 38 text (first 200 chars):`, fullPageText.substring(0, 200));
-            console.log(`Page 38 text length:`, fullPageText.length);
-        }
-        
-        // Debug: Check if we're getting text
-        if (i <= 3 && !fullPageText) {
-            console.warn(`Page ${i} has no text. Cache keys:`, Object.keys(pdfViewer.pageTextCache || {}));
-        }
         
         const pageEndOffset = pageStartOffset + fullPageText.length;
 
@@ -4100,7 +4150,7 @@ async function renderMap(filterWord = null) {
             badgeHtml = `<div class="highlight-count-badge">${count}</div>`;
         }
         
-        html += `
+        chunkHtml += `
             <div class="page-card ${itemClass}" data-page="${i}" data-start-offset="${pageStartOffset}">
                 <div class="page-card-header" onclick="goToPage(${i})" title="Go to Page ${i}" style="cursor: pointer;">Page ${i}</div>
                 <div class="page-card-body">
@@ -4112,21 +4162,31 @@ async function renderMap(filterWord = null) {
                 </div>
             </div>
         `;
+        hasContent = true;
+
+        // Flush chunk to DOM
+        if (i % CHUNK_SIZE === 0) {
+            // Final check before DOM update
+            if (currentFilePath !== renderingForPath || mapRenderJobId !== jobId) return;
+            
+            mapGrid.insertAdjacentHTML('beforeend', chunkHtml);
+            chunkHtml = '';
+        }
+    }
+    
+    // Append any remaining HTML
+    if (chunkHtml) {
+        if (currentFilePath !== renderingForPath || mapRenderJobId !== jobId) return;
+        mapGrid.insertAdjacentHTML('beforeend', chunkHtml);
     }
     
     // Check if we have any content
-    if (!html || html.trim() === '') {
+    if (!hasContent) {
         mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 No pages to display</p><p style="font-size: 14px; color: #666;">The document may be empty or image-based</p></div>';
         return;
     }
     
-    // Final check: Make sure document hasn't changed before updating DOM
-    if (currentFilePath !== renderingForPath) {
-        console.log('Document changed during map rendering, aborting DOM update');
-        return;
-    }
-    
-    mapGrid.innerHTML = html;
+    // Apply show/hide settings
     
     // Apply show/hide settings
     const showHighlights = localStorage.getItem('map-show-highlights') !== 'false';
@@ -4181,7 +4241,8 @@ async function renderMap(filterWord = null) {
     }
 }
 
-function renderMapForTextDocument(filterWord = null, posSets = {}) {
+async function renderMapForTextDocument(filterWord = null, posSets = {}) {
+    const jobId = mapRenderJobId;
     // Store the file path we're rendering for
     const renderingForPath = currentFilePath;
     
@@ -4254,10 +4315,19 @@ function renderMapForTextDocument(filterWord = null, posSets = {}) {
         return;
     }
     
-    let html = '';
+    // Clear map grid for new content
+    mapGrid.innerHTML = '';
+    let chunkHtml = '';
+    let hasContent = false;
     let previousDisplayEnd = ''; // Track the actual end of the previous displayed text
     
-    sections.forEach((section, index) => {
+    const CHUNK_SIZE = 10;
+    for (let index = 0; index < sections.length; index++) {
+        if (mapRenderJobId !== jobId) return;
+        if (index > 0 && index % CHUNK_SIZE === 0) {
+            await new Promise(r => setTimeout(r, 0));
+        }
+        const section = sections[index];
         const chunk = section.text;
         const pageNum = index + 1;
         
@@ -4345,7 +4415,7 @@ function renderMapForTextDocument(filterWord = null, posSets = {}) {
             badgeHtml = `<div class="highlight-count-badge">${count}</div>`;
         }
         
-        html += `
+        chunkHtml += `
             <div class="page-card ${itemClass}" data-start-offset="${section.start}">
                 <div class="page-card-header" onclick="scrollToOffset(${section.start})" title="Go to Section ${pageNum}" style="cursor: pointer;">Section ${pageNum}</div>
                 <div class="page-card-body">
@@ -4357,15 +4427,26 @@ function renderMapForTextDocument(filterWord = null, posSets = {}) {
                 </div>
             </div>
         `;
-    });
-    
-    // Final check: Make sure document hasn't changed before updating DOM
-    if (currentFilePath !== renderingForPath) {
-        console.log('Document changed during text map rendering, aborting DOM update');
-        return;
+        hasContent = true;
+
+        // Flush chunk to DOM
+        if (index % CHUNK_SIZE === 0) {
+            if (mapRenderJobId !== jobId) return;
+            mapGrid.insertAdjacentHTML('beforeend', chunkHtml);
+            chunkHtml = '';
+        }
     }
     
-    mapGrid.innerHTML = html;
+    // Flush remaining
+    if (chunkHtml) {
+        if (mapRenderJobId !== jobId) return;
+        mapGrid.insertAdjacentHTML('beforeend', chunkHtml);
+    }
+    
+    if (!hasContent) {
+        mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 No content to display</p></div>';
+        return;
+    }
     
     // Apply show/hide settings
     const showHighlights = localStorage.getItem('map-show-highlights') !== 'false';
@@ -5815,7 +5896,12 @@ if (typeof mapGrid !== 'undefined' && mapGrid) {
 document.addEventListener('notes-updated', () => {
     const mapView = document.getElementById('mapView');
     if (mapView && mapView.classList.contains('active')) {
-        renderMap().catch(err => console.error('Error rendering map:', err));
+        // Use debounced version to prevent lag when adding multiple highlights
+        if (renderMapDebounced) {
+            renderMapDebounced();
+        } else {
+            renderMap().catch(err => console.error('Error rendering map:', err));
+        }
     }
 });
 

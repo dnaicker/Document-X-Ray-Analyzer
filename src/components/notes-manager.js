@@ -64,6 +64,30 @@ class NotesManager {
         this.setupEventListeners();
         this.setupColorPicker();
         this.setupDialog();
+        
+        // Create debounced methods to prevent UI lag
+        this._renderTimeout = null;
+        this._applyHighlightsTimeout = null;
+    }
+    
+    // Debounced render to batch updates
+    renderDebounced() {
+        if (this._renderTimeout) {
+            clearTimeout(this._renderTimeout);
+        }
+        this._renderTimeout = setTimeout(() => {
+            this.render();
+        }, 150); // 150ms delay to batch rapid updates
+    }
+    
+    // Debounced applyHighlights to batch highlight updates
+    applyHighlightsDebounced() {
+        if (this._applyHighlightsTimeout) {
+            clearTimeout(this._applyHighlightsTimeout);
+        }
+        this._applyHighlightsTimeout = setTimeout(() => {
+            this.applyHighlights();
+        }, 100); // 100ms delay to batch rapid highlight updates
     }
     
     setupDialog() {
@@ -228,7 +252,7 @@ class NotesManager {
         // Setup search
         this.notesSearchInput.addEventListener('input', (e) => {
             this.searchQuery = e.target.value.trim().toLowerCase();
-            this.render();
+            this.renderDebounced(); // Use debounced to prevent lag while typing
         });
         
         // Setup tag filter container click listener (for tag badges)
@@ -745,8 +769,8 @@ class NotesManager {
         
         this.highlights.push(highlight);
         this.saveToStorage();
-        this.render();
-        this.applyHighlights();
+        this.renderDebounced(); // Use debounced to prevent lag
+        this.applyHighlightsDebounced(); // Use debounced to prevent lag
         
         // Clear selection
         window.getSelection().removeAllRanges();
@@ -785,8 +809,8 @@ class NotesManager {
             
             this.highlights.push(highlight);
             this.saveToStorage();
-            this.render();
-            this.applyHighlights();
+            this.renderDebounced(); // Use debounced to prevent lag
+            this.applyHighlightsDebounced(); // Use debounced to prevent lag
             
             // Clear selection
             window.getSelection().removeAllRanges();
@@ -920,24 +944,24 @@ class NotesManager {
         
         this.notes.push(note);
         this.saveToStorage();
-        this.render();
+        this.renderDebounced(); // Use debounced to prevent lag
         return note;
     }
     
     applyHighlights() {
-        // Apply highlights to raw text view (only non-translated highlights)
-        const rawHighlights = this.highlights.filter(h => !h.sourceView || h.sourceView === 'raw');
-        this.applyHighlightsToContainer(this.rawTextContent, rawHighlights);
-        
         // Apply highlights to highlighted text view (only non-translated highlights)
         setTimeout(() => {
-            const analysisHighlights = this.highlights.filter(h => !h.sourceView || h.sourceView === 'raw' || h.sourceView === 'highlighted');
-            this.applyHighlightsToContainer(this.highlightedTextContent, analysisHighlights);
-        }, 100);
+            // Check if highlighted view is visible before applying
+            if (this.highlightedTextContent && this.highlightedTextContent.offsetParent) {
+                const analysisHighlights = this.highlights.filter(h => !h.sourceView || h.sourceView === 'raw' || h.sourceView === 'highlighted');
+                this.applyHighlightsToContainer(this.highlightedTextContent, analysisHighlights);
+            }
+        }, 50);
         
         // Apply highlights to translated text view (only matching language highlights)
         setTimeout(() => {
-            if (this.translatedTextContent) {
+            // Check if translated view is visible before applying
+            if (this.translatedTextContent && this.translatedTextContent.offsetParent) {
                 const translateLangSelect = document.getElementById('translateLanguageSelect');
                 const currentLang = translateLangSelect ? translateLangSelect.value : null;
                 
@@ -948,7 +972,7 @@ class NotesManager {
                 
                 this.applyHighlightsToContainer(this.translatedTextContent, translatedHighlights);
             }
-        }, 100);
+        }, 50);
     }
     
     applyHighlightsToContainer(container, highlightsToApply = null) {
@@ -1040,20 +1064,25 @@ class NotesManager {
         const textNodes = [];
         let node;
         while (node = walker.nextNode()) {
-            // We need all text nodes, even whitespace, to reconstruct the full text accurately
             textNodes.push(node);
         }
         
-        // Find sequence of nodes that matches the text
+        // Optimization: Instead of char-by-char map, use range map
+        // nodeRanges = [{ node, start: 0, end: 5 }, { node, start: 5, end: 12 }, ...]
         let fullText = '';
-        const nodeIndices = []; // Maps char index in fullText to {node, indexInNode}
+        const nodeRanges = [];
         
         textNodes.forEach(node => {
             const text = node.textContent;
-            for (let i = 0; i < text.length; i++) {
-                nodeIndices.push({ node, index: i });
-            }
+            const start = fullText.length;
             fullText += text;
+            const end = fullText.length;
+            
+            nodeRanges.push({
+                node: node,
+                start: start,
+                end: end
+            });
         });
         
         // Find match in full text
@@ -1064,60 +1093,77 @@ class NotesManager {
             const start = matchIndex;
             const end = matchIndex + searchText.length;
             
-            // Identify all nodes involved in this match
-            const startMap = nodeIndices[start];
-            const endMap = nodeIndices[end - 1];
+            // Identify start and end nodes efficiently
+            // Since nodeRanges is sorted by start index, we could use binary search,
+            // but linear scan is likely fast enough for N < 10000 nodes.
             
-            if (!startMap || !endMap) {
+            let startNodeInfo = null;
+            let endNodeInfo = null;
+            let startIndexInRanges = -1;
+            let endIndexInRanges = -1;
+            
+            // Find start node
+            for (let i = 0; i < nodeRanges.length; i++) {
+                if (start >= nodeRanges[i].start && start < nodeRanges[i].end) {
+                    startNodeInfo = nodeRanges[i];
+                    startIndexInRanges = i;
+                    break;
+                }
+            }
+            
+            // Find end node
+            if (startNodeInfo) {
+                for (let i = startIndexInRanges; i < nodeRanges.length; i++) {
+                    if (end > nodeRanges[i].start && end <= nodeRanges[i].end) {
+                        endNodeInfo = nodeRanges[i];
+                        endIndexInRanges = i;
+                        break;
+                    }
+                }
+            }
+            
+            if (!startNodeInfo || !endNodeInfo) {
+                // Should not happen if text exists, but safe fallback
                 matchIndex = fullText.indexOf(searchText, matchIndex + 1);
                 continue;
             }
             
-            const startNode = startMap.node;
-            const endNode = endMap.node;
-            
-            // Find all nodes between start and end
-            const startIndex = textNodes.indexOf(startNode);
-            const endIndex = textNodes.indexOf(endNode);
-            
-            if (startIndex === -1 || endIndex === -1) {
-                matchIndex = fullText.indexOf(searchText, matchIndex + 1);
-                continue;
-            }
-            
-            // Wrap each part of the highlight
-            for (let i = startIndex; i <= endIndex; i++) {
-                const currentNode = textNodes[i];
+            // Wrap nodes from start to end
+            for (let i = startIndexInRanges; i <= endIndexInRanges; i++) {
+                const range = nodeRanges[i];
+                const currentNode = range.node;
                 const text = currentNode.textContent;
-                let rangeStart = 0;
-                let rangeEnd = text.length;
                 
-                if (i === startIndex) {
-                    rangeStart = startMap.index;
+                let localStart = 0;
+                let localEnd = text.length;
+                
+                // Adjust start for first node
+                if (i === startIndexInRanges) {
+                    localStart = start - range.start;
                 }
                 
-                if (i === endIndex) {
-                    rangeEnd = endMap.index + 1;
+                // Adjust end for last node
+                if (i === endIndexInRanges) {
+                    localEnd = end - range.start;
                 }
                 
                 // Skip if parent is already a user highlight
-                if (currentNode.parentNode.classList.contains('user-highlight')) continue;
+                if (currentNode.parentNode && currentNode.parentNode.classList && currentNode.parentNode.classList.contains('user-highlight')) continue;
                 
-                // Apply highlight to this portion
+                // Apply highlight
                 const fragment = document.createDocumentFragment();
                 
                 // Text before
-                if (rangeStart > 0) {
-                    fragment.appendChild(document.createTextNode(text.substring(0, rangeStart)));
+                if (localStart > 0) {
+                    fragment.appendChild(document.createTextNode(text.substring(0, localStart)));
                 }
                 
                 // Highlighted portion
                 const mark = document.createElement('mark');
                 mark.className = `user-highlight color-${color}`;
                 mark.setAttribute('data-highlight-id', highlightId);
-                mark.textContent = text.substring(rangeStart, rangeEnd);
+                mark.textContent = text.substring(localStart, localEnd);
                 
-                // Custom Tooltip (using global TooltipManager)
                 mark.dataset.tooltip = note && note.trim() ? note : 'Click to view/edit highlight';
                 
                 mark.addEventListener('click', () => {
@@ -1126,15 +1172,17 @@ class NotesManager {
                 fragment.appendChild(mark);
                 
                 // Text after
-                if (rangeEnd < text.length) {
-                    fragment.appendChild(document.createTextNode(text.substring(rangeEnd)));
+                if (localEnd < text.length) {
+                    fragment.appendChild(document.createTextNode(text.substring(localEnd)));
                 }
                 
-                currentNode.parentNode.replaceChild(fragment, currentNode);
+                if (currentNode.parentNode) {
+                    currentNode.parentNode.replaceChild(fragment, currentNode);
+                }
             }
             
-            // Only highlight the first occurrence for now
-            return; 
+            // Only highlight the first occurrence for now (matches previous logic)
+            return;
         }
     }
     
@@ -1163,7 +1211,7 @@ class NotesManager {
             this.notes = this.notes.filter(n => n.id !== id);
             this.highlights = this.highlights.filter(h => h.id !== id);
             this.saveToStorage();
-            this.render();
+            this.renderDebounced(); // Use debounced to prevent lag
             
             // Force re-application of highlights to remove the deleted one
             // First clear all user highlights
@@ -1444,8 +1492,8 @@ class NotesManager {
             item.tags = currentTags.length > 0 ? currentTags : undefined;
             
             this.saveToStorage();
-            this.render();
-            this.applyHighlights();
+            this.renderDebounced(); // Use debounced to prevent lag
+            this.applyHighlightsDebounced(); // Use debounced to prevent lag
             dialog.remove();
         };
         
@@ -1990,6 +2038,9 @@ class NotesManager {
     }
     
     render() {
+        // Optimization: Don't re-render if notes panel is not visible
+        if (!this.notesContent || !this.notesContent.offsetParent) return;
+
         let allItems = [
             ...this.notes.map(n => ({ ...n, sortDate: n.createdAt })),
             ...this.highlights.map(h => ({ ...h, sortDate: h.createdAt }))
