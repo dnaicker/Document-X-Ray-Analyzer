@@ -4004,8 +4004,8 @@ async function renderMap(filterWord = null) {
     // Collect POS Sets
     const posSets = collectMapPOSSets();
     
-    // For EPUB/DOCX, show a simplified view based on highlights only
-    if (currentFileType === 'epub' || currentFileType === 'docx') {
+    // For EPUB/DOCX/MD/TXT, show a simplified view based on highlights only
+    if (['epub', 'docx', 'md', 'txt'].includes(currentFileType)) {
         renderMapForTextDocument(filterWord, posSets);
         return;
     }
@@ -4206,38 +4206,41 @@ function renderMapForTextDocument(filterWord = null, posSets = {}) {
     let currentStart = 0;
     const targetSectionSize = 1000;
     
-    while (currentStart < fullText.length) {
-        let splitIndex = currentStart + targetSectionSize;
-        
-        if (splitIndex >= fullText.length) {
+    // Check if we have valid text
+    if (fullText.length > 0) {
+        while (currentStart < fullText.length) {
+            let splitIndex = currentStart + targetSectionSize;
+            
+            if (splitIndex >= fullText.length) {
+                sections.push({
+                    text: fullText.substring(currentStart),
+                    start: currentStart,
+                    end: fullText.length
+                });
+                break;
+            }
+            
+            // Find nearest paragraph break after target size
+            let nextNewline = fullText.indexOf('\n', splitIndex);
+            
+            // If no newline found, or it's too far, split at space
+            if (nextNewline === -1 || (nextNewline - currentStart) > targetSectionSize * 2) {
+                nextNewline = fullText.indexOf(' ', splitIndex);
+            }
+            
+            // If still no split point, hard split
+            if (nextNewline === -1) {
+                nextNewline = fullText.length;
+            }
+            
             sections.push({
-                text: fullText.substring(currentStart),
+                text: fullText.substring(currentStart, nextNewline).trim(),
                 start: currentStart,
-                end: fullText.length
+                end: nextNewline
             });
-            break;
+            
+            currentStart = nextNewline + 1;
         }
-        
-        // Find nearest paragraph break after target size
-        let nextNewline = fullText.indexOf('\n', splitIndex);
-        
-        // If no newline found, or it's too far, split at space
-        if (nextNewline === -1 || (nextNewline - currentStart) > targetSectionSize * 2) {
-            nextNewline = fullText.indexOf(' ', splitIndex);
-        }
-        
-        // If still no split point, hard split
-        if (nextNewline === -1) {
-            nextNewline = fullText.length;
-        }
-        
-        sections.push({
-            text: fullText.substring(currentStart, nextNewline).trim(),
-            start: currentStart,
-            end: nextNewline
-        });
-        
-        currentStart = nextNewline + 1;
     }
     
     if (sections.length === 0) {
