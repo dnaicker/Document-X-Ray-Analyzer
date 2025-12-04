@@ -2939,7 +2939,7 @@ async function loadTxtFile(filePath, cachedState = null) {
                     snipBtn.disabled = true;
                     snipBtn.title = "Snip Tool is only available for PDF files";
                     snipBtn.style.opacity = '0.5';
-                    snipBtn.style.cursor = 'not-allowed';
+                    // snipBtn.style.cursor = 'not-allowed';
                 }
                 
                 if (exportBtn) exportBtn.disabled = false;
