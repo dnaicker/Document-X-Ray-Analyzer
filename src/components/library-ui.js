@@ -45,7 +45,10 @@ class LibraryUI {
                 <div class="library-container">
                     <div class="library-header">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h2>📚 My Library</h2>
+                            <div style="display: flex; align-items: center;">
+                                <button id="collapseLibraryBtn" class="panel-collapse-btn" title="Collapse Library" style="margin-right: 4px;">☰</button>
+                                <h2 style="margin: 0;">📚 My Library</h2>
+                            </div>
                         </div>
                         <div class="library-actions">
                             <button class="btn-library" onclick="libraryUI.showCreateFolderDialog()" title="New Folder (Ctrl+N)">
@@ -86,6 +89,9 @@ class LibraryUI {
                     this.updateTreeAndFilters();
                 });
             }
+            
+            // Setup collapse button listener (only once)
+            this.setupCollapseButton();
         } else {
             // Just update the tree and filters without re-rendering search input
             this.updateTreeAndFilters();
@@ -1191,6 +1197,23 @@ class LibraryUI {
         const div = document.createElement('div');
         div.innerHTML = text;
         return div.textContent;
+    }
+    
+    setupCollapseButton() {
+        const collapseBtn = document.getElementById('collapseLibraryBtn');
+        const expandBtn = document.getElementById('expandLibraryBtn');
+        const libraryPanel = document.getElementById('libraryPanel');
+        const libraryResizer = document.getElementById('libraryResizer');
+        
+        if (collapseBtn && expandBtn && libraryPanel) {
+            collapseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                libraryPanel.style.display = 'none';
+                if (libraryResizer) libraryResizer.style.display = 'none';
+                expandBtn.classList.remove('hidden');
+                expandBtn.style.left = '0px';
+            });
+        }
     }
 }
 

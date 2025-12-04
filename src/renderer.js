@@ -107,6 +107,12 @@ const librarySyncProgress = document.getElementById('librarySyncProgress');
 const librarySyncStatus = document.getElementById('librarySyncStatus');
 const librarySyncProgressBar = document.getElementById('librarySyncProgressBar');
 const showStatsTabBtn = document.getElementById('showStatsTabBtn');
+const collapseLibraryBtn = document.getElementById('collapseLibraryBtn');
+const expandLibraryBtn = document.getElementById('expandLibraryBtn');
+const collapseViewerBtn = document.getElementById('collapseViewerBtn');
+const expandViewerBtn = document.getElementById('expandViewerBtn');
+const libraryPanel = document.getElementById('libraryPanel');
+const libraryResizer = document.getElementById('libraryResizer');
 
 // Text Appearance Settings Manager
 class TextSettingsManager {
@@ -5231,6 +5237,41 @@ if (showStatsTabBtn) {
             showStatsTabBtn.classList.add('active');
         }
     }, 100);
+}
+
+// Expand Library Panel (collapse is handled in library-ui.js)
+if (expandLibraryBtn && libraryPanel) {
+    expandLibraryBtn.addEventListener('click', () => {
+        libraryPanel.style.display = '';
+        if (window.getComputedStyle(libraryPanel).display === 'none') {
+            libraryPanel.style.display = 'flex';
+        }
+        if (libraryResizer) libraryResizer.style.display = '';
+        expandLibraryBtn.classList.add('hidden');
+    });
+}
+
+// Collapse/Expand Document Viewer Panel
+if (collapseViewerBtn && expandViewerBtn && pdfPanel) {
+    collapseViewerBtn.addEventListener('click', () => {
+        pdfPanel.style.display = 'none';
+        if (resizer1) resizer1.style.display = 'none';
+        expandViewerBtn.classList.remove('hidden');
+        // Position based on library visibility
+        const libraryWidth = libraryPanel && window.getComputedStyle(libraryPanel).display !== 'none' 
+            ? libraryPanel.getBoundingClientRect().width 
+            : 0;
+        expandViewerBtn.style.left = libraryWidth + 'px';
+    });
+    
+    expandViewerBtn.addEventListener('click', () => {
+        pdfPanel.style.display = '';
+        if (window.getComputedStyle(pdfPanel).display === 'none') {
+            pdfPanel.style.display = 'flex';
+        }
+        if (resizer1) resizer1.style.display = '';
+        expandViewerBtn.classList.add('hidden');
+    });
 }
 
 // Resize Logic

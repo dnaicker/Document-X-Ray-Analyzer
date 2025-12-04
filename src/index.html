@@ -41,13 +41,22 @@
             </div>
         </div>
         
+        <!-- Expand Library Button (shown when collapsed) -->
+        <button id="expandLibraryBtn" class="expand-panel-btn hidden" title="Expand Library">☰</button>
+        
         <!-- Resizer between Library and Document Viewer -->
         <div class="resizer" id="libraryResizer"></div>
+        
+        <!-- Expand Viewer Button (shown when collapsed) -->
+        <button id="expandViewerBtn" class="expand-panel-btn hidden" title="Expand Viewer">☰</button>
         
         <!-- Left Panel: Document Viewer -->
         <div class="pdf-panel" id="pdfPanel">
             <div class="panel-header">
-                <h2 id="viewerTitle">📄 Document Viewer</h2>
+                <h2 id="viewerTitle" style="display: flex; align-items: center;">
+                    <button id="collapseViewerBtn" class="panel-collapse-btn" title="Collapse Viewer">☰</button>
+                    <span>📄 Document Viewer</span>
+                </h2>
                 <div class="pdf-controls">
                     <button id="prevPageBtn" class="btn-icon" disabled>◀</button>
                     <span id="pageInfo" class="page-info-container">
