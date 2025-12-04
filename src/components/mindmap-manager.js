@@ -299,6 +299,39 @@ class MindmapManager {
         documentRefs.forEach((docRef, docId) => {
             const existing = existingNodesMap.get(docId) || layoutMap.get(docId);
             
+            // Get the actual linked items from this document to display their content
+            const externalData = this.notesManager.getNotesForFile(docRef.filePath);
+            const linkedItems = [];
+            
+            if (externalData) {
+                // Collect all notes/highlights from this document that are linked from the current document
+                allItems.forEach(item => {
+                    if (item.links && Array.isArray(item.links)) {
+                        item.links.forEach(link => {
+                            const linkPath = normalizePath(link.filePath);
+                            const docPath = normalizePath(docRef.filePath);
+                            
+                            if (typeof link === 'object' && link.id && linkPath === docPath) {
+                                // Find the corresponding note/highlight from external document
+                                const linkedNote = externalData.notes?.find(n => n.id === link.id);
+                                const linkedHighlight = externalData.highlights?.find(h => h.id === link.id);
+                                
+                                const linkedItem = linkedNote || linkedHighlight;
+                                if (linkedItem && !linkedItems.find(li => li.id === linkedItem.id)) {
+                                    linkedItems.push({
+                                        id: linkedItem.id,
+                                        type: linkedItem.type || 'note',
+                                        text: linkedItem.text || linkedItem.note,
+                                        note: linkedItem.note,
+                                        page: linkedItem.page
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+            
             // Position document refs to the right of the canvas
             const col = docRefIndex % 3;
             const row = Math.floor(docRefIndex / 3);
@@ -309,12 +342,13 @@ class MindmapManager {
                     type: 'document-reference',
                     fileName: docRef.fileName,
                     filePath: docRef.filePath,
-                    linkedFrom: docRef.linkedFrom
+                    linkedFrom: docRef.linkedFrom,
+                    linkedItems: linkedItems // Add the actual content
                 },
                 x: existing ? existing.x : 800 + (col * 250),
                 y: existing ? existing.y : 100 + (row * 150),
                 width: 220,
-                height: 100,
+                height: 120, // Will be dynamically adjusted in draw function
                 color: 'lightblue',
                 isSelected: false,
                 isDocumentRef: true
@@ -1018,8 +1052,21 @@ class MindmapManager {
         const x = node.x;
         const y = node.y;
         const w = node.width;
-        const h = node.height;
         const radius = 8;
+        
+        // Get linked items to display
+        const linkedItems = node.data.linkedItems || [];
+        
+        // Calculate dynamic height based on number of linked items
+        const itemHeight = 55; // Height per linked item preview
+        const headerHeight = 50;
+        const footerHeight = 25;
+        const maxItems = Math.min(linkedItems.length, 5); // Show max 5 items
+        const calculatedHeight = headerHeight + (maxItems * itemHeight) + footerHeight + 10;
+        const h = Math.max(120, calculatedHeight);
+        
+        // Update node height for hit detection
+        node.height = h;
         
         // Shadow
         this.ctx.shadowColor = 'rgba(33, 150, 243, 0.2)';
@@ -1063,20 +1110,66 @@ class MindmapManager {
         
         // File name
         this.ctx.fillStyle = '#0d47a1';
-        this.ctx.font = `${this.FONT_SIZE}px Arial`;
+        this.ctx.font = `${this.FONT_SIZE - 1}px Arial`;
         const fileName = node.data.fileName || 'Unknown';
-        this.wrapTextWithReturn(fileName, x + 15, y + 50, w - 30, this.LINE_HEIGHT, 2);
+        const truncatedName = fileName.length > 25 ? fileName.substring(0, 25) + '...' : fileName;
+        this.ctx.fillText(truncatedName, x + 15, y + 48);
         
-        // Connection count
-        const linkCount = node.data.linkedFrom ? node.data.linkedFrom.length : 0;
-        this.ctx.fillStyle = '#666';
-        this.ctx.font = '11px Arial';
-        this.ctx.fillText(`🔗 ${linkCount} linked note${linkCount !== 1 ? 's' : ''}`, x + 15, y + h - 10);
+        // Linked items section
+        let currentY = y + headerHeight + 5;
+        
+        if (linkedItems.length === 0) {
+            this.ctx.fillStyle = '#666';
+            this.ctx.font = 'italic 11px Arial';
+            this.ctx.fillText('(No linked content)', x + 15, currentY + 15);
+        } else {
+            linkedItems.slice(0, maxItems).forEach((item, index) => {
+                // Item background
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                this.drawRoundedRect(x + 10, currentY, w - 20, itemHeight - 5, 4);
+                this.ctx.fill();
+                
+                // Item border
+                this.ctx.strokeStyle = '#90caf9';
+                this.ctx.lineWidth = 1;
+                this.drawRoundedRect(x + 10, currentY, w - 20, itemHeight - 5, 4);
+                this.ctx.stroke();
+                
+                // Item icon
+                const icon = item.type === 'highlight' ? '🖍️' : '📝';
+                this.ctx.fillStyle = '#333';
+                this.ctx.font = '14px Arial';
+                this.ctx.fillText(icon, x + 18, currentY + 22);
+                
+                // Item type label
+                this.ctx.fillStyle = '#666';
+                this.ctx.font = 'bold 10px Arial';
+                const typeLabel = item.type === 'highlight' ? 'Highlight' : 'Note';
+                this.ctx.fillText(typeLabel, x + 40, currentY + 14);
+                
+                // Item content preview
+                const text = item.text || item.note || 'Empty';
+                const truncated = text.length > 30 ? text.substring(0, 30) + '...' : text;
+                
+                this.ctx.fillStyle = '#333';
+                this.ctx.font = '11px Arial';
+                this.wrapTextWithReturn(truncated, x + 40, currentY + 28, w - 55, 13, 2);
+                
+                currentY += itemHeight;
+            });
+            
+            // Show "more" indicator if truncated
+            if (linkedItems.length > maxItems) {
+                this.ctx.fillStyle = '#1976d2';
+                this.ctx.font = 'italic bold 11px Arial';
+                this.ctx.fillText(`+${linkedItems.length - maxItems} more...`, x + 15, currentY + 5);
+            }
+        }
         
         // Clickable indicator
         this.ctx.fillStyle = '#1976d2';
-        this.ctx.font = 'bold 11px Arial';
-        this.ctx.fillText('(double-click to open)', x + w - 130, y + h - 10);
+        this.ctx.font = 'bold 10px Arial';
+        this.ctx.fillText('(double-click to open document)', x + 15, y + h - 8);
     }
 
     drawNode(node) {
@@ -1381,10 +1474,12 @@ class MindmapManager {
                 const header = document.createElement('div');
                 header.className = 'context-menu-header';
                 header.style.cssText = 'padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 11px; color: #666; background: #f9f9f9;';
+                const linkedCount = node.data.linkedItems ? node.data.linkedItems.length : 0;
                 header.innerHTML = `
                     <div style="margin-bottom: 4px; font-weight: 600;">📄 Document Reference</div>
                     <div style="font-size: 10px; color: #555;">${this.escapeHtml(node.data.fileName || 'Unknown')}</div>
-                    <div style="font-size: 9px; color: #999; margin-top: 4px;">Read-only - cannot be edited</div>
+                    <div style="font-size: 9px; color: #1976d2; margin-top: 4px; font-weight: 600;">${linkedCount} linked ${linkedCount === 1 ? 'item' : 'items'}</div>
+                    <div style="font-size: 9px; color: #999; margin-top: 2px;">Read-only - cannot be edited</div>
                 `;
                 this.contextMenu.appendChild(header);
                 
@@ -1892,60 +1987,259 @@ class MindmapManager {
     }
 
     showLinkDialog(sourceNode) {
-        // Simple dialog to choose a target note to link to
-        const potentialTargets = this.nodes.filter(n => n.id !== sourceNode.id);
+        // Get all notes and highlights from ALL documents
+        const allData = this.notesManager.loadFromStorage();
+        const allItems = [];
+        
+        Object.keys(allData).forEach(filePath => {
+            const fileData = allData[filePath];
+            const fileName = this.notesManager.getFileName(filePath);
+            const isCurrentDoc = filePath === this.notesManager.currentFilePath;
+            
+            if (fileData.notes) {
+                fileData.notes.forEach(n => {
+                    if (n.id !== sourceNode.id) {
+                        allItems.push({
+                            ...n,
+                            displayType: 'Note',
+                            filePath: filePath,
+                            fileName: fileName,
+                            isCurrentDoc: isCurrentDoc
+                        });
+                    }
+                });
+            }
+            
+            if (fileData.highlights) {
+                fileData.highlights.forEach(h => {
+                    if (h.id !== sourceNode.id) {
+                        allItems.push({
+                            ...h,
+                            displayType: 'Highlight',
+                            filePath: filePath,
+                            fileName: fileName,
+                            isCurrentDoc: isCurrentDoc
+                        });
+                    }
+                });
+            }
+        });
+        
+        if (allItems.length === 0) {
+            alert('No other notes or highlights to link to. Create notes to link them together.');
+            return;
+        }
+        
+        // Sort: current document first, then by date
+        allItems.sort((a, b) => {
+            if (a.isCurrentDoc && !b.isCurrentDoc) return -1;
+            if (!a.isCurrentDoc && b.isCurrentDoc) return 1;
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        });
         
         const dialog = document.createElement('div');
         dialog.className = 'note-dialog-overlay';
+        
+        const renderItems = (searchQuery = '', expandedPaths = null) => {
+            // Get fresh source item data on each render to reflect updated links
+            const sourceItem = this.notesManager.getItemById(sourceNode.id);
+            
+            const filteredItems = searchQuery 
+                ? allItems.filter(item => {
+                    const text = item.type === 'highlight' ? item.text : item.text;
+                    const note = item.note || '';
+                    const fileName = item.fileName || '';
+                    return text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           note.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           fileName.toLowerCase().includes(searchQuery.toLowerCase());
+                  })
+                : allItems;
+            
+            if (filteredItems.length === 0) {
+                return '<div class="placeholder-text" style="padding: 20px; text-align: center; color: #999;">No matching notes found</div>';
+            }
+            
+            // Group items by document
+            const groupedByDoc = {};
+            filteredItems.forEach(item => {
+                const key = item.filePath;
+                if (!groupedByDoc[key]) {
+                    groupedByDoc[key] = {
+                        fileName: item.fileName,
+                        filePath: item.filePath,
+                        isCurrentDoc: item.isCurrentDoc,
+                        items: []
+                    };
+                }
+                groupedByDoc[key].items.push(item);
+            });
+            
+            // Sort groups: current document first
+            const sortedGroups = Object.values(groupedByDoc).sort((a, b) => {
+                if (a.isCurrentDoc && !b.isCurrentDoc) return -1;
+                if (!a.isCurrentDoc && b.isCurrentDoc) return 1;
+                return a.fileName.localeCompare(b.fileName);
+            });
+            
+            // Render accordion
+            return sortedGroups.map((group, groupIndex) => {
+                const docLabel = group.isCurrentDoc ? '📄 This document' : `📚 ${this.escapeHtml(group.fileName)}`;
+                const itemCount = group.items.length;
+                
+                // Check if items are linked (using fresh sourceItem)
+                const linkedCount = sourceItem ? group.items.filter(item => 
+                    sourceItem.links && sourceItem.links.some(link => 
+                        (typeof link === 'string' ? link === item.id : link.id === item.id)
+                    )
+                ).length : 0;
+                const countBadge = linkedCount > 0 ? ` <span class="link-count-badge">${linkedCount} linked</span>` : '';
+                
+                const itemsHtml = group.items.map(item => {
+                    const isLinked = sourceItem && sourceItem.links && sourceItem.links.some(link => 
+                        (typeof link === 'string' ? link === item.id : link.id === item.id)
+                    );
+                    const preview = item.type === 'highlight' ? item.text : item.text;
+                    const truncated = preview.length > 80 ? preview.substring(0, 80) + '...' : preview;
+                    
+                    return `
+                        <div class="link-item ${isLinked ? 'linked' : ''}" 
+                             data-source-id="${sourceNode.id}" 
+                             data-target-id="${item.id}" 
+                             data-target-path="${this.escapeHtml(item.filePath)}"
+                             style="cursor: pointer;">
+                            <div class="link-item-header">
+                                <span class="link-item-type">${item.type === 'highlight' ? '🖍️' : '📝'} ${item.displayType}</span>
+                                <span class="link-item-page">Page ${item.page}</span>
+                            </div>
+                            <div class="link-item-preview">${this.escapeHtml(truncated)}</div>
+                            <div class="link-item-status">${isLinked ? '✓ Linked' : 'Click to link →'}</div>
+                        </div>
+                    `;
+                }).join('');
+                
+                // Determine if expanded: use passed set, or default to current document
+                let isExpanded;
+                if (expandedPaths) {
+                    isExpanded = expandedPaths.has(group.filePath);
+                } else {
+                    isExpanded = group.isCurrentDoc;
+                }
+                
+                return `
+                    <div class="link-accordion-group">
+                        <div class="link-accordion-header ${isExpanded ? 'expanded' : ''}" 
+                             onclick="mindmapManager.toggleAccordion(this)"
+                             data-file-path="${this.escapeHtml(group.filePath)}">
+                            <span class="accordion-icon">${isExpanded ? '▼' : '▶'}</span>
+                            <span class="accordion-title">${docLabel}</span>
+                            <span class="accordion-count">${itemCount} ${itemCount === 1 ? 'item' : 'items'}${countBadge}</span>
+                        </div>
+                        <div class="link-accordion-content" style="display: ${isExpanded ? 'block' : 'none'};">
+                            ${itemsHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+        
         dialog.innerHTML = `
-            <div class="note-dialog" style="max-width: 500px; height: 600px;">
+            <div class="note-dialog">
                 <div class="note-dialog-header">
-                    <h3>🔗 Link to Note</h3>
+                    <h3>🔗 Link to Another Note</h3>
                     <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
                 </div>
                 <div class="note-dialog-body">
+                    <p style="margin-bottom: 10px; color: #666; font-size: 14px;">Select a note or highlight to link:</p>
                     <div class="link-search-container">
-                        <input type="text" id="linkSearchInput" class="link-search-input" placeholder="Search notes...">
+                        <input type="text" class="link-search-input" placeholder="🔍 Search notes or documents..." id="linkSearchInput">
                     </div>
                     <div class="link-items-list" id="linkItemsList">
-                        <!-- Items will be populated here -->
+                        ${renderItems()}
                     </div>
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Done</button>
                 </div>
             </div>
         `;
         document.body.appendChild(dialog);
         
-        const list = dialog.querySelector('#linkItemsList');
+        // Add search functionality
         const searchInput = dialog.querySelector('#linkSearchInput');
+        const itemsList = dialog.querySelector('#linkItemsList');
         
-        const renderList = (filter = '') => {
-            list.innerHTML = '';
-            const filtered = potentialTargets.filter(n => {
-                const text = (n.data.text || n.data.note || '').toLowerCase();
-                return text.includes(filter.toLowerCase());
-            });
-            
-            filtered.forEach(target => {
-                const item = document.createElement('div');
-                item.className = 'link-item';
-                const text = target.data.text || target.data.note || 'Empty Note';
-                const truncated = text.length > 100 ? text.substring(0, 100) + '...' : text;
-                item.innerHTML = `
-                    <div class="link-item-type">${target.data.type === 'highlight' ? '🖍️ Highlight' : '📝 Note'}</div>
-                    <div class="link-item-preview">${this.escapeHtml(truncated)}</div>
-                `;
-                item.addEventListener('click', () => {
-                    this.notesManager.toggleLink(sourceNode.id, target.id, target.data.filePath);
-                    this.refreshData(); // Refresh to show new line
-                    dialog.remove();
+        // Add click handler for link items using event delegation
+        // This persists across innerHTML updates
+        itemsList.addEventListener('click', (e) => {
+            const linkItem = e.target.closest('.link-item');
+            if (linkItem) {
+                const sourceId = linkItem.getAttribute('data-source-id');
+                const targetId = linkItem.getAttribute('data-target-id');
+                const targetPath = linkItem.getAttribute('data-target-path');
+                
+                if (sourceId && targetId) {
+                    this.handleLinkClick(sourceId, targetId, targetPath);
+                }
+            }
+        });
+        
+        searchInput.addEventListener('input', (e) => {
+            itemsList.innerHTML = renderItems(e.target.value);
+        });
+        
+        // Focus search input
+        setTimeout(() => searchInput.focus(), 100);
+        
+        // Store dialog reference for refresh after link
+        this.currentLinkDialog = { dialog, renderItems, searchInput };
+    }
+    
+    toggleAccordion(headerElement) {
+        const content = headerElement.nextElementSibling;
+        const icon = headerElement.querySelector('.accordion-icon');
+        const isExpanded = headerElement.classList.contains('expanded');
+        
+        if (isExpanded) {
+            headerElement.classList.remove('expanded');
+            content.style.display = 'none';
+            icon.textContent = '▶';
+        } else {
+            headerElement.classList.add('expanded');
+            content.style.display = 'block';
+            icon.textContent = '▼';
+        }
+    }
+    
+    handleLinkClick(sourceId, targetId, targetFilePath) {
+        // Toggle the link
+        this.notesManager.toggleLink(sourceId, targetId, targetFilePath);
+        
+        // Refresh the mindmap to show/update connections
+        this.refreshData();
+        
+        // Refresh the dialog to update link status
+        if (this.currentLinkDialog) {
+            const { renderItems, searchInput } = this.currentLinkDialog;
+            const itemsList = this.currentLinkDialog.dialog.querySelector('#linkItemsList');
+            if (itemsList) {
+                // Capture current state before update
+                const scrollTop = itemsList.scrollTop;
+                
+                // Capture expanded paths
+                const expandedHeaders = itemsList.querySelectorAll('.link-accordion-header.expanded');
+                const expandedPaths = new Set();
+                expandedHeaders.forEach(header => {
+                    const path = header.getAttribute('data-file-path');
+                    if (path) expandedPaths.add(path);
                 });
-                list.appendChild(item);
-            });
-        };
-        
-        renderList();
-        
-        searchInput.addEventListener('input', (e) => renderList(e.target.value));
+                
+                // Re-render with preserved state
+                itemsList.innerHTML = renderItems(searchInput.value, expandedPaths);
+                
+                // Restore scroll position
+                itemsList.scrollTop = scrollTop;
+            }
+        }
     }
 
     escapeHtml(text) {
