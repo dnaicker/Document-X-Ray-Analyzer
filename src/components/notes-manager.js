@@ -1924,8 +1924,11 @@ class NotesManager {
             allItems = allItems.filter(item => {
                 const textMatch = item.text && item.text.toLowerCase().includes(this.searchQuery);
                 const noteMatch = item.note && item.note.toLowerCase().includes(this.searchQuery);
-                // Also search in tags
-                const tagMatch = item.tags && item.tags.some(tag => tag.toLowerCase().includes(this.searchQuery));
+                // Also search in tags (tags can be strings or objects with {name, color})
+                const tagMatch = item.tags && item.tags.some(tag => {
+                    const tagName = this.getTagName(tag);
+                    return tagName.toLowerCase().includes(this.searchQuery);
+                });
                 return textMatch || noteMatch || tagMatch;
             });
         }
@@ -1933,7 +1936,12 @@ class NotesManager {
         // Filter based on active tag filter
         if (this.activeTagFilter) {
             allItems = allItems.filter(item => {
-                return item.tags && item.tags.includes(this.activeTagFilter);
+                if (!item.tags) return false;
+                // Tags can be strings or objects, normalize for comparison
+                return item.tags.some(tag => {
+                    const tagName = this.getTagName(tag);
+                    return tagName.toLowerCase() === this.activeTagFilter.toLowerCase();
+                });
             });
         }
         
