@@ -6117,6 +6117,11 @@ async function startBackgroundTranslation(targetLang) {
                 translatedTextContent.innerHTML = translatedHTML;
                 setupTranslationTooltips();
                 
+                // Re-attach context menu for speech functionality
+                if (typeof notesManager !== 'undefined') {
+                    notesManager.setupContextMenu(translatedTextContent);
+                }
+                
                 // Store translated text for POS analysis
                 translationState.currentTranslatedText = translatedTextContent.textContent || '';
                 translationState.currentLanguage = targetLang;
@@ -6200,6 +6205,11 @@ async function loadCachedTranslation(targetLang) {
     if (translatedTextContent) {
         translatedTextContent.innerHTML = cached.translatedContent;
         setupTranslationTooltips();
+        
+        // Re-attach context menu for speech functionality
+        if (typeof notesManager !== 'undefined') {
+            notesManager.setupContextMenu(translatedTextContent);
+        }
         
         // Store translated text for POS analysis
         translationState.currentTranslatedText = translatedTextContent.textContent || '';
@@ -6441,6 +6451,11 @@ async function applyTranslatedPOSHighlighting(targetLang) {
             
             // Re-attach tooltips (listeners might persist, but safe to re-run)
             setupTranslationTooltips();
+            
+            // Re-attach context menu for speech functionality
+            if (typeof notesManager !== 'undefined') {
+                notesManager.setupContextMenu(translatedTextContent);
+            }
             
         } else {
             // METHOD 2: Fallback if no spans exist (plain text)

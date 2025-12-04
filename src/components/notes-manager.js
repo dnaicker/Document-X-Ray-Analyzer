@@ -250,8 +250,9 @@ class NotesManager {
         // Enable text selection highlighting
         this.setupTextSelection();
         
-        // Setup context menu
+        // Setup context menu (containers + button listeners)
         this.setupContextMenu();
+        this.setupContextMenuButtons();
     }
     
     setupTextSelection() {
@@ -293,7 +294,13 @@ class NotesManager {
             container.style.userSelect = 'text';
             container.style.cursor = 'text';
             
-            container.addEventListener('contextmenu', (e) => {
+            // Remove old listener if it exists to prevent duplicates
+            if (container._contextMenuListener) {
+                container.removeEventListener('contextmenu', container._contextMenuListener);
+            }
+            
+            // Create and store the listener
+            container._contextMenuListener = (e) => {
                 this.lastContextTarget = e.target;
                 
                 // Check if clicked on a user highlight
@@ -320,19 +327,27 @@ class NotesManager {
                         this.showContextMenu(e.clientX, e.clientY, false);
                     }
                 }
-            });
+            };
+            
+            container.addEventListener('contextmenu', container._contextMenuListener);
             
             // Also listen for text selection to enable/disable highlight button
-            container.addEventListener('mouseup', (e) => {
-                const selection = window.getSelection();
-                const selectedText = selection.toString().trim();
-                
-                if (selectedText.length > 0) {
-                    console.log('Text selected:', selectedText);
-                }
-            });
+            if (!container._mouseupListener) {
+                container._mouseupListener = (e) => {
+                    const selection = window.getSelection();
+                    const selectedText = selection.toString().trim();
+                    
+                    if (selectedText.length > 0) {
+                        console.log('Text selected:', selectedText);
+                    }
+                };
+                container.addEventListener('mouseup', container._mouseupListener);
+            }
         });
-        
+    }
+    
+    setupContextMenuButtons() {
+        // Set up context menu button listeners ONCE (called only from constructor)
         // Hide context menu on click anywhere else
         document.addEventListener('click', () => {
             this.hideContextMenu();
