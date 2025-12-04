@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -83,7 +83,15 @@ function createWindow() {
 }
 
 // App ready
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Clear cache on startup to fix Chromium disk cache errors
+  try {
+    await session.defaultSession.clearCache();
+    console.log('✓ Cache cleared successfully');
+  } catch (error) {
+    console.log('Cache clear warning (non-critical):', error.message);
+  }
+  
   createWindow();
 
   app.on('activate', () => {
@@ -97,6 +105,17 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+// Clean up cache before quitting to prevent corruption
+app.on('before-quit', async (event) => {
+  try {
+    await session.defaultSession.clearCache();
+    console.log('✓ Cache cleared on exit');
+  } catch (error) {
+    // Non-critical, allow app to quit
+    console.log('Cache clear on exit warning:', error.message);
   }
 });
 

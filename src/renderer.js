@@ -4101,7 +4101,7 @@ async function renderMap(filterWord = null) {
         }
         
         html += `
-            <div class="page-card ${itemClass}" data-page="${i}">
+            <div class="page-card ${itemClass}" data-page="${i}" data-start-offset="${pageStartOffset}">
                 <div class="page-card-header" onclick="goToPage(${i})" title="Go to Page ${i}" style="cursor: pointer;">Page ${i}</div>
                 <div class="page-card-body">
                     ${processedText}

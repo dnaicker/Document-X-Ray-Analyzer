@@ -648,14 +648,75 @@ class NotesManager {
                          const body = card.querySelector('.page-card-body');
                          if (body && body.contains(node)) {
                              const range = selection.getRangeAt(0);
-                             const preCaretRange = range.cloneRange();
-                             preCaretRange.selectNodeContents(body);
-                             preCaretRange.setEnd(range.startContainer, range.startOffset);
-                             const localStart = preCaretRange.toString().length;
+                             const selectedText = range.toString().trim();
+                             
+                             // Method: Reconstruct plain text position by walking only content nodes
+                             // Create a helper to get text position excluding overlay/badge
+                             function getTextPosition(targetNode, targetOffset) {
+                                 let position = 0;
+                                 const walker = document.createTreeWalker(
+                                     body,
+                                     NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+                                     {
+                                         acceptNode: function(n) {
+                                             // Skip overlay and badge entirely
+                                             if (n.nodeType === Node.ELEMENT_NODE) {
+                                                 if (n.classList && (n.classList.contains('highlight-overlay') || n.classList.contains('highlight-count-badge'))) {
+                                                     return NodeFilter.FILTER_REJECT;
+                                                 }
+                                                 return NodeFilter.FILTER_SKIP;
+                                             }
+                                             // For text nodes, reject if inside overlay/badge
+                                             if (n.nodeType === Node.TEXT_NODE) {
+                                                 let parent = n.parentElement;
+                                                 while (parent && parent !== body) {
+                                                     if (parent.classList && (parent.classList.contains('highlight-overlay') || parent.classList.contains('highlight-count-badge'))) {
+                                                         return NodeFilter.FILTER_REJECT;
+                                                     }
+                                                     parent = parent.parentElement;
+                                                 }
+                                                 return NodeFilter.FILTER_ACCEPT;
+                                             }
+                                             return NodeFilter.FILTER_SKIP;
+                                         }
+                                     }
+                                 );
+                                 
+                                 let currentNode;
+                                 while (currentNode = walker.nextNode()) {
+                                     if (currentNode === targetNode) {
+                                         return position + targetOffset;
+                                     }
+                                     position += currentNode.textContent.length;
+                                 }
+                                 
+                                 return position;
+                             }
+                             
+                             const localStart = getTextPosition(range.startContainer, range.startOffset);
+                             
                              offsets = {
                                  start: cardStart + localStart,
-                                 end: cardStart + localStart + range.toString().length
+                                 end: cardStart + localStart + selectedText.length
                              };
+                             
+                             // Debug: Get plain text for verification
+                             const bodyClone = body.cloneNode(true);
+                             const overlay = bodyClone.querySelector('.highlight-overlay');
+                             const badge = bodyClone.querySelector('.highlight-count-badge');
+                             if (overlay) overlay.remove();
+                             if (badge) badge.remove();
+                             const plainText = bodyClone.textContent || '';
+                             
+                             console.log('Map highlight offsets:', {
+                                 cardStart,
+                                 selectedText: selectedText.substring(0, 50),
+                                 textAtPosition: plainText.substring(localStart, localStart + 50),
+                                 localStart,
+                                 finalStart: offsets.start,
+                                 finalEnd: offsets.end
+                             });
+                             
                              // Explicitly set sourceView to 'raw' for map highlights
                              // This ensures they appear in both Highlight and Analyse tabs
                              sourceView = 'raw';
