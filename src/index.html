@@ -410,13 +410,13 @@
                     </div>
                     
                     <!-- POS Highlighting Toggle for Translate -->
-                    <div class="pos-toggle-group">
+                    <!-- <div class="pos-toggle-group">
                         <label class="toggle-switch">
                             <input type="checkbox" id="translatePosToggle" checked>
                             <span class="slider round"></span>
                         </label>
                         <span class="toggle-label">POS Highlighting</span>
-                    </div>
+                    </div> -->
                     
                     <select id="translateLanguageSelect" class="translation-select" title="Select target language">
                         <option value="">🌐 Select language...</option>
@@ -428,26 +428,56 @@
                 </div>
                 
                 <!-- POS Checkboxes for Translate View -->
-                <div class="highlight-options" id="translatePosOptions" style="display: flex;">
-                    <label style="font-weight: 600; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; margin-bottom: 4px; width: 100%;"><input type="checkbox" id="translateHighlightSelectAll" checked> ✓ Select All</label>
-                    <label><input type="checkbox" id="translateHighlightNouns" checked> 🔵 Nouns <span class="pos-count" id="translateCountNouns">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightVerbs" checked> 🟢 Verbs <span class="pos-count" id="translateCountVerbs">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightAdj"> 🟡 Adjectives <span class="pos-count" id="translateCountAdj">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightAdv"> 🟠 Adverbs <span class="pos-count" id="translateCountAdv">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightPrep"> 🟣 Prepositions <span class="pos-count" id="translateCountPrep">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightConj"> 🟤 Conjunctions <span class="pos-count" id="translateCountConj">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightInterj"> 🔴 Interjections <span class="pos-count" id="translateCountInterj">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightDet"> ⚪ Determiners <span class="pos-count" id="translateCountDet">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightPeople" checked> 👤 People <span class="pos-count" id="translateCountPeople">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightPlaces" checked> 📍 Places <span class="pos-count" id="translateCountPlaces">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightAbbr"> 🆎 Abbreviations <span class="pos-count" id="translateCountAbbr">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightAcronyms"> 🅰️ Acronyms <span class="pos-count" id="translateCountAcronyms">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightNumbers"> 🔢 Numbers <span class="pos-count" id="translateCountNumbers">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightCurrencies"> 💵 Currencies <span class="pos-count" id="translateCountCurrencies">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightDates"> 📅 Dates <span class="pos-count" id="translateCountDates">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightCrypto"> 🪙 Crypto <span class="pos-count" id="translateCountCrypto">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightCurrencyPairs"> 💱 Pairs <span class="pos-count" id="translateCountCurrencyPairs">-</span></label>
-                    <label><input type="checkbox" id="translateHighlightCurrencySymbols"> 💲 Symbols <span class="pos-count" id="translateCountCurrencySymbols">-</span></label>
+                <div class="highlight-options" id="translatePosOptions">
+                    <label style="font-weight: 600; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; margin-bottom: 8px; width: 100%;"><input type="checkbox" id="translateHighlightSelectAll" checked> ✓ Select All</label>
+                    
+                    <!-- Basic Parts of Speech Section -->
+                    <div class="pos-section">
+                        <div class="pos-section-header" onclick="togglePOSSection('translateBasicPOS')">
+                            <span class="pos-section-arrow" id="translateBasicPOS-arrow">▼</span>
+                            <span style="font-weight: 600;">📚 Basic Parts of Speech</span>
+                        </div>
+                        <div class="pos-section-content" id="translateBasicPOS-content">
+                            <label><input type="checkbox" id="translateHighlightNouns" checked> 🔵 Nouns <span class="pos-count" id="translateCountNouns">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightVerbs" checked> 🟢 Verbs <span class="pos-count" id="translateCountVerbs">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightAdj"> 🟡 Adjectives <span class="pos-count" id="translateCountAdj">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightAdv"> 🟠 Adverbs <span class="pos-count" id="translateCountAdv">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightPrep"> 🟣 Prepositions <span class="pos-count" id="translateCountPrep">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightConj"> 🟤 Conjunctions <span class="pos-count" id="translateCountConj">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightInterj"> 🔴 Interjections <span class="pos-count" id="translateCountInterj">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightDet"> ⚪ Determiners <span class="pos-count" id="translateCountDet">-</span></label>
+                        </div>
+                    </div>
+                    
+                    <!-- Named Entities Section -->
+                    <div class="pos-section">
+                        <div class="pos-section-header" onclick="togglePOSSection('translateNamedEntities')">
+                            <span class="pos-section-arrow" id="translateNamedEntities-arrow">▼</span>
+                            <span style="font-weight: 600;">🏷️ Named Entities</span>
+                        </div>
+                        <div class="pos-section-content" id="translateNamedEntities-content">
+                            <label><input type="checkbox" id="translateHighlightPeople" checked> 👤 People <span class="pos-count" id="translateCountPeople">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightPlaces" checked> 📍 Places <span class="pos-count" id="translateCountPlaces">-</span></label>
+                        </div>
+                    </div>
+                    
+                    <!-- Special Entities Section -->
+                    <div class="pos-section">
+                        <div class="pos-section-header" onclick="togglePOSSection('translateSpecialEntities')">
+                            <span class="pos-section-arrow" id="translateSpecialEntities-arrow">▼</span>
+                            <span style="font-weight: 600;">🔢 Special Entities</span>
+                        </div>
+                        <div class="pos-section-content" id="translateSpecialEntities-content">
+                            <label><input type="checkbox" id="translateHighlightAbbr"> 🆎 Abbreviations <span class="pos-count" id="translateCountAbbr">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightAcronyms"> 🅰️ Acronyms <span class="pos-count" id="translateCountAcronyms">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightNumbers"> 🔢 Numbers <span class="pos-count" id="translateCountNumbers">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightCurrencies"> 💵 Currencies <span class="pos-count" id="translateCountCurrencies">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightDates"> 📅 Dates <span class="pos-count" id="translateCountDates">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightCrypto"> 🪙 Crypto <span class="pos-count" id="translateCountCrypto">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightCurrencyPairs"> 💱 Pairs <span class="pos-count" id="translateCountCurrencyPairs">-</span></label>
+                            <label><input type="checkbox" id="translateHighlightCurrencySymbols"> 💲 Symbols <span class="pos-count" id="translateCountCurrencySymbols">-</span></label>
+                        </div>
+                    </div>
                 </div>
                 <div id="cachedTranslationsBanner" class="translate-info-banner hidden" style="background: #d1fae5; padding: 10px 15px; border-bottom: 1px solid #6ee7b7; font-size: 13px; color: #065f46;">
                     <div style="font-weight: bold; margin-bottom: 5px;">💾 Cached Translations Available:</div>

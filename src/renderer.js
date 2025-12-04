@@ -497,7 +497,10 @@ window.togglePOSSection = function(sectionId) {
 
 // Restore POS section states on load
 function restorePOSSectionStates() {
-    const sections = ['basicPOS', 'namedEntities', 'specialEntities'];
+    const sections = [
+        'basicPOS', 'namedEntities', 'specialEntities',
+        'translateBasicPOS', 'translateNamedEntities', 'translateSpecialEntities'
+    ];
     sections.forEach(sectionId => {
         const state = localStorage.getItem(`pos-section-${sectionId}`);
         if (state === 'collapsed') {
@@ -5928,7 +5931,7 @@ function initializeTranslation() {
             
             if (translatePosToggle.checked) {
                 // Show POS checkboxes
-                if (translatePosOptions) translatePosOptions.style.display = 'flex';
+                if (translatePosOptions) translatePosOptions.style.display = 'block';
                 
                 // Apply POS highlighting
                 await applyTranslatedPOSHighlighting(translationState.currentLanguage);
@@ -5970,7 +5973,7 @@ function initializeTranslation() {
         const checkbox = document.getElementById(id);
         if (checkbox) {
             checkbox.addEventListener('change', async () => {
-                if (translatePosToggle && translatePosToggle.checked && translationState.currentLanguage) {
+                if (translationState.currentLanguage) {
                     // Re-render with new options
                     await applyTranslatedPOSHighlighting(translationState.currentLanguage);
                 }
@@ -6115,11 +6118,8 @@ async function startBackgroundTranslation(targetLang) {
                 translationState.currentTranslatedText = translatedTextContent.textContent || '';
                 translationState.currentLanguage = targetLang;
                 
-                // Apply POS highlighting if enabled
-                const translatePosToggle = document.getElementById('translatePosToggle');
-                if (translatePosToggle && translatePosToggle.checked) {
-                    await applyTranslatedPOSHighlighting(targetLang);
-                }
+                // Apply POS highlighting
+                await applyTranslatedPOSHighlighting(targetLang);
                 
                 // Apply user highlights to translated text
                 setTimeout(() => {
@@ -6202,22 +6202,8 @@ async function loadCachedTranslation(targetLang) {
         translationState.currentTranslatedText = translatedTextContent.textContent || '';
         translationState.currentLanguage = targetLang;
         
-        // Apply POS highlighting if enabled
-        const translatePosToggle = document.getElementById('translatePosToggle');
-        if (translatePosToggle && translatePosToggle.checked) {
-            await applyTranslatedPOSHighlighting(targetLang);
-        } else {
-            // Even if highlighting is off, analyze text for stats
-            const analysis = await textAnalyzer.analyze(translationState.currentTranslatedText, targetLang);
-            translationState.lastAnalysis = analysis;
-            updateTranslatePOSCounts(analysis);
-            
-            // Update stats panel if active
-            const translateView = document.getElementById('translateView');
-            if (translateView && translateView.classList.contains('active') && typeof statsPanel !== 'undefined') {
-                statsPanel.renderStats(analysis, 'translate');
-            }
-        }
+        // Apply POS highlighting
+        await applyTranslatedPOSHighlighting(targetLang);
         
         // Apply user highlights to translated text
         setTimeout(() => {
