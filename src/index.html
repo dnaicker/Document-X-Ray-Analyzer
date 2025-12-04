@@ -421,6 +421,7 @@
                     <select id="translateLanguageSelect" class="translation-select" title="Select target language">
                         <option value="">🌐 Select language...</option>
                     </select>
+                    <button id="speechSettingsBtn" class="btn-icon" title="Speech Settings" style="margin-right: 5px;">🔊</button>
                     <button id="startTranslateBtn" class="btn-note" disabled>▶️ Start Translation</button>
                     <button id="cancelTranslateBtn" class="btn-note hidden" style="background: #ef4444;">⏹️ Cancel</button>
                     <button id="loadCachedBtn" class="btn-note hidden" style="background: #10b981;">📥 Load Cached</button>
@@ -796,12 +797,46 @@
         </div>
     </div>
 
+    <!-- Speech Settings Dialog -->
+    <div id="speechSettingsDialog" class="note-dialog-overlay hidden">
+        <div class="note-dialog" style="max-width: 500px;">
+            <div class="note-dialog-header">
+                <h3>🔊 Text-to-Speech Settings</h3>
+                <button class="close-settings-btn" id="closeSpeechSettingsDialog">×</button>
+            </div>
+            <div class="note-dialog-body" style="padding: 20px;">
+                <div style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 4px; border-left: 4px solid #2196f3;">
+                    <p style="margin: 0 0 10px 0; font-weight: 600; color: #0d47a1;">ℹ️ Missing Voices?</p>
+                    <p style="margin: 0; font-size: 0.9em; color: #333;">
+                        To get voices for other languages (Russian, Chinese, etc.), you must install the corresponding <strong>Language Pack</strong> in Windows Settings.
+                    </p>
+                    <button id="openWindowsSpeechSettingsBtn" class="btn-secondary" style="margin-top: 10px; font-size: 0.85em;">Open Windows Speech Settings</button>
+                </div>
+                
+                <div class="settings-group">
+                    <label style="font-weight: 600; display: block; margin-bottom: 8px;">Available Voices:</label>
+                    <div id="availableVoicesList" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #fafafa; font-size: 0.9em; color: #555;">
+                        Loading voices...
+                    </div>
+                </div>
+                
+                <div class="settings-group" style="margin-top: 15px;">
+                    <label style="font-weight: 600; display: block; margin-bottom: 8px;">Test Voice:</label>
+                    <div style="display: inline-flex; gap: 10px;">
+                        <select id="testVoiceSelect" style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></select>
+                        <button id="testVoiceBtn" class="btn-primary btn-small">Test</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Sync Dialog -->
     <div id="syncDialog" class="note-dialog-overlay hidden">
         <div class="note-dialog">
             <div class="note-dialog-header">
                 <h3>Google Drive Sync</h3>
-                <button class="close-btn" id="closeSyncDialog">×</button>
+                <button class="close-settings-btn" id="closeSyncDialog">×</button>
             </div>
             <div class="note-dialog-body" style="padding: 20px;">
                 <div id="syncStatusArea">

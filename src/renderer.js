@@ -6484,6 +6484,107 @@ function showNotification(title, message) {
     }, 10000);
 }
 
+// Speech Settings UI Logic
+function setupSpeechSettings() {
+    const btn = document.getElementById('speechSettingsBtn');
+    const dialog = document.getElementById('speechSettingsDialog');
+    const closeBtn = document.getElementById('closeSpeechSettingsDialog');
+    const voicesList = document.getElementById('availableVoicesList');
+    const openSettingsBtn = document.getElementById('openWindowsSpeechSettingsBtn');
+    const testVoiceBtn = document.getElementById('testVoiceBtn');
+    const testVoiceSelect = document.getElementById('testVoiceSelect');
+    
+    if (!btn || !dialog) return;
+    
+    // Open dialog
+    btn.addEventListener('click', () => {
+        dialog.classList.remove('hidden');
+        loadVoicesList();
+    });
+    
+    // Close dialog
+    closeBtn.addEventListener('click', () => {
+        dialog.classList.add('hidden');
+    });
+    
+    // Open Windows Settings
+    if (openSettingsBtn) {
+        openSettingsBtn.addEventListener('click', () => {
+            const { shell } = require('electron');
+            // Opens Windows Speech Settings directly
+            shell.openExternal('ms-settings:speech');
+        });
+    }
+    
+    // Test Voice
+    if (testVoiceBtn && testVoiceSelect) {
+        testVoiceBtn.addEventListener('click', () => {
+            const voiceName = testVoiceSelect.value;
+            const voices = window.speechSynthesis.getVoices();
+            const voice = voices.find(v => v.name === voiceName);
+            
+            if (voice) {
+                const utterance = new SpeechSynthesisUtterance("Hello, this is a test of the selected voice.");
+                // If voice is not English, try to say something generic in that language or just the name
+                if (!voice.lang.startsWith('en')) {
+                    utterance.text = voice.name;
+                }
+                utterance.voice = voice;
+                window.speechSynthesis.speak(utterance);
+            }
+        });
+    }
+    
+    function loadVoicesList() {
+        const voices = window.speechSynthesis.getVoices();
+        
+        if (voices.length === 0) {
+            voicesList.innerHTML = '<div style="padding: 10px; text-align: center;">No voices detected yet. Wait a moment or check system settings.</div>';
+            return;
+        }
+        
+        // Group by language
+        const grouped = {};
+        voices.forEach(v => {
+            const lang = v.lang.split('-')[0].toUpperCase();
+            if (!grouped[lang]) grouped[lang] = [];
+            grouped[lang].push(v);
+        });
+        
+        let html = '';
+        
+        // Sort languages
+        Object.keys(grouped).sort().forEach(lang => {
+            html += `<div style="font-weight: bold; margin-top: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee;">${lang}</div>`;
+            grouped[lang].forEach(v => {
+                html += `<div style="padding: 4px 0; font-size: 0.9em; display: flex; justify-content: space-between;">
+                    <span>${v.name}</span>
+                    <span style="color: #888; font-size: 0.8em;">${v.lang}</span>
+                </div>`;
+            });
+        });
+        
+        voicesList.innerHTML = html;
+        
+        // Update test dropdown
+        testVoiceSelect.innerHTML = voices.map(v => `<option value="${v.name}">${v.name} (${v.lang})</option>`).join('');
+    }
+    
+    // Initial load ensures onvoiceschanged fires
+    if (window.speechSynthesis.onvoiceschanged === null) {
+        window.speechSynthesis.onvoiceschanged = () => {
+            if (!dialog.classList.contains('hidden')) {
+                loadVoicesList();
+            }
+        };
+    }
+}
+
+// Call setup
+document.addEventListener('DOMContentLoaded', () => {
+    setupSpeechSettings();
+});
+
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;

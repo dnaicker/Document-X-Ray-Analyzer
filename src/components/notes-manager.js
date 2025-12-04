@@ -447,17 +447,106 @@ class NotesManager {
         
         // Get language
         const langSelect = document.getElementById('translateLanguageSelect');
-        const lang = langSelect ? langSelect.value : 'en';
+        // Get translation service language map if available to map short codes
+        const langCode = langSelect ? langSelect.value : 'en';
         
         // Speak
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel(); // Stop current
-            const utterance = new SpeechSynthesisUtterance(textToSpeak);
-            utterance.lang = lang;
-            window.speechSynthesis.speak(utterance);
+            
+            // Get available voices
+            let voices = window.speechSynthesis.getVoices();
+            
+            // If voices haven't loaded yet, wait for them
+            if (voices.length === 0) {
+                window.speechSynthesis.onvoiceschanged = () => {
+                    this.performSpeak(textToSpeak, langCode);
+                };
+            } else {
+                this.performSpeak(textToSpeak, langCode);
+            }
         } else {
             alert('Text-to-speech not supported in this browser.');
         }
+    }
+    
+    performSpeak(text, langCode) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Ensure full locale for certain languages to help browser fallback
+        const localeMap = {
+            'ru': 'ru-RU',
+            'zh': 'zh-CN',
+            'zh-cn': 'zh-CN',
+            'zh-tw': 'zh-TW',
+            'pt': 'pt-BR',
+            'en': 'en-US'
+        };
+        
+        const targetLang = localeMap[langCode.toLowerCase()] || langCode;
+        utterance.lang = targetLang;
+        
+        const voices = window.speechSynthesis.getVoices();
+        
+        // Enhanced voice selection strategy
+        // 1. Try exact language match (e.g. 'fr-FR')
+        // 2. Try base language match (e.g. 'fr')
+        // 3. Search by name if lang match fails
+        // 4. Prefer 'Google' or 'Microsoft' voices
+        
+        const baseLang = targetLang.split('-')[0].toLowerCase();
+        
+        // Helper to score voice quality
+        const getVoiceScore = (voice) => {
+            let s = 0;
+            const name = voice.name.toLowerCase();
+            if (name.includes('google')) s += 2;
+            if (name.includes('microsoft')) s += 1;
+            if (name.includes('enhanced')) s += 1;
+            return s;
+        };
+
+        // Filter for matching language
+        let matchingVoices = voices.filter(voice => {
+            return voice.lang.toLowerCase().startsWith(baseLang) || 
+                   voice.lang.replace('_', '-').toLowerCase().startsWith(baseLang);
+        });
+        
+        // Fallback: Search by name if no lang match
+        if (matchingVoices.length === 0) {
+            const langNameMap = {
+                'ru': 'russian',
+                'zh': 'chinese',
+                'ja': 'japanese',
+                'ko': 'korean',
+                'de': 'german',
+                'fr': 'french',
+                'es': 'spanish',
+                'it': 'italian',
+                'pt': 'portuguese'
+            };
+            
+            const langName = langNameMap[baseLang];
+            if (langName) {
+                matchingVoices = voices.filter(voice => 
+                    voice.name.toLowerCase().includes(langName)
+                );
+            }
+        }
+        
+        if (matchingVoices.length > 0) {
+            // Sort to prefer premium voices
+            matchingVoices.sort((a, b) => {
+                return getVoiceScore(b) - getVoiceScore(a);
+            });
+            
+            utterance.voice = matchingVoices[0];
+            console.log(`Using voice: ${utterance.voice.name} (${utterance.voice.lang}) for ${langCode}`);
+        } else {
+            console.warn(`No voice found for language: ${langCode} (base: ${baseLang}). Available voices:`, voices.map(v => `${v.name} (${v.lang})`));
+        }
+        
+        window.speechSynthesis.speak(utterance);
     }
     
     getPageNumberFromSelection() {
