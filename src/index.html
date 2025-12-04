@@ -807,10 +807,11 @@
             <div class="note-dialog-body" style="padding: 20px;">
                 <div style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 4px; border-left: 4px solid #2196f3;">
                     <p style="margin: 0 0 10px 0; font-weight: 600; color: #0d47a1;">ℹ️ Missing Voices?</p>
-                    <p style="margin: 0; font-size: 0.9em; color: #333;">
-                        To get voices for other languages (Russian, Chinese, etc.), you must install the corresponding <strong>Language Pack</strong> in Windows Settings.
+                    <p id="voiceInstallInstructions" style="margin: 0; font-size: 0.9em; color: #333;">
+                        To get voices for other languages (Russian, Chinese, etc.), you must install the corresponding Language Pack in your system settings.
                     </p>
-                    <button id="openWindowsSpeechSettingsBtn" class="btn-secondary" style="margin-top: 10px; font-size: 0.85em;">Open Windows Speech Settings</button>
+                    <button id="openWindowsSpeechSettingsBtn" class="btn-secondary hidden" style="margin-top: 10px; font-size: 0.85em;">Open Windows Speech Settings</button>
+                    <button id="openMacSpeechSettingsBtn" class="btn-secondary hidden" style="margin-top: 10px; font-size: 0.85em;">Open macOS Speech Settings</button>
                 </div>
                 
                 <div class="settings-group">
@@ -823,8 +824,8 @@
                 <div class="settings-group" style="margin-top: 15px;">
                     <label style="font-weight: 600; display: block; margin-bottom: 8px;">Test Voice:</label>
                     <div style="display: inline-flex; gap: 10px;">
-                        <select id="testVoiceSelect" style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></select>
-                        <button id="testVoiceBtn" class="btn-primary" style="display: block; width: 100%; margin-top: 8px;">Test</button>
+                        <select id="testVoiceSelect" style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 90%; "></select>
+                        <button id="testVoiceBtn" class="btn-primary" style="margin-top: 8px;">Test</button>
                     </div>
                 </div>
             </div>

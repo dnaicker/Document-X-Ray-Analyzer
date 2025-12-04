@@ -6494,10 +6494,29 @@ function setupSpeechSettings() {
     const closeBtn = document.getElementById('closeSpeechSettingsDialog');
     const voicesList = document.getElementById('availableVoicesList');
     const openSettingsBtn = document.getElementById('openWindowsSpeechSettingsBtn');
+    const openMacSettingsBtn = document.getElementById('openMacSpeechSettingsBtn');
+    const voiceInstructions = document.getElementById('voiceInstallInstructions');
     const testVoiceBtn = document.getElementById('testVoiceBtn');
     const testVoiceSelect = document.getElementById('testVoiceSelect');
     
     if (!btn || !dialog) return;
+    
+    // Detect Platform
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const isWin = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
+    
+    // Update UI based on Platform
+    if (isMac) {
+        if (openMacSettingsBtn) openMacSettingsBtn.classList.remove('hidden');
+        if (voiceInstructions) {
+            voiceInstructions.innerHTML = 'To get voices for other languages, go to <strong>System Settings > Accessibility > Spoken Content</strong>.';
+        }
+    } else if (isWin) {
+        if (openSettingsBtn) openSettingsBtn.classList.remove('hidden');
+        if (voiceInstructions) {
+            voiceInstructions.innerHTML = 'To get voices for other languages, install the <strong>Language Pack</strong> in Windows Settings.';
+        }
+    }
     
     // Open dialog
     btn.addEventListener('click', () => {
@@ -6516,6 +6535,16 @@ function setupSpeechSettings() {
             const { shell } = require('electron');
             // Opens Windows Speech Settings directly
             shell.openExternal('ms-settings:speech');
+        });
+    }
+    
+    // Open Mac Settings
+    if (openMacSettingsBtn) {
+        openMacSettingsBtn.addEventListener('click', () => {
+            const { shell } = require('electron');
+            // Open macOS System Settings -> Accessibility -> Spoken Content
+            // Note: Direct deep linking varies by macOS version, general preference pane is safer
+            shell.openExternal('x-apple.systempreferences:com.apple.preference.universalaccess?Speech');
         });
     }
     
