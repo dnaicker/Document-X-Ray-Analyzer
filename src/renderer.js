@@ -3324,11 +3324,55 @@ if (exportBtn) {
             
             if (notes.length === 0 && highlights.length === 0) {
                 setStatus('⚠️ No notes or highlights to export');
-            return;
-        }
+                return;
+            }
         
             let content = `# Notes & Highlights for ${currentFileName}\n\n`;
             content += `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n\n`;
+
+            // Helper function to get linked items
+            const getLinkedItems = (item) => {
+                if (!item.links || item.links.length === 0) return [];
+                
+                const linkedItems = [];
+                const allData = notesManager.loadFromStorage();
+                
+                item.links.forEach(link => {
+                    const linkId = typeof link === 'string' ? link : link.id;
+                    const linkFilePath = typeof link === 'object' ? link.filePath : null;
+                    
+                    if (linkFilePath && linkFilePath !== currentFilePath) {
+                        // External link
+                        const externalData = allData[linkFilePath];
+                        if (externalData) {
+                            const linkedNote = externalData.notes?.find(n => n.id === linkId);
+                            const linkedHighlight = externalData.highlights?.find(h => h.id === linkId);
+                            const linkedItem = linkedNote || linkedHighlight;
+                            
+                            if (linkedItem) {
+                                linkedItems.push({
+                                    ...linkedItem,
+                                    sourceFile: link.fileName || linkFilePath.split(/[\\/]/).pop()
+                                });
+                            }
+                        }
+                    } else {
+                        // Internal link
+                        const linkedNote = notes.find(n => n.id === linkId);
+                        const linkedHighlight = highlights.find(h => h.id === linkId);
+                        const linkedItem = linkedNote || linkedHighlight;
+                        
+                        if (linkedItem) {
+                            linkedItems.push({
+                                ...linkedItem,
+                                sourceFile: null // Internal link
+                            });
+                        }
+                    }
+                });
+                
+                return linkedItems;
+            };
 
             // Group by Page
             const itemsByPage = {};
@@ -3359,13 +3403,39 @@ if (exportBtn) {
                         }
                         content += `_Created: ${new Date(item.createdAt).toLocaleString()}_\n\n`;
                     }
+                    
+                    // Add linked items
+                    const linkedItems = getLinkedItems(item);
+                    if (linkedItems.length > 0) {
+                        content += `#### 🔗 Linked References (${linkedItems.length})\n\n`;
+                        
+                        linkedItems.forEach(linkedItem => {
+                            const isExternal = linkedItem.sourceFile !== null;
+                            const sourceLabel = isExternal ? `📄 ${linkedItem.sourceFile}` : '📍 This document';
+                            
+                            if (linkedItem.type === 'note') {
+                                content += `- **${sourceLabel} - Note:**\n`;
+                                content += `  ${linkedItem.text}\n\n`;
+                            } else if (linkedItem.type === 'highlight') {
+                                content += `- **${sourceLabel} - Highlight:**\n`;
+                                content += `  > "${linkedItem.text}"\n`;
+                                if (linkedItem.note) {
+                                    content += `  \n  **Note:** ${linkedItem.note}\n`;
+                                }
+                                content += `\n`;
+                            }
+                        });
+                        
+                        content += `\n`;
+                    }
+                    
                     content += `---\n\n`;
                 });
             });
 
             // Use IPC to save file
             const result = await ipcRenderer.invoke('save-file-dialog', {
-                defaultPath: `${currentFileName.replace('.pdf', '')}_notes.md`,
+                defaultPath: `${currentFileName.replace(/\.(pdf|epub|docx|md|txt)$/, '')}_notes.md`,
                 filters: [{ name: 'Markdown', extensions: ['md'] }]
             });
 
@@ -3377,11 +3447,11 @@ if (exportBtn) {
                 setStatus('✅ Notes exported successfully');
             }
 
-    } catch (error) {
+        } catch (error) {
             console.error('Export error:', error);
             setStatus('❌ Export Error: ' + error.message);
-    }
-});
+        }
+    });
 }
 
 // View Toggle (Raw, Highlighted, Notes, Map, Figures)
