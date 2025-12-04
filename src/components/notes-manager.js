@@ -26,6 +26,9 @@ class NotesManager {
         this.contextEditNote = document.getElementById('contextEditNote');
         this.contextDeleteHighlight = document.getElementById('contextDeleteHighlight');
         
+        this.contextTranslateGroup = document.getElementById('contextTranslateGroup');
+        this.contextSpeak = document.getElementById('contextSpeak');
+        
         // Continuous Mode and Color Picker
         this.continuousModeToggles = document.querySelectorAll('.continuous-mode-checkbox');
         this.notesHelpBanner = document.getElementById('notesHelpBanner');
@@ -291,6 +294,8 @@ class NotesManager {
             container.style.cursor = 'text';
             
             container.addEventListener('contextmenu', (e) => {
+                this.lastContextTarget = e.target;
+                
                 // Check if clicked on a user highlight
                 const clickedHighlight = e.target.closest('.user-highlight') || e.target.closest('.map-user-highlight');
                 
@@ -306,7 +311,10 @@ class NotesManager {
                     const selection = window.getSelection();
                     this.selectedText = selection.toString().trim();
                     
-                    if (this.selectedText.length > 0 && this.currentFilePath) {
+                    // Allow context menu if text selected OR if in translated text content
+                    const isTranslatedView = this.translatedTextContent && this.translatedTextContent.contains(e.target);
+                    
+                    if ((this.selectedText.length > 0 && this.currentFilePath) || isTranslatedView) {
                         e.preventDefault();
                         e.stopPropagation();
                         this.showContextMenu(e.clientX, e.clientY, false);
@@ -347,6 +355,14 @@ class NotesManager {
             this.highlightAndNoteFromContext();
             this.hideContextMenu();
         });
+
+        if (this.contextSpeak) {
+            this.contextSpeak.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.speakText();
+                this.hideContextMenu();
+            });
+        }
         
         // Context menu actions - Management
         this.contextEditNote.addEventListener('click', (e) => {
@@ -369,13 +385,24 @@ class NotesManager {
     showContextMenu(x, y, isExistingHighlight) {
         this.contextMenu.classList.remove('hidden');
         
+        const isTranslatedView = this.lastContextTarget && this.translatedTextContent && this.translatedTextContent.contains(this.lastContextTarget);
+        
         // Toggle groups based on context
         if (isExistingHighlight) {
             this.contextDefaultGroup.classList.add('hidden');
             this.contextHighlightGroup.classList.remove('hidden');
+            if (this.contextTranslateGroup) this.contextTranslateGroup.classList.add('hidden');
         } else {
             this.contextDefaultGroup.classList.remove('hidden');
             this.contextHighlightGroup.classList.add('hidden');
+            
+            if (this.contextTranslateGroup) {
+                if (isTranslatedView) {
+                    this.contextTranslateGroup.classList.remove('hidden');
+                } else {
+                    this.contextTranslateGroup.classList.add('hidden');
+                }
+            }
         }
         
         // Position the menu
@@ -394,6 +421,43 @@ class NotesManager {
     
     hideContextMenu() {
         this.contextMenu.classList.add('hidden');
+    }
+
+    speakText() {
+        let textToSpeak = '';
+        
+        // 1. Selected text
+        if (this.selectedText && this.selectedText.trim().length > 0) {
+            textToSpeak = this.selectedText;
+        } 
+        // 2. Clicked element (sentence/chunk)
+        else if (this.lastContextTarget) {
+             // Find closest translated text span or just use the text content of the target if it's a text node
+             const translatedSpan = this.lastContextTarget.closest('.translated-text');
+             if (translatedSpan) {
+                 textToSpeak = translatedSpan.textContent;
+             } else if (this.lastContextTarget.nodeType === 3) { // Text node
+                 textToSpeak = this.lastContextTarget.textContent;
+             } else {
+                 textToSpeak = this.lastContextTarget.textContent;
+             }
+        }
+        
+        if (!textToSpeak || textToSpeak.trim().length === 0) return;
+        
+        // Get language
+        const langSelect = document.getElementById('translateLanguageSelect');
+        const lang = langSelect ? langSelect.value : 'en';
+        
+        // Speak
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // Stop current
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = lang;
+            window.speechSynthesis.speak(utterance);
+        } else {
+            alert('Text-to-speech not supported in this browser.');
+        }
     }
     
     getPageNumberFromSelection() {
