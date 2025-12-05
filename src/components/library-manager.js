@@ -474,14 +474,23 @@ class LibraryManager {
     
     // ========== FILE TAGS ==========
     
-    addTagToFile(filePath, tag) {
+    addTagToFile(filePath, tag, color = 'green') {
         const fileData = this.library.files[filePath];
         if (!fileData) return false;
         
         const normalizedTag = tag.trim().toLowerCase();
-        if (!normalizedTag || fileData.tags.includes(normalizedTag)) return false;
+        if (!normalizedTag) return false;
         
-        fileData.tags.push(normalizedTag);
+        // Check if tag already exists (by name only)
+        const existingTag = fileData.tags.find(t => {
+            const tagName = typeof t === 'string' ? t : t.name;
+            return tagName === normalizedTag;
+        });
+        
+        if (existingTag) return false;
+        
+        // Store tag as object with name and color
+        fileData.tags.push({ name: normalizedTag, color: color });
         this.saveLibrary();
         return true;
     }
@@ -490,7 +499,12 @@ class LibraryManager {
         const fileData = this.library.files[filePath];
         if (!fileData) return false;
         
-        const index = fileData.tags.indexOf(tag.toLowerCase());
+        const normalizedTag = tag.toLowerCase();
+        const index = fileData.tags.findIndex(t => {
+            const tagName = this.getTagName(t);
+            return tagName === normalizedTag;
+        });
+        
         if (index > -1) {
             fileData.tags.splice(index, 1);
             this.saveLibrary();

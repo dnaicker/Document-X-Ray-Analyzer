@@ -290,7 +290,11 @@ class LibraryUI {
                         <div class="file-name">${this.escapeHtml(file.name)}</div>
                         ${file.tags && file.tags.length > 0 ? `
                             <div class="file-meta">
-                                ${file.tags.slice(0, 2).map(tag => `<span class="file-tag-mini">${this.escapeHtml(tag)}</span>`).join(' ')}
+                                ${file.tags.slice(0, 2).map(tag => {
+                                    const tagName = this.libraryManager.getTagName(tag);
+                                    const tagColor = this.libraryManager.getTagColor(tag);
+                                    return `<span class="file-tag-mini tag-${tagColor}">${this.escapeHtml(tagName)}</span>`;
+                                }).join(' ')}
                                 ${file.tags.length > 2 ? `<span class="file-tag-mini">+${file.tags.length - 2}</span>` : ''}
                             </div>
                         ` : ''}
@@ -455,7 +459,7 @@ class LibraryUI {
                     ✏️ Rename
                 </div>
                 <div class="context-menu-item" data-action="tags">
-                    🏷️ Manage Tags
+                    🏷️ Add Tags
                 </div>
                 ${folder.type !== 'library' && folder.type !== 'special' ? `
                     <div class="context-menu-divider"></div>
@@ -516,12 +520,11 @@ class LibraryUI {
                 📂 Open
             </div>
             <div class="context-menu-item" data-action="move">
-                📁 Move to Folder
+                📁 Move
             </div>
             <div class="context-menu-item" data-action="tags">
-                🏷️ Manage Tags
+                🏷️ Add Tags
             </div>
-            <div class="context-menu-divider"></div>
             <div class="context-menu-item danger" data-action="trash">
                 🗑️ Move to Trash
             </div>
@@ -895,16 +898,39 @@ class LibraryUI {
                 </div>
                 <div class="note-dialog-body">
                     <div class="tag-input-container">
-                        <input type="text" id="fileTagInput" class="tag-input" placeholder="Type a tag and press Enter...">
+                        <input type="text" id="fileTagInput" class="tag-input" placeholder="Type a tag name...">
+                        <div class="tag-color-selector" style="margin-top: 10px;">
+                            <label style="display: block; margin-bottom: 5px; font-size: 12px; color: #666;">Tag Color:</label>
+                            <div class="color-options" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button type="button" class="color-option selected" data-color="green" style="background: #4caf50;" title="Green">✓</button>
+                                <button type="button" class="color-option" data-color="blue" style="background: #2196f3;" title="Blue"></button>
+                                <button type="button" class="color-option" data-color="purple" style="background: #9c27b0;" title="Purple"></button>
+                                <button type="button" class="color-option" data-color="orange" style="background: #ff9800;" title="Orange"></button>
+                                <button type="button" class="color-option" data-color="red" style="background: #f44336;" title="Red"></button>
+                                <button type="button" class="color-option" data-color="teal" style="background: #009688;" title="Teal"></button>
+                                <button type="button" class="color-option" data-color="pink" style="background: #e91e63;" title="Pink"></button>
+                                <button type="button" class="color-option" data-color="gray" style="background: #9e9e9e;" title="Gray"></button>
+                            </div>
+                        </div>
+                        <button id="saveFileTagBtn" class="btn-primary" style="margin-top: 10px; width: 100%;">💾 Save Tag</button>
                     </div>
-                    <div class="current-tags-list" id="currentFileTags">
-                        ${existingTags.map(tag => `
-                            <span class="tag-badge">
-                                ${this.escapeHtml(tag)}
-                                <button class="tag-remove-btn" onclick="libraryUI.removeFileTag('${this.escapeHtml(filePath)}', '${this.escapeHtml(tag)}', this)">×</button>
-                            </span>
-                        `).join('')}
-                    </div>
+                    ${existingTags.length > 0 ? `
+                        <div class="current-tags-section">
+                            <label>Current tags:</label>
+                            <div class="current-tags-list" id="currentFileTags">
+                                ${existingTags.map(tag => {
+                                    const tagName = this.libraryManager.getTagName(tag);
+                                    const tagColor = this.libraryManager.getTagColor(tag);
+                                    return `
+                                        <span class="tag-badge tag-${tagColor}">
+                                            ${this.escapeHtml(tagName)}
+                                            <button class="tag-remove-btn" onclick="libraryUI.removeFileTag('${this.escapeHtml(filePath)}', '${this.escapeHtml(tagName)}', this)">×</button>
+                                        </span>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    ` : '<div id="currentFileTags"></div>'}
                 </div>
                 <div class="note-dialog-footer">
                     <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Done</button>
@@ -914,29 +940,66 @@ class LibraryUI {
         document.body.appendChild(dialog);
         
         const input = document.getElementById('fileTagInput');
+        
+        // Color selector logic
+        let selectedColor = 'green';
+        const colorOptions = dialog.querySelectorAll('.color-option');
+        colorOptions.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                colorOptions.forEach(b => {
+                    b.classList.remove('selected');
+                    b.textContent = '';
+                });
+                btn.classList.add('selected');
+                btn.textContent = '✓';
+                selectedColor = btn.dataset.color;
+            });
+        });
+        
+        // Save tag function
+        const saveTag = () => {
+            const tag = input.value.trim();
+            if (tag) {
+                this.addFileTag(filePath, tag, selectedColor);
+                input.value = '';
+                // Reset to default color
+                colorOptions.forEach(b => {
+                    b.classList.remove('selected');
+                    b.textContent = '';
+                });
+                colorOptions[0].classList.add('selected');
+                colorOptions[0].textContent = '✓';
+                selectedColor = 'green';
+            }
+        };
+        
+        // Save button click
+        const saveBtn = document.getElementById('saveFileTagBtn');
+        saveBtn.addEventListener('click', saveTag);
+        
+        // Enter key in input
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                const tag = input.value.trim();
-                if (tag) {
-                    this.addFileTag(filePath, tag);
-                    input.value = '';
-                }
+                saveTag();
             }
         });
         
         setTimeout(() => input.focus(), 100);
     }
     
-    addFileTag(filePath, tag) {
-        if (this.libraryManager.addTagToFile(filePath, tag)) {
+    addFileTag(filePath, tag, color = 'green') {
+        if (this.libraryManager.addTagToFile(filePath, tag, color)) {
             const container = document.getElementById('currentFileTags');
             if (container) {
                 const badge = document.createElement('span');
-                badge.className = 'tag-badge';
+                badge.className = `tag-badge tag-${color}`;
                 badge.innerHTML = `${this.escapeHtml(tag)} <button class="tag-remove-btn" onclick="libraryUI.removeFileTag('${this.escapeHtml(filePath)}', '${this.escapeHtml(tag)}', this.parentElement)">×</button>`;
                 container.appendChild(badge);
             }
+            // Refresh the library view to show updated tags
+            this.render();
         }
     }
     

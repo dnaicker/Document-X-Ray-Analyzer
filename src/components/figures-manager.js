@@ -166,6 +166,137 @@ class FiguresManager {
         return div.innerHTML;
     }
 
+    openImageViewer(figure) {
+        const viewer = document.createElement('div');
+        viewer.className = 'image-viewer-overlay';
+        viewer.innerHTML = `
+            <div class="image-viewer-container">
+                <div class="image-viewer-header">
+                    <div class="image-viewer-title">
+                        <span>🖼️ Page ${figure.page} ${figure.type === 'snip' ? '(Snipped)' : ''}</span>
+                    </div>
+                    <div class="image-viewer-controls">
+                        <button class="image-viewer-btn" id="zoomOut" title="Zoom Out (-)">🔍−</button>
+                        <span class="zoom-level">100%</span>
+                        <button class="image-viewer-btn" id="zoomIn" title="Zoom In (+)">🔍+</button>
+                        <button class="image-viewer-btn" id="resetZoom" title="Reset Zoom (0)">⟲</button>
+                        <button class="image-viewer-btn" id="fitScreen" title="Fit to Screen (F)">⛶</button>
+                        <button class="image-viewer-close" title="Close (Esc)">×</button>
+                    </div>
+                </div>
+                <div class="image-viewer-content" id="imageViewerContent">
+                    <img src="${figure.src}" class="viewer-image" id="viewerImage" draggable="false">
+                </div>
+                ${figure.note ? `<div class="image-viewer-note">${this.escapeHtml(figure.note)}</div>` : ''}
+            </div>
+        `;
+        
+        document.body.appendChild(viewer);
+        
+        let currentZoom = 1.0;
+        const img = viewer.querySelector('#viewerImage');
+        const content = viewer.querySelector('#imageViewerContent');
+        const zoomDisplay = viewer.querySelector('.zoom-level');
+        
+        // Pan functionality
+        let isDragging = false;
+        let startX, startY, scrollLeft, scrollTop;
+        
+        content.addEventListener('mousedown', (e) => {
+            if (e.target === img && currentZoom > 1) {
+                isDragging = true;
+                content.style.cursor = 'grabbing';
+                startX = e.pageX - content.offsetLeft;
+                startY = e.pageY - content.offsetTop;
+                scrollLeft = content.scrollLeft;
+                scrollTop = content.scrollTop;
+            }
+        });
+        
+        content.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            const x = e.pageX - content.offsetLeft;
+            const y = e.pageY - content.offsetTop;
+            const walkX = (x - startX) * 2;
+            const walkY = (y - startY) * 2;
+            content.scrollLeft = scrollLeft - walkX;
+            content.scrollTop = scrollTop - walkY;
+        });
+        
+        content.addEventListener('mouseup', () => {
+            isDragging = false;
+            if (currentZoom > 1) {
+                content.style.cursor = 'grab';
+            } else {
+                content.style.cursor = 'default';
+            }
+        });
+        
+        content.addEventListener('mouseleave', () => {
+            isDragging = false;
+            content.style.cursor = currentZoom > 1 ? 'grab' : 'default';
+        });
+        
+        const updateZoom = (zoom) => {
+            currentZoom = Math.max(0.25, Math.min(5, zoom));
+            img.style.transform = `scale(${currentZoom})`;
+            zoomDisplay.textContent = `${Math.round(currentZoom * 100)}%`;
+            content.style.cursor = currentZoom > 1 ? 'grab' : 'default';
+        };
+        
+        const fitToScreen = () => {
+            const contentRect = content.getBoundingClientRect();
+            const imgRect = img.getBoundingClientRect();
+            const scaleX = contentRect.width / img.naturalWidth;
+            const scaleY = contentRect.height / img.naturalHeight;
+            const scale = Math.min(scaleX, scaleY, 1);
+            updateZoom(scale);
+        };
+        
+        // Button handlers
+        viewer.querySelector('#zoomIn').addEventListener('click', () => updateZoom(currentZoom + 0.25));
+        viewer.querySelector('#zoomOut').addEventListener('click', () => updateZoom(currentZoom - 0.25));
+        viewer.querySelector('#resetZoom').addEventListener('click', () => updateZoom(1));
+        viewer.querySelector('#fitScreen').addEventListener('click', fitToScreen);
+        viewer.querySelector('.image-viewer-close').addEventListener('click', () => viewer.remove());
+        
+        // Click outside to close
+        viewer.addEventListener('click', (e) => {
+            if (e.target === viewer) viewer.remove();
+        });
+        
+        // Keyboard shortcuts
+        const handleKeyboard = (e) => {
+            if (e.key === 'Escape') viewer.remove();
+            else if (e.key === '+' || e.key === '=') updateZoom(currentZoom + 0.25);
+            else if (e.key === '-') updateZoom(currentZoom - 0.25);
+            else if (e.key === '0') updateZoom(1);
+            else if (e.key === 'f' || e.key === 'F') fitToScreen();
+        };
+        document.addEventListener('keydown', handleKeyboard);
+        
+        // Mouse wheel zoom
+        content.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            updateZoom(currentZoom + delta);
+        }, { passive: false });
+        
+        // Clean up event listener when viewer is closed
+        const observer = new MutationObserver((mutations) => {
+            if (!document.body.contains(viewer)) {
+                document.removeEventListener('keydown', handleKeyboard);
+                observer.disconnect();
+            }
+        });
+        observer.observe(document.body, { childList: true });
+        
+        // Initial fit to screen
+        img.addEventListener('load', fitToScreen);
+        if (img.complete) fitToScreen();
+    }
+
     saveToStorage() {
         if (!this.currentFilePath) {
             console.warn('Cannot save figures: no currentFilePath set');
@@ -223,8 +354,9 @@ class FiguresManager {
             
             div.innerHTML = `
                 <div class="figure-image-container">
-                    <img src="${fig.src}" class="figure-image" loading="lazy">
+                    <img src="${fig.src}" class="figure-image" loading="lazy" title="Click to view full size">
                     <div class="figure-actions">
+                        <button class="view-btn" title="View full size">🔍</button>
                         <button class="note-btn ${hasNote ? 'has-note' : ''}" title="${hasNote ? 'Edit note' : 'Add note'}">📝</button>
                         <button class="delete-btn" title="Delete Figure">×</button>
                     </div>
@@ -235,6 +367,18 @@ class FiguresManager {
                 </div>
             `;
 
+            // Attach view handler (for both image and view button)
+            const imgElement = div.querySelector('.figure-image');
+            const viewBtn = div.querySelector('.view-btn');
+            
+            const openViewer = (e) => {
+                e.stopPropagation();
+                this.openImageViewer(fig);
+            };
+            
+            if (imgElement) imgElement.onclick = openViewer;
+            if (viewBtn) viewBtn.onclick = openViewer;
+            
             // Attach note handler
             const noteBtn = div.querySelector('.note-btn');
             if (noteBtn) {

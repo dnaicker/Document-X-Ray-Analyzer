@@ -3334,6 +3334,191 @@ input:checked + .slider:before {
     -webkit-box-orient: vertical;
 }
 
+/* View button style */
+.figure-card .view-btn {
+    background: rgba(102, 126, 234, 0.85);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.figure-card .view-btn:hover {
+    background: #667eea;
+    transform: scale(1.1);
+}
+
+.figure-image {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.figure-image:hover {
+    transform: scale(1.02);
+}
+
+/* Image Viewer Modal */
+.image-viewer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.image-viewer-container {
+    display: flex;
+    flex-direction: column;
+    width: 90vw;
+    height: 90vh;
+    background: #1a1a1a;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.image-viewer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    flex-shrink: 0;
+}
+
+.image-viewer-title {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.image-viewer-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.image-viewer-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.image-viewer-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.image-viewer-btn:active {
+    transform: translateY(0);
+}
+
+.zoom-level {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 50px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 6px 10px;
+    border-radius: 6px;
+}
+
+.image-viewer-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 28px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    margin-left: 8px;
+}
+
+.image-viewer-close:hover {
+    background: rgba(255, 255, 255, 0.35);
+    transform: scale(1.1) rotate(90deg);
+}
+
+.image-viewer-content {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #2a2a2a;
+    position: relative;
+}
+
+.viewer-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transform-origin: center center;
+    transition: transform 0.2s ease-out;
+    user-select: none;
+}
+
+.image-viewer-note {
+    padding: 16px 20px;
+    background: #2a2a2a;
+    color: #e0e0e0;
+    border-top: 1px solid #444;
+    font-size: 14px;
+    line-height: 1.6;
+    max-height: 120px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.image-viewer-note::-webkit-scrollbar {
+    width: 8px;
+}
+
+.image-viewer-note::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+.image-viewer-note::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.image-viewer-note::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
 /* Page Markers in Extracted Text */
 .page-section {
     margin-bottom: 20px;
@@ -4782,6 +4967,46 @@ input:checked + .slider:before {
     color: #2e7d32;
     margin-left: 2px;
     font-size: 9px;
+}
+
+.file-tag-mini.tag-green {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.file-tag-mini.tag-blue {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.file-tag-mini.tag-purple {
+    background: #f3e5f5;
+    color: #6a1b9a;
+}
+
+.file-tag-mini.tag-orange {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.file-tag-mini.tag-red {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.file-tag-mini.tag-teal {
+    background: #e0f2f1;
+    color: #00695c;
+}
+
+.file-tag-mini.tag-pink {
+    background: #fce4ec;
+    color: #ad1457;
+}
+
+.file-tag-mini.tag-gray {
+    background: #f5f5f5;
+    color: #424242;
 }
 
 .library-context-menu {
