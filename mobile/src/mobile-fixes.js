@@ -360,21 +360,107 @@
     }
     
     function saveHighlight(text, color, note = null) {
-      const highlights = JSON.parse(localStorage.getItem('userHighlights') || '[]');
-      highlights.push({
-        text,
-        color,
-        note,
-        timestamp: Date.now(),
-        document: window.currentFileName || 'unknown'
-      });
-      localStorage.setItem('userHighlights', JSON.stringify(highlights));
-      
-      // Update notes UI if available
-      if (window.notesManager && window.notesManager.loadNotes) {
-          window.notesManager.loadNotes();
-      }
+    const timestamp = Date.now();
+    
+    // Ensure file path variables are available
+    const filePath = window.currentFilePath || 'mobile-imported-file';
+    const fileName = window.currentFileName || 'Mobile Document';
+    
+    console.log('💾 Saving highlight:', { filePath, fileName, text: text.substring(0, 30) });
+    
+    // Format as a highlight object compatible with NotesManager
+    const highlight = {
+      id: 'highlight-' + timestamp,
+      type: 'highlight',
+      text: text,
+      color: color,
+      note: note || '',
+      page: window.currentPage || 1,
+      createdAt: new Date().toISOString(),
+      filePath: filePath,
+      fileName: fileName,
+      tags: [] 
+    };
+    
+    // Save to local storage fallback (legacy)
+    const highlights = JSON.parse(localStorage.getItem('userHighlights') || '[]');
+    highlights.push({
+      text,
+      color,
+      note,
+      timestamp: timestamp,
+      document: fileName
+    });
+    localStorage.setItem('userHighlights', JSON.stringify(highlights));
+    
+    // Add to NotesManager if available
+    if (window.notesManager) {
+        console.log('📝 NotesManager found, current state:', {
+            currentFilePath: window.notesManager.currentFilePath,
+            existingHighlights: window.notesManager.highlights.length,
+            existingNotes: window.notesManager.notes.length
+        });
+        
+        // Ensure highlights array exists
+        if (!window.notesManager.highlights) window.notesManager.highlights = [];
+        
+        // Push the new highlight
+        window.notesManager.highlights.push(highlight);
+        
+        console.log('✅ Highlight added. New count:', window.notesManager.highlights.length);
+        
+        // IMPORTANT: Sync file path if needed
+        if (!window.notesManager.currentFilePath || window.notesManager.currentFilePath !== filePath) {
+             console.log('⚠️ Syncing notesManager filePath from', window.notesManager.currentFilePath, 'to', filePath);
+             window.notesManager.currentFilePath = filePath;
+        }
+        
+        // Force save to localStorage
+        window.notesManager.saveToStorage();
+        console.log('💾 Saved to localStorage under key:', filePath);
+        
+        // Try to render (may not show if notes tab not visible)
+        const wasRendered = window.notesManager.render();
+        console.log('🎨 Render called, result:', wasRendered !== undefined ? 'completed' : 'skipped (tab not visible)');
+        
+        // Apply visual highlights if we are in a text view
+        window.notesManager.applyHighlights();
+        
+        console.log('✓ Highlight saved to NotesManager:', highlight);
+        
+        // Visual confirmation
+        const toastMsg = note ? 'Highlight with note saved!' : 'Highlight saved!';
+        showToast(toastMsg);
+    } else {
+        console.error('❌ NotesManager not found on window object');
     }
+  }
+  
+  // Simple toast notification
+  function showToast(message) {
+      const toast = document.createElement('div');
+      toast.textContent = message;
+      toast.style.cssText = `
+          position: fixed;
+          bottom: 80px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0,0,0,0.8);
+          color: white;
+          padding: 12px 24px;
+          border-radius: 24px;
+          font-size: 14px;
+          z-index: 10000;
+          animation: fadeIn 0.3s ease;
+      `;
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transition = 'opacity 0.3s';
+          setTimeout(() => document.body.removeChild(toast), 300);
+      }, 2000);
+  }
     
     setupFloatingHighlightButton();
     console.log('✓ Text selection highlighting enabled');

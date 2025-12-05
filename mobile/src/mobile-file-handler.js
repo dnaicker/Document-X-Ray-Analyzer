@@ -101,6 +101,21 @@
           // Load appropriate viewer based on file type
           await loadDocument(fileData, extension);
           
+          // Load notes for this file - use a small delay to ensure everything is initialized
+          setTimeout(() => {
+            if (window.notesManager && window.notesManager.loadNotesForFile) {
+              console.log('📝 Loading notes for file:', fileData.fileName);
+              console.log('📝 Current global file path:', window.currentFilePath);
+              
+              // Use the global currentFilePath which was set by loadDocument
+              window.notesManager.loadNotesForFile(window.currentFilePath);
+              
+              console.log('📝 After loading - notes:', window.notesManager.notes.length, 'highlights:', window.notesManager.highlights.length);
+            } else {
+              console.warn('⚠️ notesManager not available for loading notes');
+            }
+          }, 500);
+          
           // Add to recent files
           if (window.addToRecentFiles) {
             window.addToRecentFiles(file.name, file.name);

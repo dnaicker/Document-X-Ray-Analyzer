@@ -129,11 +129,53 @@
         break;
 
       case 'notes':
-        console.log('📌 Notes view active');
-        // Refresh notes list if needed
-        if (window.NotesManager && typeof window.NotesManager.renderNotes === 'function') {
-          window.NotesManager.renderNotes();
-        }
+        console.log('📌 Notes view active - forcing render');
+        // Small delay to ensure DOM is updated before rendering
+        setTimeout(() => {
+          if (window.notesManager) {
+            console.log('Calling notesManager.render()...', {
+              notesCount: window.notesManager.notes.length,
+              highlightsCount: window.notesManager.highlights.length,
+              currentFilePath: window.notesManager.currentFilePath,
+              notesContent: !!window.notesManager.notesContent,
+              notesContentVisible: window.notesManager.notesContent && window.notesManager.notesContent.offsetParent !== null
+            });
+            
+            // Force render by directly calling the render logic
+            // bypassing the visibility check
+            const notesContent = window.notesManager.notesContent;
+            if (notesContent) {
+              // Manually trigger render regardless of visibility
+              let allItems = [
+                ...window.notesManager.notes.map(n => ({ ...n, sortDate: n.createdAt })),
+                ...window.notesManager.highlights.map(h => ({ ...h, sortDate: h.createdAt }))
+              ].sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate));
+              
+              console.log('Total items to display:', allItems.length);
+              
+              if (allItems.length === 0) {
+                notesContent.innerHTML = `
+                  <div class="placeholder-text">
+                    <p>📌 No notes yet</p>
+                    <p style="font-size: 14px; color: #666;">Select text and click "Highlight Selection" or add notes manually</p>
+                  </div>
+                `;
+              } else {
+                // Call the actual render method
+                window.notesManager.render();
+              }
+              
+              // Update count
+              if (window.notesManager.notesCount) {
+                window.notesManager.notesCount.textContent = 
+                  `${window.notesManager.notes.length} notes, ${window.notesManager.highlights.length} highlights`;
+              }
+            }
+            console.log('✅ Render complete');
+          } else {
+            console.error('❌ No notesManager found!');
+          }
+        }, 100);
         break;
 
       case 'translate':
@@ -164,11 +206,212 @@
     }
   }
 
+  /**
+   * Setup pull-to-refresh for notes tab
+   */
+  function setupPullToRefresh() {
+    const notesView = document.getElementById('notesView');
+    const notesContent = document.getElementById('notesContent');
+    
+    if (!notesView || !notesContent) {
+      console.warn('⚠️ Notes view elements not found for pull-to-refresh');
+      return;
+    }
+
+    let startY = 0;
+    let currentY = 0;
+    let pulling = false;
+    let refreshThreshold = 80; // pixels to pull before triggering refresh
+    
+    // Create pull-to-refresh indicator
+    const refreshIndicator = document.createElement('div');
+    refreshIndicator.id = 'notesRefreshIndicator';
+    refreshIndicator.style.cssText = `
+      position: absolute;
+      top: -60px;
+      left: 0;
+      right: 0;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #667eea;
+      font-size: 14px;
+      font-weight: 600;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+      z-index: 10;
+    `;
+    refreshIndicator.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <div class="refresh-spinner" style="display: none; width: 24px; height: 24px; border: 3px solid #e0e0e0; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <div class="refresh-icon" style="font-size: 24px;">↓</div>
+        <span class="refresh-text">Pull to refresh</span>
+      </div>
+    `;
+    
+    // Add spinner animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Make notes content container position relative
+    notesContent.style.position = 'relative';
+    notesContent.parentElement.style.position = 'relative';
+    notesContent.parentElement.style.overflow = 'hidden';
+    
+    // Insert indicator
+    notesContent.parentElement.insertBefore(refreshIndicator, notesContent);
+    
+    // Touch start
+    notesContent.addEventListener('touchstart', (e) => {
+      // Only start if scrolled to top
+      if (notesContent.scrollTop === 0) {
+        startY = e.touches[0].clientY;
+        pulling = true;
+      }
+    }, { passive: true });
+    
+    // Touch move
+    notesContent.addEventListener('touchmove', (e) => {
+      if (!pulling) return;
+      
+      currentY = e.touches[0].clientY;
+      const pullDistance = currentY - startY;
+      
+      // Only allow pulling down
+      if (pullDistance > 0 && notesContent.scrollTop === 0) {
+        // Prevent default scrolling
+        e.preventDefault();
+        
+        // Apply elastic resistance
+        const resistance = 0.5;
+        const adjustedDistance = Math.min(pullDistance * resistance, 100);
+        
+        // Move indicator and content
+        refreshIndicator.style.transform = `translateY(${adjustedDistance}px)`;
+        notesContent.style.transform = `translateY(${adjustedDistance}px)`;
+        
+        // Update icon based on pull distance
+        const icon = refreshIndicator.querySelector('.refresh-icon');
+        const text = refreshIndicator.querySelector('.refresh-text');
+        
+        if (adjustedDistance >= refreshThreshold * resistance) {
+          icon.style.transform = 'rotate(180deg)';
+          text.textContent = 'Release to refresh';
+          refreshIndicator.style.color = '#4CAF50';
+        } else {
+          icon.style.transform = 'rotate(0deg)';
+          text.textContent = 'Pull to refresh';
+          refreshIndicator.style.color = '#667eea';
+        }
+      }
+    }, { passive: false });
+    
+    // Touch end
+    notesContent.addEventListener('touchend', async (e) => {
+      if (!pulling) return;
+      
+      const pullDistance = currentY - startY;
+      const adjustedDistance = Math.min(pullDistance * 0.5, 100);
+      
+      // Check if pulled enough to trigger refresh
+      if (adjustedDistance >= refreshThreshold * 0.5) {
+        // Show loading state
+        const spinner = refreshIndicator.querySelector('.refresh-spinner');
+        const icon = refreshIndicator.querySelector('.refresh-icon');
+        const text = refreshIndicator.querySelector('.refresh-text');
+        
+        spinner.style.display = 'block';
+        icon.style.display = 'none';
+        text.textContent = 'Refreshing...';
+        refreshIndicator.style.color = '#667eea';
+        
+        // Keep indicator visible during refresh
+        refreshIndicator.style.transform = `translateY(60px)`;
+        notesContent.style.transform = `translateY(60px)`;
+        
+        // Trigger refresh
+        await refreshNotes();
+        
+        // Reset after a brief delay
+        setTimeout(() => {
+          refreshIndicator.style.transition = 'transform 0.3s ease';
+          notesContent.style.transition = 'transform 0.3s ease';
+          refreshIndicator.style.transform = 'translateY(0)';
+          notesContent.style.transform = 'translateY(0)';
+          
+          setTimeout(() => {
+            spinner.style.display = 'none';
+            icon.style.display = 'block';
+            text.textContent = 'Pull to refresh';
+            refreshIndicator.style.transition = '';
+            notesContent.style.transition = '';
+          }, 300);
+        }, 500);
+      } else {
+        // Snap back without refreshing
+        refreshIndicator.style.transition = 'transform 0.3s ease';
+        notesContent.style.transition = 'transform 0.3s ease';
+        refreshIndicator.style.transform = 'translateY(0)';
+        notesContent.style.transform = 'translateY(0)';
+        
+        setTimeout(() => {
+          refreshIndicator.style.transition = '';
+          notesContent.style.transition = '';
+        }, 300);
+      }
+      
+      pulling = false;
+      startY = 0;
+      currentY = 0;
+    });
+    
+    console.log('✅ Pull-to-refresh enabled for notes tab');
+  }
+
+  /**
+   * Refresh notes data
+   */
+  async function refreshNotes() {
+    console.log('🔄 Refreshing notes...');
+    
+    if (window.notesManager) {
+      // Reload notes from storage
+      if (window.notesManager.currentFilePath && window.notesManager.loadNotesForFile) {
+        window.notesManager.loadNotesForFile(window.notesManager.currentFilePath);
+      }
+      
+      // Force render
+      const notesContent = window.notesManager.notesContent;
+      if (notesContent) {
+        let allItems = [
+          ...window.notesManager.notes.map(n => ({ ...n, sortDate: n.createdAt })),
+          ...window.notesManager.highlights.map(h => ({ ...h, sortDate: h.createdAt }))
+        ].sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate));
+        
+        console.log('✓ Refreshed:', allItems.length, 'items');
+        window.notesManager.render();
+      }
+    }
+    
+    // Simulate network delay for smooth UX
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+
   // Initialize when DOM is ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+      init();
+      setupPullToRefresh();
+    });
   } else {
     init();
+    setupPullToRefresh();
   }
 
   // Expose API
@@ -183,7 +426,8 @@
         figures: document.getElementById('figuresView')
       };
       switchAnalysisView(viewName, views);
-    }
+    },
+    refreshNotes: refreshNotes
   };
 
 })();

@@ -22,6 +22,7 @@ class NotesManager {
         
         this.contextHighlight = document.getElementById('contextHighlight');
         this.contextHighlightAndNote = document.getElementById('contextHighlightAndNote');
+        this.contextAddNote = document.getElementById('contextAddNote');
         
         this.contextEditNote = document.getElementById('contextEditNote');
         this.contextDeleteHighlight = document.getElementById('contextDeleteHighlight');
@@ -395,6 +396,14 @@ class NotesManager {
             this.hideContextMenu();
         });
 
+        if (this.contextAddNote) {
+            this.contextAddNote.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.addNoteFromContext();
+                this.hideContextMenu();
+            });
+        }
+
         if (this.contextSpeak) {
             this.contextSpeak.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -634,127 +643,118 @@ class NotesManager {
     }
 
     highlightSelectionFromContext() {
-        if (!this.selectedText) return;
+        console.log('highlightSelectionFromContext called. Selected text:', this.selectedText);
+        
+        if (!this.selectedText) {
+            console.warn('No text selected for highlight');
+            return;
+        }
         
         // Determine offsets and source view
         let offsets = null;
         let sourceView = 'raw';
         let translationLanguage = null;
         
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-            const node = selection.anchorNode;
-            
-            // Check text views and determine source
-            if (this.rawTextContent && this.rawTextContent.contains(node)) {
-                offsets = this.getSelectionOffset(this.rawTextContent);
-                sourceView = 'raw';
-            } else if (this.highlightedTextContent && this.highlightedTextContent.contains(node)) {
-                offsets = this.getSelectionOffset(this.highlightedTextContent);
-                sourceView = 'highlighted';
-            } else if (this.translatedTextContent && this.translatedTextContent.contains(node)) {
-                offsets = this.getSelectionOffset(this.translatedTextContent);
-                sourceView = 'translate';
+        try {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const node = selection.anchorNode;
                 
-                // Get the current translation language from the UI
-                const translateLangSelect = document.getElementById('translateLanguageSelect');
-                if (translateLangSelect && translateLangSelect.value) {
-                    translationLanguage = translateLangSelect.value;
+                // Check text views and determine source
+                if (this.rawTextContent && this.rawTextContent.contains(node)) {
+                    offsets = this.getSelectionOffset(this.rawTextContent);
+                    sourceView = 'raw';
+                } else if (this.highlightedTextContent && this.highlightedTextContent.contains(node)) {
+                    offsets = this.getSelectionOffset(this.highlightedTextContent);
+                    sourceView = 'highlighted';
+                } else if (this.translatedTextContent && this.translatedTextContent.contains(node)) {
+                    offsets = this.getSelectionOffset(this.translatedTextContent);
+                    sourceView = 'translate';
+                    
+                    // Get the current translation language from the UI
+                    const translateLangSelect = document.getElementById('translateLanguageSelect');
+                    if (translateLangSelect && translateLangSelect.value) {
+                        translationLanguage = translateLangSelect.value;
+                    }
                 }
-            }
-            // Check Map View
-            else {
-                 const mapGrid = document.getElementById('mapGrid');
-                 if (mapGrid && mapGrid.contains(node)) {
-                     const card = node.nodeType === 1 ? node.closest('.page-card') : (node.parentElement ? node.parentElement.closest('.page-card') : null);
-                     if (card && card.dataset.startOffset) {
-                         const cardStart = parseInt(card.dataset.startOffset);
-                         const body = card.querySelector('.page-card-body');
-                         if (body && body.contains(node)) {
-                             const range = selection.getRangeAt(0);
-                             const selectedText = range.toString().trim();
-                             
-                             // Method: Reconstruct plain text position by walking only content nodes
-                             // Create a helper to get text position excluding overlay/badge
-                             function getTextPosition(targetNode, targetOffset) {
-                                 let position = 0;
-                                 const walker = document.createTreeWalker(
-                                     body,
-                                     NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-                                     {
-                                         acceptNode: function(n) {
-                                             // Skip overlay and badge entirely
-                                             if (n.nodeType === Node.ELEMENT_NODE) {
-                                                 if (n.classList && (n.classList.contains('highlight-overlay') || n.classList.contains('highlight-count-badge'))) {
-                                                     return NodeFilter.FILTER_REJECT;
+                // Check Map View
+                else {
+                     const mapGrid = document.getElementById('mapGrid');
+                     if (mapGrid && mapGrid.contains(node)) {
+                         const card = node.nodeType === 1 ? node.closest('.page-card') : (node.parentElement ? node.parentElement.closest('.page-card') : null);
+                         if (card && card.dataset.startOffset) {
+                             const cardStart = parseInt(card.dataset.startOffset);
+                             const body = card.querySelector('.page-card-body');
+                             if (body && body.contains(node)) {
+                                 const range = selection.getRangeAt(0);
+                                 const selectedText = range.toString().trim();
+                                 
+                                 // Method: Reconstruct plain text position by walking only content nodes
+                                 // Create a helper to get text position excluding overlay/badge
+                                 function getTextPosition(targetNode, targetOffset) {
+                                     let position = 0;
+                                     const walker = document.createTreeWalker(
+                                         body,
+                                         NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+                                         {
+                                             acceptNode: function(n) {
+                                                 // Skip overlay and badge entirely
+                                                 if (n.nodeType === Node.ELEMENT_NODE) {
+                                                     if (n.classList && (n.classList.contains('highlight-overlay') || n.classList.contains('highlight-count-badge'))) {
+                                                         return NodeFilter.FILTER_REJECT;
+                                                     }
+                                                     return NodeFilter.FILTER_SKIP;
+                                                 }
+                                                 // For text nodes, reject if inside overlay/badge
+                                                 if (n.nodeType === Node.TEXT_NODE) {
+                                                     let parent = n.parentElement;
+                                                     while (parent && parent !== body) {
+                                                         if (parent.classList && (parent.classList.contains('highlight-overlay') || parent.classList.contains('highlight-count-badge'))) {
+                                                             return NodeFilter.FILTER_REJECT;
+                                                         }
+                                                         parent = parent.parentElement;
+                                                     }
+                                                     return NodeFilter.FILTER_ACCEPT;
                                                  }
                                                  return NodeFilter.FILTER_SKIP;
                                              }
-                                             // For text nodes, reject if inside overlay/badge
-                                             if (n.nodeType === Node.TEXT_NODE) {
-                                                 let parent = n.parentElement;
-                                                 while (parent && parent !== body) {
-                                                     if (parent.classList && (parent.classList.contains('highlight-overlay') || parent.classList.contains('highlight-count-badge'))) {
-                                                         return NodeFilter.FILTER_REJECT;
-                                                     }
-                                                     parent = parent.parentElement;
-                                                 }
-                                                 return NodeFilter.FILTER_ACCEPT;
-                                             }
-                                             return NodeFilter.FILTER_SKIP;
                                          }
+                                     );
+                                     
+                                     let currentNode;
+                                     while (currentNode = walker.nextNode()) {
+                                         if (currentNode === targetNode) {
+                                             return position + targetOffset;
+                                         }
+                                         position += currentNode.textContent.length;
                                      }
-                                 );
-                                 
-                                 let currentNode;
-                                 while (currentNode = walker.nextNode()) {
-                                     if (currentNode === targetNode) {
-                                         return position + targetOffset;
-                                     }
-                                     position += currentNode.textContent.length;
+                                     
+                                     return position;
                                  }
                                  
-                                 return position;
+                                 const localStart = getTextPosition(range.startContainer, range.startOffset);
+                                 
+                                 offsets = {
+                                     start: cardStart + localStart,
+                                     end: cardStart + localStart + selectedText.length
+                                 };
+                                 
+                                 // Explicitly set sourceView to 'raw' for map highlights
+                                 sourceView = 'raw';
                              }
-                             
-                             const localStart = getTextPosition(range.startContainer, range.startOffset);
-                             
-                             offsets = {
-                                 start: cardStart + localStart,
-                                 end: cardStart + localStart + selectedText.length
-                             };
-                             
-                             // Debug: Get plain text for verification
-                             const bodyClone = body.cloneNode(true);
-                             const overlay = bodyClone.querySelector('.highlight-overlay');
-                             const badge = bodyClone.querySelector('.highlight-count-badge');
-                             if (overlay) overlay.remove();
-                             if (badge) badge.remove();
-                             const plainText = bodyClone.textContent || '';
-                             
-                             console.log('Map highlight offsets:', {
-                                 cardStart,
-                                 selectedText: selectedText.substring(0, 50),
-                                 textAtPosition: plainText.substring(localStart, localStart + 50),
-                                 localStart,
-                                 finalStart: offsets.start,
-                                 finalEnd: offsets.end
-                             });
-                             
-                             // Explicitly set sourceView to 'raw' for map highlights
-                             // This ensures they appear in both Highlight and Analyse tabs
-                             sourceView = 'raw';
                          }
                      }
-                 }
+                }
             }
+        } catch (e) {
+            console.error('Error calculating highlight offsets:', e);
         }
         
         const highlight = {
             id: Date.now().toString(),
             type: 'highlight',
             text: this.selectedText,
-            note: '',
+            note: this.selectedText, // Auto-fill note with selected text
             color: this.currentColor,
             page: this.getPageNumberFromSelection(),
             createdAt: new Date().toISOString(),
@@ -767,22 +767,29 @@ class NotesManager {
             translationLanguage: translationLanguage // Track translation language if applicable
         };
         
+        console.log('Adding highlight:', highlight);
+        
         this.highlights.push(highlight);
         this.saveToStorage();
-        this.renderDebounced(); // Use debounced to prevent lag
-        this.applyHighlightsDebounced(); // Use debounced to prevent lag
+        
+        // Force render next time (bypass debounce immediate check if needed)
+        this.renderDebounced(); 
+        this.applyHighlightsDebounced(); 
         
         // Clear selection
-        window.getSelection().removeAllRanges();
+        if (window.getSelection) {
+            window.getSelection().removeAllRanges();
+        }
     }
     
     addNoteFromContext() {
         if (!this.selectedText) return;
         const page = this.getPageNumberFromSelection();
         
-        this.openDialog('Add Note', '', (noteText) => {
+        // Pre-fill with selected text
+        this.openDialog('Add Note', this.selectedText, (noteText) => {
             if (noteText) {
-                this.addNote(noteText + '\n\nReference: "' + this.selectedText + '"', page);
+                this.addNote(noteText, page);
             }
             // Clear selection
             window.getSelection().removeAllRanges();
@@ -790,31 +797,9 @@ class NotesManager {
     }
     
     highlightAndNoteFromContext() {
-        if (!this.selectedText) return;
-        const page = this.getPageNumberFromSelection();
-        
-        this.openDialog('Add Note to Highlight', '', (note) => {
-            const highlight = {
-                id: Date.now().toString(),
-                type: 'highlight',
-                text: this.selectedText,
-                note: note || '',
-                color: this.currentColor,
-                page: page,
-                createdAt: new Date().toISOString(),
-                links: [], // Array of linked note/highlight IDs (format: {id, filePath, fileName})
-                filePath: this.currentFilePath,
-                fileName: this.getFileName(this.currentFilePath)
-            };
-            
-            this.highlights.push(highlight);
-            this.saveToStorage();
-            this.renderDebounced(); // Use debounced to prevent lag
-            this.applyHighlightsDebounced(); // Use debounced to prevent lag
-            
-            // Clear selection
-            window.getSelection().removeAllRanges();
-        });
+        // Same behavior as highlightSelectionFromContext now (immediate save with text as note)
+        // This method is kept for backward compatibility with context menu handlers
+        this.highlightSelectionFromContext();
     }
     
     loadNotesForFileSync(filePath) {
@@ -911,8 +896,11 @@ class NotesManager {
     
     saveToStorage() {
         try {
+            // Fallback for empty path
+            const path = this.currentFilePath || '';
+            
             const allData = this.loadFromStorage();
-            allData[this.currentFilePath] = {
+            allData[path] = {
                 notes: this.notes,
                 highlights: this.highlights
             };
@@ -2037,9 +2025,12 @@ class NotesManager {
         this.scrollToNote(noteId);
     }
     
-    render() {
-        // Optimization: Don't re-render if notes panel is not visible
-        if (!this.notesContent || !this.notesContent.offsetParent) return;
+    render(force = false) {
+        // Optimization: Don't re-render if notes panel is not visible, unless forced
+        if (!force && (!this.notesContent || !this.notesContent.offsetParent)) return;
+        
+        try {
+            // ... rendering logic ...
 
         let allItems = [
             ...this.notes.map(n => ({ ...n, sortDate: n.createdAt })),
@@ -2073,7 +2064,9 @@ class NotesManager {
         }
         
         // Update count
-        this.notesCount.textContent = `${this.notes.length} notes, ${this.highlights.length} highlights`;
+        if (this.notesCount) {
+            this.notesCount.textContent = `${this.notes.length} notes, ${this.highlights.length} highlights`;
+        }
         
         if (allItems.length === 0) {
             if (this.searchQuery) {
@@ -2095,6 +2088,7 @@ class NotesManager {
         }
         
         const html = allItems.map(item => {
+            // ... (rest of mapping code) ...
             const isHighlight = item.type === 'highlight';
             const date = new Date(item.createdAt).toLocaleString();
             const highlightColor = item.color || 'yellow';
@@ -2116,10 +2110,10 @@ class NotesManager {
                             </div>
                         </div>
                         ${isHighlight ? `
-                            <div class="note-highlight-preview color-${highlightColor}">"${this.escapeHtml(item.text)}"</div>
-                            ${item.note ? `<div class="note-text">${this.escapeHtml(item.note)}</div>` : ''}
+                            <div class="note-highlight-preview color-${highlightColor}">"${this.escapeHtml(item.text || '')}"</div>
+                            ${item.note && item.note !== item.text ? `<div class="note-text">${this.escapeHtml(item.note)}</div>` : ''}
                         ` : `
-                            <div class="note-text">${this.escapeHtml(item.text)}</div>
+                            <div class="note-text">${this.escapeHtml(item.text || '')}</div>
                         `}
                         ${itemTags.length > 0 ? `
                             <div class="note-tags">
@@ -2165,7 +2159,7 @@ class NotesManager {
                                         }
                                         
                                         const linkPreview = linkedItem.type === 'highlight' ? linkedItem.text : linkedItem.text;
-                                        const truncated = linkPreview.length > 50 ? linkPreview.substring(0, 50) + '...' : linkPreview;
+                                        const truncated = (linkPreview || '').length > 50 ? (linkPreview || '').substring(0, 50) + '...' : (linkPreview || '');
                                         const isCrossDoc = linkFilePath !== this.currentFilePath;
                                         const docLabel = isCrossDoc ? `<span class="linked-note-doc">📚 ${this.escapeHtml(linkFileName)}</span>` : '';
                                         
@@ -2195,6 +2189,10 @@ class NotesManager {
         this.notesContent.innerHTML = tagFilterHtml + html;
         
         document.dispatchEvent(new CustomEvent('notes-updated'));
+        
+        } catch (e) {
+            console.error('Error in notesManager.render:', e);
+        }
     }
     
     escapeHtml(text) {
