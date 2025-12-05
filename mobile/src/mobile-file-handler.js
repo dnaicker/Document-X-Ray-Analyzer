@@ -111,6 +111,13 @@
               window.notesManager.loadNotesForFile(window.currentFilePath);
               
               console.log('📝 After loading - notes:', window.notesManager.notes.length, 'highlights:', window.notesManager.highlights.length);
+              
+              // Apply highlights immediately after loading
+              // This ensures stored highlights render even before analysis completes
+              setTimeout(() => {
+                console.log('📝 Applying loaded highlights...');
+                window.notesManager.applyHighlights();
+              }, 100);
             } else {
               console.warn('⚠️ notesManager not available for loading notes');
             }
@@ -511,25 +518,27 @@
         rawTextContent.textContent = fullText;
       }
       
-      // Display in highlighted text view
+      // Display plain text initially in highlighted text view
+      // This will be replaced by POS-highlighted text when analysis completes
       const highlightedTextContent = document.getElementById('highlightedTextContent');
       if (highlightedTextContent) {
-        // Remove placeholder
         const placeholder = highlightedTextContent.querySelector('.placeholder-text');
         if (placeholder) {
           placeholder.remove();
         }
+        // Show plain text immediately so user sees content
         highlightedTextContent.innerHTML = `<div class="text-content-inner" style="padding: 20px; white-space: pre-wrap;">${escapeHtml(fullText)}</div>`;
       }
       
-      // Trigger analysis if text analyzer is available
-      if (window.analyzeText && typeof window.analyzeText === 'function') {
+      // Trigger analysis if performAnalysis is available
+      // This will replace plain text with POS highlighted text and apply user highlights
+      if (window.performAnalysis && typeof window.performAnalysis === 'function') {
         console.log('🔄 Starting text analysis...');
         setTimeout(() => {
-          window.analyzeText(fullText);
+          window.performAnalysis();
         }, 200);
       } else {
-        console.warn('⚠️ Text analyzer not available');
+        console.warn('⚠️ performAnalysis not available - showing plain text only');
       }
       
       // Update statistics if available
@@ -586,16 +595,32 @@
       const result = await window.mammoth.convertToHtml({ arrayBuffer });
       const html = result.value;
       
-      // Display HTML
+      // Display HTML in viewer
       const container = document.getElementById('pdfCanvas');
       if (container) {
         container.innerHTML = `<div class="docx-content" style="padding: 20px; background: white;">${html}</div>`;
       }
       
       // Extract text for analysis
-      const text = container.textContent || '';
-      if (window.analyzeText) {
-        setTimeout(() => window.analyzeText(text), 100);
+      const text = container ? container.textContent || '' : '';
+      
+      // Store in raw text container
+      const rawTextContent = document.getElementById('rawTextContent');
+      if (rawTextContent) {
+        rawTextContent.textContent = text;
+      }
+      
+      // Display plain text in Analysis tab (will be replaced by POS highlighting)
+      const highlightedTextContent = document.getElementById('highlightedTextContent');
+      if (highlightedTextContent) {
+        const placeholder = highlightedTextContent.querySelector('.placeholder-text');
+        if (placeholder) placeholder.remove();
+        highlightedTextContent.innerHTML = `<div class="text-content-inner" style="padding: 20px; white-space: pre-wrap;">${escapeHtml(text)}</div>`;
+      }
+      
+      // Trigger analysis
+      if (window.performAnalysis) {
+        setTimeout(() => window.performAnalysis(), 100);
       }
       
       console.log('✓ DOCX loaded');
@@ -613,15 +638,29 @@
     try {
       const text = new TextDecoder().decode(arrayBuffer);
       
-      // Display text
+      // Display text in viewer
       const container = document.getElementById('pdfCanvas');
       if (container) {
         container.innerHTML = `<div class="txt-content" style="padding: 20px; background: white; white-space: pre-wrap; font-family: monospace;">${escapeHtml(text)}</div>`;
       }
       
+      // Store in raw text container
+      const rawTextContent = document.getElementById('rawTextContent');
+      if (rawTextContent) {
+        rawTextContent.textContent = text;
+      }
+      
+      // Display plain text in Analysis tab (will be replaced by POS highlighting)
+      const highlightedTextContent = document.getElementById('highlightedTextContent');
+      if (highlightedTextContent) {
+        const placeholder = highlightedTextContent.querySelector('.placeholder-text');
+        if (placeholder) placeholder.remove();
+        highlightedTextContent.innerHTML = `<div class="text-content-inner" style="padding: 20px; white-space: pre-wrap;">${escapeHtml(text)}</div>`;
+      }
+      
       // Trigger analysis
-      if (window.analyzeText) {
-        setTimeout(() => window.analyzeText(text), 100);
+      if (window.performAnalysis) {
+        setTimeout(() => window.performAnalysis(), 100);
       }
       
       console.log('✓ TXT loaded');
@@ -639,15 +678,29 @@
     try {
       const text = new TextDecoder().decode(arrayBuffer);
       
-      // Display markdown (you could add a markdown parser here)
+      // Display markdown in viewer (you could add a markdown parser here)
       const container = document.getElementById('pdfCanvas');
       if (container) {
         container.innerHTML = `<div class="md-content" style="padding: 20px; background: white; white-space: pre-wrap;">${escapeHtml(text)}</div>`;
       }
       
+      // Store in raw text container
+      const rawTextContent = document.getElementById('rawTextContent');
+      if (rawTextContent) {
+        rawTextContent.textContent = text;
+      }
+      
+      // Display plain text in Analysis tab (will be replaced by POS highlighting)
+      const highlightedTextContent = document.getElementById('highlightedTextContent');
+      if (highlightedTextContent) {
+        const placeholder = highlightedTextContent.querySelector('.placeholder-text');
+        if (placeholder) placeholder.remove();
+        highlightedTextContent.innerHTML = `<div class="text-content-inner" style="padding: 20px; white-space: pre-wrap;">${escapeHtml(text)}</div>`;
+      }
+      
       // Trigger analysis
-      if (window.analyzeText) {
-        setTimeout(() => window.analyzeText(text), 100);
+      if (window.performAnalysis) {
+        setTimeout(() => window.performAnalysis(), 100);
       }
       
       console.log('✓ Markdown loaded');

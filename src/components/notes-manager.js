@@ -964,8 +964,8 @@ class NotesManager {
     applyHighlights() {
         // Apply highlights to highlighted text view (only non-translated highlights)
         setTimeout(() => {
-            // Check if highlighted view is visible before applying
-            if (this.highlightedTextContent && this.highlightedTextContent.offsetParent) {
+            // Mobile-friendly: Don't check visibility, always apply if element exists
+            if (this.highlightedTextContent) {
                 const analysisHighlights = this.highlights.filter(h => !h.sourceView || h.sourceView === 'raw' || h.sourceView === 'highlighted');
                 this.applyHighlightsToContainer(this.highlightedTextContent, analysisHighlights);
             }

@@ -81,6 +81,13 @@
       return;
     }
     
+    // Hide the desktop context menu on mobile
+    const desktopContextMenu = document.getElementById('contextMenu');
+    if (desktopContextMenu) {
+      desktopContextMenu.style.display = 'none';
+      console.log('✓ Desktop context menu hidden for mobile');
+    }
+    
     // Make text selectable
     highlightedTextContent.style.userSelect = 'text';
     highlightedTextContent.style.webkitUserSelect = 'text';
@@ -142,12 +149,6 @@
                floatingBtn.style.transform = 'scale(0)';
                setTimeout(() => { if (!window.getSelection().toString().trim()) floatingBtn.style.display = 'none'; }, 300);
           }
-          // Optional: Auto-hide menu if selection is cleared? 
-          // Often better to keep it if user just clicked away but menu is sticky, 
-          // but for mobile selection change usually means deselect.
-          if (contextMenuVisible) {
-             // hideContextMenu(); // Uncomment if we want aggressive hiding
-          }
         }
       }, 300); // Increased delay to allow native menu to settle
     });
@@ -159,12 +160,15 @@
     });
     
     // CSS injection to attempt to hide native selection handles/menu if possible
-    // Note: complete removal of native Android selection menu is difficult/impossible on some webviews 
-    // without disabling selection entirely, but this helps.
     const style = document.createElement('style');
     style.textContent = `
       #highlightedTextContent {
         -webkit-touch-callout: none !important; /* Disables callout menu */
+      }
+      
+      /* Hide desktop context menu on mobile */
+      #contextMenu {
+        display: none !important;
       }
     `;
     document.head.appendChild(style);
@@ -197,7 +201,7 @@
         document.body.appendChild(menu);
       }
       
-      // Build menu content
+      // Build menu content - SIMPLIFIED: Only show color picker and Add Note button
       menu.innerHTML = `
         <div style="display: flex; flex-direction: column; gap: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px;">
@@ -237,7 +241,7 @@
       menu.style.display = 'block';
       contextMenuVisible = true;
       
-      // Events
+      // Events - Color selection (tap to highlight immediately)
       menu.querySelectorAll('.color-option').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -246,12 +250,14 @@
         });
       });
       
+      // Events - Add Note button
       menu.querySelector('.menu-option[data-action="note"]')?.addEventListener('click', (e) => {
         e.stopPropagation();
         createNoteForSelection();
         hideContextMenu();
       });
       
+      // Events - Close button
       menu.querySelector('.menu-close')?.addEventListener('click', (e) => {
         e.stopPropagation();
         hideContextMenu();

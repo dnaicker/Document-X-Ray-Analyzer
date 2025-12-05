@@ -3255,14 +3255,17 @@ window.openFileFromPath = async function(filePath, targetNoteId = null, cachedSt
 
 // Analyze Text Function
 async function performAnalysis() {
+    console.log('🔬 performAnalysis() called');
     try {
         showLoading('Analyzing text with NLP...', true);
         const startTime = performance.now();
         
         // Get text (use clean text without markers)
         const rawText = getCleanRawText();
+        console.log('📄 Raw text length:', rawText ? rawText.length : 0);
         
         if (!rawText || rawText.trim().length === 0) {
+            console.warn('⚠️ No text to analyze');
             setStatus('❌ No text to analyze');
             hideLoading();
             return;
@@ -3275,8 +3278,14 @@ async function performAnalysis() {
         }
         
         // Perform analysis
+        console.log('🧠 Starting NLP analysis...');
         if (progressBar) progressBar.style.width = '40%';
         currentAnalysis = await textAnalyzer.analyze(rawText);
+        console.log('✅ Analysis complete:', {
+            nouns: currentAnalysis.pos.nouns.length,
+            verbs: currentAnalysis.pos.verbs.length,
+            sentences: currentAnalysis.stats.sentences
+        });
         
         // Add page count to stats
         if (currentFileType === 'pdf' && pdfViewer && pdfViewer.totalPages) {
@@ -3289,22 +3298,31 @@ async function performAnalysis() {
         if (progressBar) progressBar.style.width = '70%';
         await new Promise(r => setTimeout(r, 50)); // Give UI a chance to breathe
 
+        console.log('🎨 Rendering POS highlighted text...');
         const highlightedHtml = textAnalyzer.renderHighlightedText(
             rawText,
             currentAnalysis,
             getHighlightOptions()
         );
-        document.getElementById('highlightedTextContent').innerHTML = highlightedHtml;
+        const highlightedContent = document.getElementById('highlightedTextContent');
+        if (highlightedContent) {
+            highlightedContent.innerHTML = highlightedHtml;
+            console.log('✅ POS highlighted text rendered');
+        } else {
+            console.warn('⚠️ highlightedTextContent element not found');
+        }
         
         // Update statistics
         if (progressBar) progressBar.style.width = '90%';
         statsPanel.renderStats(currentAnalysis);
         
         // Update POS counts in checkboxes
+        console.log('📊 Updating POS counts...');
         updatePOSCounts(currentAnalysis);
         
         // Re-apply user highlights after analysis
         setTimeout(() => {
+            console.log('🖍️ Applying user highlights...');
             notesManager.applyHighlights();
             if (progressBar) progressBar.style.width = '100%';
         }, 100);
@@ -3343,6 +3361,9 @@ async function performAnalysis() {
         hideLoading();
     }
 }
+
+// Expose performAnalysis globally for mobile
+window.performAnalysis = performAnalysis;
 
 // Export Notes & Highlights
 if (exportBtn) {
@@ -5012,6 +5033,27 @@ document.querySelectorAll('.highlight-options input[type="checkbox"]').forEach(c
     });
 });
 
+// Expose updateHighlighting globally for mobile
+window.updateHighlighting = function() {
+    if (currentAnalysis) {
+        const rawText = getCleanRawText();
+        const highlightedHtml = textAnalyzer.renderHighlightedText(
+            rawText,
+            currentAnalysis,
+            getHighlightOptions()
+        );
+        const highlightedContent = document.getElementById('highlightedTextContent');
+        if (highlightedContent) {
+            highlightedContent.innerHTML = highlightedHtml;
+        }
+        
+        // Re-apply user highlights after POS rendering
+        if (typeof notesManager !== 'undefined') {
+            setTimeout(() => notesManager.applyHighlights(), 50);
+        }
+    }
+};
+
 function getCleanRawText() {
     let text = '';
     
@@ -5049,70 +5091,82 @@ function getCleanRawText() {
 }
 
 function getHighlightOptions() {
+    // Defensive: Check if elements exist (for mobile compatibility)
+    const getChecked = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.checked : false;
+    };
+    
     return {
-        nouns: document.getElementById('highlightNouns').checked,
-        verbs: document.getElementById('highlightVerbs').checked,
-        adjectives: document.getElementById('highlightAdj').checked,
-        adverbs: document.getElementById('highlightAdv').checked,
-        prepositions: document.getElementById('highlightPrep').checked,
-        conjunctions: document.getElementById('highlightConj').checked,
-        interjections: document.getElementById('highlightInterj').checked,
-        determiners: document.getElementById('highlightDet').checked,
-        people: document.getElementById('highlightPeople').checked,
-        places: document.getElementById('highlightPlaces').checked,
-        abbreviations: document.getElementById('highlightAbbr').checked,
-        acronyms: document.getElementById('highlightAcronyms').checked,
-        numbers: document.getElementById('highlightNumbers').checked,
-        currencies: document.getElementById('highlightCurrencies').checked,
-        dates: document.getElementById('highlightDates').checked,
-        crypto: document.getElementById('highlightCrypto').checked,
-        currencyPairs: document.getElementById('highlightCurrencyPairs').checked,
-        currencySymbols: document.getElementById('highlightCurrencySymbols').checked
+        nouns: getChecked('highlightNouns'),
+        verbs: getChecked('highlightVerbs'),
+        adjectives: getChecked('highlightAdj'),
+        adverbs: getChecked('highlightAdv'),
+        prepositions: getChecked('highlightPrep'),
+        conjunctions: getChecked('highlightConj'),
+        interjections: getChecked('highlightInterj'),
+        determiners: getChecked('highlightDet'),
+        people: getChecked('highlightPeople'),
+        places: getChecked('highlightPlaces'),
+        abbreviations: getChecked('highlightAbbr'),
+        acronyms: getChecked('highlightAcronyms'),
+        numbers: getChecked('highlightNumbers'),
+        currencies: getChecked('highlightCurrencies'),
+        dates: getChecked('highlightDates'),
+        crypto: getChecked('highlightCrypto'),
+        currencyPairs: getChecked('highlightCurrencyPairs'),
+        currencySymbols: getChecked('highlightCurrencySymbols')
     };
 }
 
 function updatePOSCounts(analysis) {
+    // Defensive: Check if elements exist (for mobile compatibility)
+    const updateCount = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+    
     // Update POS counts
-    document.getElementById('countNouns').textContent = analysis.pos.nouns.length;
-    document.getElementById('countVerbs').textContent = analysis.pos.verbs.length;
-    document.getElementById('countAdj').textContent = analysis.pos.adjectives.length;
-    document.getElementById('countAdv').textContent = analysis.pos.adverbs.length;
-    document.getElementById('countPrep').textContent = analysis.pos.prepositions.length;
-    document.getElementById('countConj').textContent = analysis.pos.conjunctions.length;
-    document.getElementById('countInterj').textContent = analysis.pos.interjections.length;
-    document.getElementById('countDet').textContent = analysis.pos.determiners.length;
+    updateCount('countNouns', analysis.pos.nouns.length);
+    updateCount('countVerbs', analysis.pos.verbs.length);
+    updateCount('countAdj', analysis.pos.adjectives.length);
+    updateCount('countAdv', analysis.pos.adverbs.length);
+    updateCount('countPrep', analysis.pos.prepositions.length);
+    updateCount('countConj', analysis.pos.conjunctions.length);
+    updateCount('countInterj', analysis.pos.interjections.length);
+    updateCount('countDet', analysis.pos.determiners.length);
     
     // Update entity counts
-    document.getElementById('countPeople').textContent = analysis.entities.people.length;
-    document.getElementById('countPlaces').textContent = analysis.entities.places.length;
-    document.getElementById('countAbbr').textContent = analysis.entities.abbreviations?.length || 0;
-    document.getElementById('countAcronyms').textContent = analysis.entities.acronyms?.length || 0;
-    document.getElementById('countNumbers').textContent = analysis.entities.numbers?.length || 0;
-    document.getElementById('countCurrencies').textContent = analysis.entities.currencies?.length || 0;
-    document.getElementById('countDates').textContent = analysis.entities.dates?.length || 0;
-    document.getElementById('countCrypto').textContent = analysis.entities.crypto?.length || 0;
-    document.getElementById('countCurrencyPairs').textContent = analysis.entities.currencyPairs?.length || 0;
-    document.getElementById('countCurrencySymbols').textContent = analysis.entities.currencySymbols?.length || 0;
+    updateCount('countPeople', analysis.entities.people.length);
+    updateCount('countPlaces', analysis.entities.places.length);
+    updateCount('countAbbr', analysis.entities.abbreviations?.length || 0);
+    updateCount('countAcronyms', analysis.entities.acronyms?.length || 0);
+    updateCount('countNumbers', analysis.entities.numbers?.length || 0);
+    updateCount('countCurrencies', analysis.entities.currencies?.length || 0);
+    updateCount('countDates', analysis.entities.dates?.length || 0);
+    updateCount('countCrypto', analysis.entities.crypto?.length || 0);
+    updateCount('countCurrencyPairs', analysis.entities.currencyPairs?.length || 0);
+    updateCount('countCurrencySymbols', analysis.entities.currencySymbols?.length || 0);
 
     // Update Map Tab counts
-    if (document.getElementById('mapCountNouns')) document.getElementById('mapCountNouns').textContent = analysis.pos.nouns.length;
-    if (document.getElementById('mapCountVerbs')) document.getElementById('mapCountVerbs').textContent = analysis.pos.verbs.length;
-    if (document.getElementById('mapCountAdj')) document.getElementById('mapCountAdj').textContent = analysis.pos.adjectives.length;
-    if (document.getElementById('mapCountAdv')) document.getElementById('mapCountAdv').textContent = analysis.pos.adverbs.length;
-    if (document.getElementById('mapCountPrep')) document.getElementById('mapCountPrep').textContent = analysis.pos.prepositions.length;
-    if (document.getElementById('mapCountConj')) document.getElementById('mapCountConj').textContent = analysis.pos.conjunctions.length;
-    if (document.getElementById('mapCountInterj')) document.getElementById('mapCountInterj').textContent = analysis.pos.interjections.length;
-    if (document.getElementById('mapCountDet')) document.getElementById('mapCountDet').textContent = analysis.pos.determiners.length;
-    if (document.getElementById('mapCountPeople')) document.getElementById('mapCountPeople').textContent = analysis.entities.people.length;
-    if (document.getElementById('mapCountPlaces')) document.getElementById('mapCountPlaces').textContent = analysis.entities.places.length;
-    if (document.getElementById('mapCountAbbr')) document.getElementById('mapCountAbbr').textContent = analysis.entities.abbreviations?.length || 0;
-    if (document.getElementById('mapCountAcronyms')) document.getElementById('mapCountAcronyms').textContent = analysis.entities.acronyms?.length || 0;
-    if (document.getElementById('mapCountNumbers')) document.getElementById('mapCountNumbers').textContent = analysis.entities.numbers?.length || 0;
-    if (document.getElementById('mapCountCurrencies')) document.getElementById('mapCountCurrencies').textContent = analysis.entities.currencies?.length || 0;
-    if (document.getElementById('mapCountDates')) document.getElementById('mapCountDates').textContent = analysis.entities.dates?.length || 0;
-    if (document.getElementById('mapCountCrypto')) document.getElementById('mapCountCrypto').textContent = analysis.entities.crypto?.length || 0;
-    if (document.getElementById('mapCountCurrencyPairs')) document.getElementById('mapCountCurrencyPairs').textContent = analysis.entities.currencyPairs?.length || 0;
-    if (document.getElementById('mapCountCurrencySymbols')) document.getElementById('mapCountCurrencySymbols').textContent = analysis.entities.currencySymbols?.length || 0;
+    updateCount('mapCountNouns', analysis.pos.nouns.length);
+    updateCount('mapCountVerbs', analysis.pos.verbs.length);
+    updateCount('mapCountAdj', analysis.pos.adjectives.length);
+    updateCount('mapCountAdv', analysis.pos.adverbs.length);
+    updateCount('mapCountPrep', analysis.pos.prepositions.length);
+    updateCount('mapCountConj', analysis.pos.conjunctions.length);
+    updateCount('mapCountInterj', analysis.pos.interjections.length);
+    updateCount('mapCountDet', analysis.pos.determiners.length);
+    updateCount('mapCountPeople', analysis.entities.people.length);
+    updateCount('mapCountPlaces', analysis.entities.places.length);
+    updateCount('mapCountAbbr', analysis.entities.abbreviations?.length || 0);
+    updateCount('mapCountAcronyms', analysis.entities.acronyms?.length || 0);
+    updateCount('mapCountNumbers', analysis.entities.numbers?.length || 0);
+    updateCount('mapCountCurrencies', analysis.entities.currencies?.length || 0);
+    updateCount('mapCountDates', analysis.entities.dates?.length || 0);
+    updateCount('mapCountCrypto', analysis.entities.crypto?.length || 0);
+    updateCount('mapCountCurrencyPairs', analysis.entities.currencyPairs?.length || 0);
+    updateCount('mapCountCurrencySymbols', analysis.entities.currencySymbols?.length || 0);
 }
 
 function resetPOSCounts() {
