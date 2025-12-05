@@ -151,6 +151,23 @@
         }
       }, 300); // Increased delay to allow native menu to settle
     });
+
+    // Disable native context menu (Android copy/paste menu) on the text content
+    highlightedTextContent.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      return false;
+    });
+    
+    // CSS injection to attempt to hide native selection handles/menu if possible
+    // Note: complete removal of native Android selection menu is difficult/impossible on some webviews 
+    // without disabling selection entirely, but this helps.
+    const style = document.createElement('style');
+    style.textContent = `
+      #highlightedTextContent {
+        -webkit-touch-callout: none !important; /* Disables callout menu */
+      }
+    `;
+    document.head.appendChild(style);
     
     function showContextMenu(x, y) {
       // Create or get context menu
