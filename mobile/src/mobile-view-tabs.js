@@ -262,7 +262,8 @@
     // Make notes content container position relative
     notesContent.style.position = 'relative';
     notesContent.parentElement.style.position = 'relative';
-    notesContent.parentElement.style.overflow = 'hidden';
+    // Don't set overflow:hidden - it prevents scrolling
+    // notesContent.parentElement.style.overflow = 'hidden';
     
     // Insert indicator
     notesContent.parentElement.insertBefore(refreshIndicator, notesContent);
@@ -283,9 +284,10 @@
       currentY = e.touches[0].clientY;
       const pullDistance = currentY - startY;
       
-      // Only allow pulling down
-      if (pullDistance > 0 && notesContent.scrollTop === 0) {
-        // Prevent default scrolling
+      // Only allow pulling down when at the top AND pulling down significantly
+      // This prevents interfering with normal scrolling
+      if (pullDistance > 10 && notesContent.scrollTop === 0) {
+        // Prevent default scrolling only when actively pulling to refresh
         e.preventDefault();
         
         // Apply elastic resistance
@@ -308,6 +310,11 @@
           icon.style.transform = 'rotate(0deg)';
           text.textContent = 'Pull to refresh';
           refreshIndicator.style.color = '#667eea';
+        }
+      } else {
+        // Not at top or pulling up/sideways - reset pulling state to allow normal scroll
+        if (notesContent.scrollTop > 0 || pullDistance < 0) {
+          pulling = false;
         }
       }
     }, { passive: false });
