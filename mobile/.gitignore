@@ -1,0 +1,34 @@
+# Capacitor
+android/
+ios/
+www/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build
+dist/
+build/
+
+# Signing keys (NEVER commit!)
+*.keystore
+*.jks
+key.properties
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+

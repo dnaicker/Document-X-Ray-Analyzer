@@ -1,0 +1,37 @@
+{
+  "appId": "com.grammarhighlighter.mobile",
+  "appName": "Grammar Highlighter",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "https://accounts.google.com"
+    ]
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "release-key.keystore",
+      "keystoreAlias": "key0"
+    },
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#667eea",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    },
+    "Keyboard": {
+      "resize": "native",
+      "style": "dark",
+      "resizeOnFullScreen": true
+    },
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#667eea"
+    }
+  }
+}
+

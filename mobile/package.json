@@ -1,0 +1,49 @@
+{
+  "name": "grammar-highlighter-mobile",
+  "version": "1.0.0",
+  "description": "Mobile version of Grammar Highlighter using Capacitor",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npm run copy:src && npm run copy:assets && npm run copy:mobile",
+    "copy:src": "node scripts/copy-files.js",
+    "copy:assets": "node scripts/copy-files.js assets",
+    "copy:mobile": "node scripts/copy-files.js mobile",
+    "build": "npm run dev && npx cap sync",
+    "sync": "npm run dev && npx cap sync",
+    "sync:open": "npm run dev && npx cap sync && npx cap open android",
+    "open:android": "npx cap open android",
+    "run:android": "npm run build && npx cap run android",
+    "add:android": "npx cap add android"
+  },
+  "keywords": [
+    "grammar",
+    "mobile",
+    "android",
+    "NLP",
+    "PDF"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/browser": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/haptics": "^6.0.0",
+    "@capacitor/keyboard": "^6.0.0",
+    "@capacitor/network": "^6.0.0",
+    "@capacitor/share": "^6.0.0",
+    "@capacitor/splash-screen": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0",
+    "epubjs": "^0.3.93",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.6.0",
+    "pdfjs-dist": "^5.4.449",
+    "tesseract.js": "^5.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
+}
+
