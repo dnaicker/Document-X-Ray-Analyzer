@@ -92,6 +92,12 @@ class NotesManager {
     }
     
     setupDialog() {
+        // Check if dialog elements exist (defensive programming for mobile)
+        if (!this.noteDialog || !this.noteDialogClose || !this.noteDialogSave || !this.noteDialogInput) {
+            console.warn('⚠️ Note dialog elements not found, skipping dialog setup');
+            return;
+        }
+        
         const closeDialog = () => {
             this.noteDialog.classList.add('hidden');
             this.dialogCallback = null;
@@ -238,9 +244,12 @@ class NotesManager {
     }
     
     setupEventListeners() {
-        this.addNoteBtn.addEventListener('click', () => {
-            this.showAddNoteDialog();
-        });
+        // Defensive: Check if elements exist before adding listeners
+        if (this.addNoteBtn) {
+            this.addNoteBtn.addEventListener('click', () => {
+                this.showAddNoteDialog();
+            });
+        }
         
         // Setup all continuous mode toggles
         this.continuousModeToggles.forEach(toggle => {
@@ -251,10 +260,12 @@ class NotesManager {
         });
         
         // Setup search
-        this.notesSearchInput.addEventListener('input', (e) => {
-            this.searchQuery = e.target.value.trim().toLowerCase();
-            this.renderDebounced(); // Use debounced to prevent lag while typing
-        });
+        if (this.notesSearchInput) {
+            this.notesSearchInput.addEventListener('input', (e) => {
+                this.searchQuery = e.target.value.trim().toLowerCase();
+                this.renderDebounced(); // Use debounced to prevent lag while typing
+            });
+        }
         
         // Setup tag filter container click listener (for tag badges)
         this.setupTagFilterListeners();
@@ -373,6 +384,12 @@ class NotesManager {
     
     setupContextMenuButtons() {
         // Set up context menu button listeners ONCE (called only from constructor)
+        // Defensive: Check if context menu elements exist
+        if (!this.contextMenu || !this.contextHighlight || !this.contextHighlightAndNote) {
+            console.warn('⚠️ Context menu elements not found, skipping context menu setup');
+            return;
+        }
+        
         // Hide context menu on click anywhere else
         document.addEventListener('click', () => {
             this.hideContextMenu();
@@ -413,21 +430,23 @@ class NotesManager {
         }
         
         // Context menu actions - Management
-        this.contextEditNote.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (this.targetHighlightId) {
-                this.editNote(this.targetHighlightId);
-            }
-            this.hideContextMenu();
-        });
-        
-        this.contextDeleteHighlight.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (this.targetHighlightId) {
-                this.deleteNote(this.targetHighlightId, true);
-            }
-            this.hideContextMenu();
-        });
+        if (this.contextEditNote && this.contextDeleteHighlight) {
+            this.contextEditNote.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.targetHighlightId) {
+                    this.editNote(this.targetHighlightId);
+                }
+                this.hideContextMenu();
+            });
+            
+            this.contextDeleteHighlight.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.targetHighlightId) {
+                    this.deleteNote(this.targetHighlightId, true);
+                }
+                this.hideContextMenu();
+            });
+        }
     }
     
     showContextMenu(x, y, isExistingHighlight) {
@@ -790,6 +809,12 @@ class NotesManager {
         this.openDialog('Add Note', this.selectedText, (noteText) => {
             if (noteText) {
                 this.addNote(noteText, page);
+                
+                // Force render immediately so it appears in the tab
+                // Add a small timeout to allow the tab switch to complete if needed
+                setTimeout(() => {
+                   this.render(true);
+                }, 50);
             }
             // Clear selection
             window.getSelection().removeAllRanges();
@@ -2503,3 +2528,8 @@ class NotesManager {
 
 // Initialize Notes Manager
 const notesManager = new NotesManager();
+
+// Expose to window for mobile compatibility
+if (typeof window !== 'undefined') {
+    window.notesManager = notesManager;
+}

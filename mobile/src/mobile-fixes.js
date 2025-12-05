@@ -343,19 +343,34 @@
     }
     
     function createNoteForSelection() {
-        if (window.NotesManager && typeof window.NotesManager.showNoteDialog === 'function') {
-            window.NotesManager.showNoteDialog(selectedText);
-        } else if (window.notesManager && typeof window.notesManager.showNoteDialog === 'function') {
-             // Handle lowerCamelCase instance if exists
-             window.notesManager.showNoteDialog(selectedText);
-        } else {
-            // Fallback
-            const note = prompt('Add your note:', '');
-            if (note) {
-                saveHighlight(selectedText, 'yellow', note);
-                // Visual feedback
-                alert('Note saved!');
+        // Use the global notesManager instance if available
+        if (window.notesManager) {
+            // If we have the method to add note from context (which handles dialog with pre-fill)
+            if (typeof window.notesManager.addNoteFromContext === 'function') {
+                // We need to ensure notesManager knows about the selected text
+                window.notesManager.selectedText = selectedText;
+                window.notesManager.addNoteFromContext();
+                return;
             }
+            
+            // Fallback: Open dialog manually
+            if (typeof window.notesManager.openDialog === 'function') {
+                window.notesManager.openDialog('Add Note', selectedText, (noteText) => {
+                    if (noteText) {
+                        // Use saveHighlight to ensure consistent mobile saving logic
+                        saveHighlight(selectedText, 'yellow', noteText);
+                    }
+                });
+                return;
+            }
+        }
+        
+        // Ultimate Fallback (if notesManager is missing or incompatible)
+        const note = prompt('Add your note:', selectedText);
+        if (note) {
+            saveHighlight(selectedText, 'yellow', note);
+            // Visual feedback
+            alert('Note saved!');
         }
     }
     
@@ -363,8 +378,8 @@
     const timestamp = Date.now();
     
     // Ensure file path variables are available
-    const filePath = window.currentFilePath || 'mobile-imported-file';
-    const fileName = window.currentFileName || 'Mobile Document';
+    const filePath = window.currentFilePath || (window.notesManager ? window.notesManager.currentFilePath : '') || 'mobile-imported-file';
+    const fileName = window.currentFileName || (filePath.split(/[\\/]/).pop()) || 'Mobile Document';
     
     console.log('💾 Saving highlight:', { filePath, fileName, text: text.substring(0, 30) });
     
@@ -374,12 +389,13 @@
       type: 'highlight',
       text: text,
       color: color,
-      note: note || '',
+      note: note || text, // Auto-fill note with text if empty
       page: window.currentPage || 1,
       createdAt: new Date().toISOString(),
       filePath: filePath,
       fileName: fileName,
-      tags: [] 
+      tags: [],
+      sourceView: 'raw' // Ensure it appears in Analyse tab
     };
     
     // Save to local storage fallback (legacy)
@@ -419,9 +435,11 @@
         window.notesManager.saveToStorage();
         console.log('💾 Saved to localStorage under key:', filePath);
         
-        // Try to render (may not show if notes tab not visible)
-        const wasRendered = window.notesManager.render();
-        console.log('🎨 Render called, result:', wasRendered !== undefined ? 'completed' : 'skipped (tab not visible)');
+        // Force render immediately (bypass visibility check)
+        setTimeout(() => {
+            window.notesManager.render(true);
+            console.log('🎨 Force render called');
+        }, 50);
         
         // Apply visual highlights if we are in a text view
         window.notesManager.applyHighlights();
