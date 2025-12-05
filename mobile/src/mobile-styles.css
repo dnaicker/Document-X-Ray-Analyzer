@@ -216,6 +216,88 @@
     height: 100%;
   }
 
+  /* Make text selectable and highlightable */
+  #highlightedTextContent,
+  #highlightedTextContent * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+  }
+
+  .text-content {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  /* User highlights */
+  .user-highlight {
+    padding: 2px 0;
+    border-radius: 2px;
+    cursor: pointer;
+    position: relative;
+    user-select: text;
+  }
+
+  .user-highlight:hover {
+    opacity: 0.8;
+  }
+
+  /* User Highlight Colors */
+  .user-highlight.color-yellow {
+    background: rgba(255, 193, 7, 0.4);
+    border-bottom: 2px solid #FFC107;
+  }
+
+  .user-highlight.color-green {
+    background: rgba(76, 175, 80, 0.4);
+    border-bottom: 2px solid #4CAF50;
+  }
+
+  .user-highlight.color-blue {
+    background: rgba(33, 150, 243, 0.4);
+    border-bottom: 2px solid #2196F3;
+  }
+
+  .user-highlight.color-pink {
+    background: rgba(233, 30, 99, 0.4);
+    border-bottom: 2px solid #E91E63;
+  }
+
+  .user-highlight.color-purple {
+    background: rgba(156, 39, 176, 0.4);
+    border-bottom: 2px solid #9C27B0;
+  }
+
+  /* Mobile highlight menu - ensure it appears above native Android menu */
+  #mobileHighlightMenu {
+    z-index: 999999 !important;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Floating highlight button */
+  #floatingHighlightBtn {
+    z-index: 99999 !important;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  #floatingHighlightBtn:active {
+    transform: scale(0.9) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+  }
+
+  /* Improve text selection appearance */
+  #highlightedTextContent::selection {
+    background: rgba(102, 126, 234, 0.3);
+    color: inherit;
+  }
+
+  #highlightedTextContent::-moz-selection {
+    background: rgba(102, 126, 234, 0.3);
+    color: inherit;
+  }
+
   /* Highlight options sidebar - make it collapsible */
   .highlight-options {
     max-height: 0;
