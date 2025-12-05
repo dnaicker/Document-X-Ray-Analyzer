@@ -5342,11 +5342,11 @@ if (collapseViewerBtn && expandViewerBtn && pdfPanel) {
         pdfPanel.style.display = 'none';
         if (resizer1) resizer1.style.display = 'none';
         expandViewerBtn.classList.remove('hidden');
-        // Position based on library visibility
-        const libraryWidth = libraryPanel && window.getComputedStyle(libraryPanel).display !== 'none' 
-            ? libraryPanel.getBoundingClientRect().width 
-            : 0;
-        expandViewerBtn.style.left = libraryWidth + 'px';
+        
+        // Position the expand button on the far left side
+        expandViewerBtn.style.left = '0px';
+        expandViewerBtn.style.right = 'auto';
+        expandViewerBtn.style.borderRadius = '0 8px 8px 0'; // Border radius for left side
     });
     
     expandViewerBtn.addEventListener('click', () => {
