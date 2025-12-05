@@ -154,10 +154,16 @@
 
         <div class="resizer" id="resizer1"></div>
 
+        <!-- Expand Text Button (shown when collapsed) -->
+        <button id="expandTextBtn" class="expand-panel-btn hidden" title="Expand Extracted Text">☰</button>
+        
         <!-- Middle Panel: Text Display -->
         <div class="text-panel" id="textPanel">
             <div class="panel-header">
-                <h2>📝 Extracted Text</h2>
+                <h2 style="display: flex; align-items: center;">
+                    <button id="collapseTextBtn" class="panel-collapse-btn" title="Collapse Extracted Text">☰</button>
+                    <span>📝 Extracted Text</span>
+                </h2>
                 <div class="view-toggle">
                     <button id="highlightedTextBtn" class="btn-toggle active">Analyse</button>
                     <button id="notesBtn" class="btn-toggle">📌 Notes</button>
@@ -550,7 +556,10 @@
         <!-- Right Panel: Statistics (Always Visible) -->
         <div class="stats-panel" id="statsPanel">
             <div class="panel-header">
-                <h2>📊 Statistics</h2>
+                <h2 style="display: flex; align-items: center;">
+                    <button id="collapseStatsBtn" class="panel-collapse-btn" title="Collapse Statistics">☰</button>
+                    <span>📊 Statistics</span>
+                </h2>
             </div>
                 <div class="stats-container">
                 <!-- Search Section -->
@@ -682,6 +691,9 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Expand Stats Button (shown when collapsed) -->
+        <button id="expandStatsBtn" class="expand-panel-btn hidden" title="Expand Statistics">☰</button>
     </div>
 
     <!-- Status Bar -->

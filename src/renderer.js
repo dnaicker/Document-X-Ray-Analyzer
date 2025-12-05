@@ -127,6 +127,10 @@ const collapseLibraryBtn = document.getElementById('collapseLibraryBtn');
 const expandLibraryBtn = document.getElementById('expandLibraryBtn');
 const collapseViewerBtn = document.getElementById('collapseViewerBtn');
 const expandViewerBtn = document.getElementById('expandViewerBtn');
+const collapseTextBtn = document.getElementById('collapseTextBtn');
+const expandTextBtn = document.getElementById('expandTextBtn');
+const collapseStatsBtn = document.getElementById('collapseStatsBtn');
+const expandStatsBtn = document.getElementById('expandStatsBtn');
 const libraryPanel = document.getElementById('libraryPanel');
 const libraryResizer = document.getElementById('libraryResizer');
 
@@ -5352,6 +5356,62 @@ if (collapseViewerBtn && expandViewerBtn && pdfPanel) {
         }
         if (resizer1) resizer1.style.display = '';
         expandViewerBtn.classList.add('hidden');
+    });
+}
+
+// Collapse/Expand Extracted Text Panel
+if (collapseTextBtn && expandTextBtn && textPanel) {
+    collapseTextBtn.addEventListener('click', () => {
+        textPanel.style.display = 'none';
+        if (resizer2) resizer2.style.display = 'none';
+        expandTextBtn.classList.remove('hidden');
+        
+        // Position the expand button on the right side of visible panels
+        let leftPosition = 0;
+        
+        // Add library panel width if visible
+        if (libraryPanel && window.getComputedStyle(libraryPanel).display !== 'none') {
+            leftPosition += libraryPanel.getBoundingClientRect().width;
+        }
+        
+        // Add viewer panel width if visible
+        if (pdfPanel && window.getComputedStyle(pdfPanel).display !== 'none') {
+            leftPosition += pdfPanel.getBoundingClientRect().width;
+        }
+        
+        expandTextBtn.style.left = leftPosition + 'px';
+    });
+    
+    expandTextBtn.addEventListener('click', () => {
+        textPanel.style.display = '';
+        if (window.getComputedStyle(textPanel).display === 'none') {
+            textPanel.style.display = 'flex';
+        }
+        if (resizer2) resizer2.style.display = '';
+        expandTextBtn.classList.add('hidden');
+    });
+}
+
+// Collapse/Expand Statistics Panel
+if (collapseStatsBtn && expandStatsBtn && statsPanelEl) {
+    collapseStatsBtn.addEventListener('click', () => {
+        statsPanelEl.style.display = 'none';
+        if (resizer2) resizer2.style.display = 'none';
+        expandStatsBtn.classList.remove('hidden');
+        
+        // Position the expand button on the far right of the window
+        expandStatsBtn.style.right = '0px';
+        expandStatsBtn.style.left = 'auto';
+        expandStatsBtn.style.borderRadius = '8px 0 0 8px'; // Reversed border radius for right side
+    });
+    
+    expandStatsBtn.addEventListener('click', () => {
+        statsPanelEl.style.display = '';
+        if (window.getComputedStyle(statsPanelEl).display === 'none') {
+            statsPanelEl.style.display = 'flex';
+        }
+        if (resizer2) resizer2.style.display = '';
+        expandStatsBtn.classList.add('hidden');
     });
 }
 
