@@ -5366,14 +5366,8 @@ if (collapseTextBtn && expandTextBtn && textPanel) {
         if (resizer2) resizer2.style.display = 'none';
         expandTextBtn.classList.remove('hidden');
         
-        // Position the expand button on the far right side
-        // If stats panel is visible, position it to the left of stats expand button
-        let rightPosition = 0;
-        if (statsPanelEl && window.getComputedStyle(statsPanelEl).display !== 'none') {
-            rightPosition = statsPanelEl.getBoundingClientRect().width;
-        }
-        
-        expandTextBtn.style.right = rightPosition + 'px';
+        // Position the expand button on the far right of the window
+        expandTextBtn.style.right = '0px';
         expandTextBtn.style.left = 'auto';
         expandTextBtn.style.borderRadius = '8px 0 0 8px'; // Reversed border radius for right side
     });
