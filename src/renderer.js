@@ -556,6 +556,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize translation UI
     initializeTranslation();
+    
+    // Initialize Speech Settings
+    setupSpeechSettings();
 
     // Initialize Mindmap
     if (typeof MindmapManager !== 'undefined' && typeof notesManager !== 'undefined') {
@@ -6864,11 +6867,6 @@ function setupSpeechSettings() {
         };
     }
 }
-
-// Call setup
-document.addEventListener('DOMContentLoaded', () => {
-    setupSpeechSettings();
-});
 
 function escapeHtml(text) {
     const div = document.createElement('div');
