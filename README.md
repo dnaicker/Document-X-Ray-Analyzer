@@ -11,13 +11,10 @@
 
 ## 📸 Application Preview
 
-
-*Click to watch the full demo on YouTube*
-
 ### 📷 Screenshots
 ![Document X-Ray Analyzer](assets/img/Application%20Image.png)
 ### 🎥 Video Demo
-[![Watch Demo Video]](https://youtu.be/F_y1S7vodgY)
+[[Watch Demo Video]](https://youtu.be/F_y1S7vodgY)
 
 ---
 
@@ -84,7 +81,8 @@ Toggle any category on/off to focus on what matters to you.
 ## 🚀 Quick Start
 
 ### Download Pre-Built App
-👉 **[Download for Windows/Mac/Linux]([https://dnaicker.github.io/Document-X-Ray-Analyzer](https://github.com/dnaicker/Document-X-Ray-Analyzer/releases))**
+👉 **[Download for Windows/Mac/Linux]([https://dnaicker.github.io/Document-X-Ray-Analyzer](https://github.com/dnaicker/Document-X-Ray-Analyzer/releases))
+**
 
 ### Build From Source
 
