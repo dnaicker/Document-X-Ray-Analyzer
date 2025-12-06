@@ -84,7 +84,7 @@ Toggle any category on/off to focus on what matters to you.
 ## 🚀 Quick Start
 
 ### Download Pre-Built App
-👉 **[Download for Windows/Mac/Linux](https://dnaicker.github.io/Document-X-Ray-Analyzer)**
+👉 **[Download for Windows/Mac/Linux]([https://dnaicker.github.io/Document-X-Ray-Analyzer](https://github.com/dnaicker/Document-X-Ray-Analyzer/releases))**
 
 ### Build From Source
 
