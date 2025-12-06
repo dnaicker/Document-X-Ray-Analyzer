@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/dnaicker/Document-X-Ray-Analyzer)
 
-[Download](https://dnaicker.github.io/Document-X-Ray-Analyzer) | [Features](#-key-features) | [Quick Start](#-quick-start) | [Google Drive Setup](GOOGLE_DRIVE_SETUP.md)
+[Download]([https://dnaicker.github.io/Document-X-Ray-Analyzer](https://github.com/dnaicker/Document-X-Ray-Analyzer/releases)) | [Features](#-key-features) | [Quick Start](#-quick-start) | [Google Drive Setup](GOOGLE_DRIVE_SETUP.md)
 
 ---
 
