@@ -662,14 +662,44 @@ class MindmapManager {
                     console.log('✓ Link created');
                 }
                 
-                this.notesManager.render();
+                // Force render to ensure notes panel is updated
+                this.notesManager.render(true);
                 
                 // Small delay to ensure notesManager has updated
                 setTimeout(() => {
                     this.refreshData();
                 }, 100);
-            } else {
-                console.log('No valid target found');
+            } else if (this.linkDragSource) {
+                // No target found - create a new empty note at the drop position
+                console.log('Creating new note at drag end position');
+                
+                // Create a new empty note (with placeholder text so it's visible)
+                const newNote = this.notesManager.addNote('(Empty note - click to edit)');
+                
+                if (newNote) {
+                    // Add to layout cache at the drop position (linkDragX, linkDragY are in world coordinates)
+                    const layout = this.loadLayout();
+                    layout.push({ id: newNote.id, x: this.linkDragX, y: this.linkDragY });
+                    // Use file-specific key to prevent layout sharing between documents
+                    const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
+                    localStorage.setItem(key, JSON.stringify(layout));
+                    
+                    // Create link between source and new note
+                    this.notesManager.toggleLink(
+                        this.linkDragSource.id,
+                        newNote.id,
+                        null
+                    );
+                    
+                    console.log('✓ New note created and linked');
+                    // Force render to ensure notes panel is updated
+                    this.notesManager.render(true);
+                    
+                    // Refresh to show the new node
+                    setTimeout(() => {
+                        this.refreshData();
+                    }, 100);
+                }
             }
             
             // Reset link dragging state
@@ -1742,7 +1772,8 @@ class MindmapManager {
                 targetId,
                 targetFilePath
             );
-            this.notesManager.render();
+            // Force render to ensure notes panel is updated
+            this.notesManager.render(true);
             
             setTimeout(() => {
                 this.refreshData();
@@ -1794,8 +1825,12 @@ class MindmapManager {
                     // Add to layout cache
                     const layout = this.loadLayout();
                     layout.push({ id: newNote.id, x: x, y: y });
-                    localStorage.setItem('mindmap_layout', JSON.stringify(layout));
+                    // Use file-specific key to prevent layout sharing between documents
+                    const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
+                    localStorage.setItem(key, JSON.stringify(layout));
                     
+                    // Force render to ensure notes panel is updated
+                    this.notesManager.render(true);
                     this.refreshData(); // Update canvas
                 }
                 
@@ -1889,7 +1924,8 @@ class MindmapManager {
                     item.color = selectedColor;
                     
                     this.notesManager.saveToStorage();
-                    this.notesManager.render();
+                    // Force render to ensure notes panel is updated
+                    this.notesManager.render(true);
                     this.refreshData();
                     console.log('✓ Note updated');
                 }
@@ -1963,7 +1999,8 @@ class MindmapManager {
             if (item) {
                 item.color = selectedColor;
                 this.notesManager.saveToStorage();
-                this.notesManager.render();
+                // Force render to ensure notes panel is updated
+                this.notesManager.render(true);
                 this.refreshData();
                 console.log('✓ Color changed to', selectedColor);
             }
@@ -1981,7 +2018,8 @@ class MindmapManager {
     deleteNode(node) {
         if (confirm('Delete this note?')) {
             this.notesManager.deleteNote(node.id); // Assuming this method exists
-            this.notesManager.render();
+            // Force render to ensure notes panel is updated
+            this.notesManager.render(true);
             this.refreshData();
         }
     }

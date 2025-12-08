@@ -48,6 +48,7 @@ class NotesManager {
         this.noteDialog = document.getElementById('noteDialog');
         this.noteDialogTitle = document.getElementById('noteDialogTitle');
         this.noteDialogInput = document.getElementById('noteDialogInput');
+        this.noteDialogHighlightedText = document.getElementById('noteDialogHighlightedText');
         this.noteDialogClose = document.getElementById('noteDialogClose');
         this.noteDialogSave = document.getElementById('noteDialogSave');
         
@@ -170,10 +171,19 @@ class NotesManager {
         }
     }
 
-    openDialog(title, initialText, callback) {
+    openDialog(title, initialText, callback, highlightedText = null) {
         this.noteDialogTitle.textContent = title;
         this.noteDialogInput.value = initialText || '';
         this.dialogCallback = callback;
+        
+        // Show/hide and populate the highlighted text area
+        if (highlightedText && this.noteDialogHighlightedText) {
+            this.noteDialogHighlightedText.textContent = highlightedText;
+            this.noteDialogHighlightedText.classList.remove('hidden');
+        } else if (this.noteDialogHighlightedText) {
+            this.noteDialogHighlightedText.classList.add('hidden');
+        }
+        
         this.noteDialog.classList.remove('hidden');
         this.noteDialogInput.focus();
     }
@@ -803,22 +813,137 @@ class NotesManager {
     
     addNoteFromContext() {
         if (!this.selectedText) return;
+        const selectedTextBackup = this.selectedText; // Store it before dialog opens
         const page = this.getPageNumberFromSelection();
         
-        // Pre-fill with selected text
-        this.openDialog('Add Note', this.selectedText, (noteText) => {
+        // Calculate offsets BEFORE opening dialog (selection might be cleared)
+        let offsets = null;
+        let sourceView = 'raw';
+        let translationLanguage = null;
+        
+        try {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const node = selection.anchorNode;
+                
+                // Check text views and determine source
+                if (this.rawTextContent && this.rawTextContent.contains(node)) {
+                    offsets = this.getSelectionOffset(this.rawTextContent);
+                    sourceView = 'raw';
+                } else if (this.highlightedTextContent && this.highlightedTextContent.contains(node)) {
+                    offsets = this.getSelectionOffset(this.highlightedTextContent);
+                    sourceView = 'highlighted';
+                } else if (this.translatedTextContent && this.translatedTextContent.contains(node)) {
+                    offsets = this.getSelectionOffset(this.translatedTextContent);
+                    sourceView = 'translate';
+                    
+                    // Get the current translation language from the UI
+                    const translateLangSelect = document.getElementById('translateLanguageSelect');
+                    if (translateLangSelect && translateLangSelect.value) {
+                        translationLanguage = translateLangSelect.value;
+                    }
+                }
+                // Check Map View
+                else {
+                    const mapGrid = document.getElementById('mapGrid');
+                    if (mapGrid && mapGrid.contains(node)) {
+                        const card = node.nodeType === 1 ? node.closest('.page-card') : (node.parentElement ? node.parentElement.closest('.page-card') : null);
+                        if (card && card.dataset.startOffset) {
+                            const cardStart = parseInt(card.dataset.startOffset);
+                            const body = card.querySelector('.page-card-body');
+                            if (body && body.contains(node)) {
+                                const range = selection.getRangeAt(0);
+                                const selectedText = range.toString().trim();
+                                
+                                function getTextPosition(targetNode, targetOffset) {
+                                    let position = 0;
+                                    const walker = document.createTreeWalker(
+                                        body,
+                                        NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+                                        {
+                                            acceptNode: function(n) {
+                                                if (n.nodeType === Node.ELEMENT_NODE) {
+                                                    if (n.classList && (n.classList.contains('highlight-overlay') || n.classList.contains('highlight-count-badge'))) {
+                                                        return NodeFilter.FILTER_REJECT;
+                                                    }
+                                                    return NodeFilter.FILTER_SKIP;
+                                                }
+                                                if (n.nodeType === Node.TEXT_NODE) {
+                                                    let parent = n.parentElement;
+                                                    while (parent && parent !== body) {
+                                                        if (parent.classList && (parent.classList.contains('highlight-overlay') || parent.classList.contains('highlight-count-badge'))) {
+                                                            return NodeFilter.FILTER_REJECT;
+                                                        }
+                                                        parent = parent.parentElement;
+                                                    }
+                                                    return NodeFilter.FILTER_ACCEPT;
+                                                }
+                                                return NodeFilter.FILTER_SKIP;
+                                            }
+                                        }
+                                    );
+                                    
+                                    let currentNode;
+                                    while (currentNode = walker.nextNode()) {
+                                        if (currentNode === targetNode) {
+                                            return position + targetOffset;
+                                        }
+                                        position += currentNode.textContent.length;
+                                    }
+                                    
+                                    return position;
+                                }
+                                
+                                const localStart = getTextPosition(range.startContainer, range.startOffset);
+                                
+                                offsets = {
+                                    start: cardStart + localStart,
+                                    end: cardStart + localStart + selectedText.length
+                                };
+                                
+                                sourceView = 'raw';
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error calculating highlight offsets:', e);
+        }
+        
+        // Show selected text separately, keep note input empty
+        this.openDialog('Add Note', '', (noteText) => {
             if (noteText) {
-                this.addNote(noteText, page);
+                // Create a highlight with the user's note
+                const highlight = {
+                    id: Date.now().toString(),
+                    type: 'highlight',
+                    text: selectedTextBackup, // The highlighted text
+                    note: noteText, // The user's note about the highlighted text
+                    color: this.currentColor,
+                    page: page,
+                    createdAt: new Date().toISOString(),
+                    links: [],
+                    startOffset: offsets ? offsets.start : undefined,
+                    endOffset: offsets ? offsets.end : undefined,
+                    filePath: this.currentFilePath,
+                    fileName: this.getFileName(this.currentFilePath),
+                    sourceView: sourceView,
+                    translationLanguage: translationLanguage
+                };
+                
+                this.highlights.push(highlight);
+                this.saveToStorage();
                 
                 // Force render immediately so it appears in the tab
-                // Add a small timeout to allow the tab switch to complete if needed
                 setTimeout(() => {
-                   this.render(true);
+                    this.render(true);
+                    this.applyHighlightsDebounced();
                 }, 50);
             }
             // Clear selection
             window.getSelection().removeAllRanges();
-        });
+        }, selectedTextBackup);
     }
     
     highlightAndNoteFromContext() {
@@ -938,7 +1063,8 @@ class NotesManager {
     showAddNoteDialog() {
         this.openDialog('Add New Note', '', (noteText) => {
             if (noteText) {
-                this.addNote(noteText);
+                // this.addNote(noteText);
+                this.addNote('');
             }
         });
     }
