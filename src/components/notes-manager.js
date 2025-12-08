@@ -1524,9 +1524,10 @@ class NotesManager {
         const closeDialog = () => dialog.remove();
         dialog.querySelector('#editDialogClose').addEventListener('click', closeDialog);
         dialog.querySelector('#editDialogCancel').addEventListener('click', closeDialog);
-        dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) closeDialog();
-        });
+        // Disabled click-outside-to-close to prevent accidental closures while editing
+        // dialog.addEventListener('click', (e) => {
+        //     if (e.target === dialog) closeDialog();
+        // });
     }
     
     updateButtonStates() {
