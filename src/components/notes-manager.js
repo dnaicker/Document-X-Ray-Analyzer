@@ -1433,6 +1433,11 @@ class NotesManager {
                     <button class="note-dialog-close" id="editDialogClose">×</button>
                 </div>
                 <div class="note-dialog-body">
+                    ${item.type === 'highlight' && item.text ? `
+                        <div class="note-dialog-highlighted-text" style="font-style: italic; color: #888; background: #f5f5f5; padding: 12px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; line-height: 1.5; border-left: 3px solid #ccc;">
+                            ${this.escapeHtml(item.text)}
+                        </div>
+                    ` : ''}
                     <div class="edit-note-section">
                         <label style="display: block; font-size: 12px; color: #666; margin-bottom: 6px; font-weight: 500;">
                             ${item.type === 'note' ? 'Note text:' : 'Note (optional):'}
