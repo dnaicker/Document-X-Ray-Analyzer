@@ -254,56 +254,6 @@
                         </div>
                     </div>
                     
-                    <!-- AI Semantic Analysis Section -->
-                    <div class="pos-section" style="border-top: 2px solid #e0e0e0; padding-top: 10px; margin-top: 10px;">
-                        <div class="pos-section-header" onclick="togglePOSSection('aiAnalysis')">
-                            <span class="pos-section-arrow" id="aiAnalysis-arrow">▼</span>
-                            <span style="font-weight: 600;">🤖 AI Semantic Analysis</span>
-                        </div>
-                        <div class="pos-section-content" id="aiAnalysis-content">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 10px; line-height: 1.4;">
-                                Find patterns of sentences with similar meanings using Google Gemini AI (Free tier available)
-                            </div>
-                            
-                            <div id="aiApiKeySection" style="margin-bottom: 10px;">
-                                <div style="display: flex; gap: 5px; margin-bottom: 8px;">
-                                    <input type="password" id="geminiApiKey" placeholder="Enter Gemini API Key" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
-                                    <button id="saveApiKeyBtn" class="btn-icon" style="padding: 6px 10px; font-size: 11px;" title="Save API Key">💾</button>
-                                </div>
-                                <a href="https://makersuite.google.com/app/apikey" target="_blank" style="font-size: 11px; color: #2196f3; text-decoration: none;">Get free API key →</a>
-                            </div>
-                            
-                            <button id="runAIAnalysisBtn" class="btn-primary" style="width: 100%; padding: 8px; font-size: 13px; margin-bottom: 10px;" disabled>
-                                🚀 Analyze Document
-                            </button>
-                            
-                            <div id="aiAnalysisStatus" style="font-size: 12px; color: #666; display: none; padding: 8px; background: #f5f5f5; border-radius: 4px; margin-bottom: 8px;">
-                                <div id="aiAnalysisProgress"></div>
-                            </div>
-                            
-                            <div id="aiAnalysisResults" style="font-size: 12px; display: none;">
-                                <div style="background: #e3f2fd; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
-                                    <strong>Analysis Complete!</strong><br>
-                                    <span id="aiResultsSummary"></span>
-                                </div>
-                                <div style="margin-bottom: 8px;">
-                                    <button id="applyAIHighlightsBtn" class="btn-primary" style="width: 100%; padding: 6px; font-size: 12px;">
-                                        ✨ Apply Pattern Highlights
-                                    </button>
-                                </div>
-                                <div style="margin-bottom: 8px;">
-                                    <button id="showAIPatternsBtn" class="btn-secondary" style="width: 100%; padding: 6px; font-size: 12px;">
-                                        📋 View Pattern Details
-                                    </button>
-                                </div>
-                                <div style="margin-bottom: 8px;">
-                                    <button id="addToMindmapBtn" class="btn-secondary" style="width: 100%; padding: 6px; font-size: 12px;">
-                                        🧠 Add to Mindmap
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
                 <div class="text-content-wrapper">
                     <div id="highlightedTextContent" class="text-content">
@@ -609,9 +559,17 @@
             <div class="panel-header">
                 <h2 style="display: flex; align-items: center;">
                     <button id="collapseStatsBtn" class="panel-collapse-btn" title="Collapse Statistics">☰</button>
-                    <span>📊 Statistics</span>
+                    <span style="flex: 1;">📊 Statistics & AI</span>
                 </h2>
+                <!-- Stats Panel Tabs -->
+                <div class="stats-tabs">
+                    <button class="stats-tab-btn active" data-stats-tab="overview">📊 Statistics</button>
+                    <button class="stats-tab-btn" data-stats-tab="ai-analysis">🤖 AI Analysis</button>
+                </div>
             </div>
+            
+            <!-- Statistics Tab Content -->
+            <div class="stats-tab-content active" data-stats-content="overview">
                 <div class="stats-container">
                 <!-- Search Section -->
                 <div class="stats-section search-section">
@@ -737,6 +695,104 @@
                         <div class="pagination-buttons">
                             <button class="pagination-btn prev-btn">◀</button>
                             <button class="pagination-btn next-btn">▶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+            
+            <!-- AI Analysis Tab Content -->
+            <div class="stats-tab-content" data-stats-content="ai-analysis">
+                <div style="padding: 16px; overflow-y: auto; height: 100%;">
+                    <!-- AI Configuration Section -->
+                    <div style="margin-bottom: 20px; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0; overflow: hidden;">
+                        <div style="padding: 12px 15px; background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%); cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e0e0e0;" id="aiConfigHeader">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span id="aiConfigArrow" style="font-weight: bold; transition: transform 0.2s;">▼</span>
+                                <h3 style="font-size: 15px; font-weight: 600; margin: 0; color: #333;">⚙️ Configuration</h3>
+                            </div>
+                            <button id="closeAiConfigBtn" style="background: none; border: none; font-size: 18px; color: #999; cursor: pointer; padding: 0 5px; transition: color 0.2s;" title="Hide configuration" onmouseover="this.style.color='#f44336'" onmouseout="this.style.color='#999'">×</button>
+                        </div>
+                        <div id="aiConfigContent" style="padding: 15px;">
+                        
+                        <!-- Provider Selection -->
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 5px; font-weight: 500;">AI Provider:</label>
+                            <select id="aiProviderSelect" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;">
+                                <option value="ollama">🏠 Local Ollama (FREE, Private, No API key!)</option>
+                                <option value="openai">OpenAI GPT-4 (~$0.03/doc)</option>
+                                <option value="gemini">Google Gemini (Free online, limited)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- OpenAI API Key Section -->
+                        <div id="openaiApiKeySection" style="margin-bottom: 12px;">
+                            <div style="display: flex; gap: 5px; margin-bottom: 6px;">
+                                <input type="password" id="openaiApiKey" placeholder="Enter OpenAI API Key" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+                                <button id="saveOpenAIKeyBtn" class="btn-icon" style="padding: 8px 12px; font-size: 12px;" title="Save API Key">💾</button>
+                                <button id="testOpenAIKeyBtn" class="btn-icon" style="padding: 8px 12px; font-size: 12px;" title="Test API Key">🔍</button>
+                            </div>
+                            <a href="https://platform.openai.com/api-keys" target="_blank" style="font-size: 11px; color: #2196f3; text-decoration: none;">Get API key from OpenAI →</a>
+                        </div>
+                        
+                        <!-- Gemini API Key Section -->
+                        <div id="geminiApiKeySection" style="margin-bottom: 12px; display: none;">
+                            <div style="display: flex; gap: 5px; margin-bottom: 6px;">
+                                <input type="password" id="geminiApiKey" placeholder="Enter Gemini API Key" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+                                <button id="saveGeminiKeyBtn" class="btn-icon" style="padding: 8px 12px; font-size: 12px;" title="Save API Key">💾</button>
+                                <button id="testGeminiKeyBtn" class="btn-icon" style="padding: 8px 12px; font-size: 12px;" title="Test API Key">🔍</button>
+                            </div>
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank" style="font-size: 11px; color: #2196f3; text-decoration: none;">Get free API key from Google AI Studio →</a>
+                        </div>
+                        
+                        <!-- Ollama Configuration Section -->
+                        <div id="ollamaConfigSection" style="margin-bottom: 12px;">
+                            <div style="font-size: 12px; color: #4caf50; margin-bottom: 10px; padding: 10px; background: #e8f5e9; border-radius: 4px; font-weight: 500;">
+                                ✓ No API key needed! Uses your local Ollama installation
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 500;">Endpoint:</label>
+                                <input type="text" id="ollamaEndpoint" value="http://localhost:11434" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 500;">Model:</label>
+                                <select id="ollamaModel" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+                                    <option value="llama3.2">Llama 3.2 (Recommended)</option>
+                                    <option value="llama3.1">Llama 3.1</option>
+                                    <option value="llama3">Llama 3</option>
+                                    <option value="llama2">Llama 2</option>
+                                    <option value="mistral">Mistral</option>
+                                    <option value="mixtral">Mixtral</option>
+                                    <option value="phi3">Phi-3</option>
+                                    <option value="gemma2">Gemma 2</option>
+                                    <option value="qwen2.5">Qwen 2.5</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                                <button id="saveOllamaConfigBtn" class="btn-icon" style="flex: 1; padding: 8px; font-size: 12px;">💾 Save Config</button>
+                                <button id="testOllamaBtn" class="btn-icon" style="flex: 1; padding: 8px; font-size: 12px;">🔍 Test Connection</button>
+                            </div>
+                            <div style="font-size: 11px; color: #666; line-height: 1.5; padding: 8px; background: white; border-radius: 4px;">
+                                <strong>Setup:</strong> <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">ollama serve</code><br>
+                                <strong>Install:</strong> <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">ollama pull llama3.2</code>
+                            </div>
+                        </div>
+                        
+                        <button id="runAIAnalysisBtn" class="btn-primary" style="width: 100%; padding: 10px; font-size: 14px; margin-bottom: 10px; font-weight: 600;">
+                            🚀 Analyze Document
+                        </button>
+                        
+                        <div id="aiAnalysisStatus" style="font-size: 12px; color: #666; display: none; padding: 10px; background: #fff3cd; border-radius: 4px; margin-bottom: 10px; border-left: 3px solid #ffc107;">
+                            <div id="aiAnalysisProgress"></div>
+                        </div>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Results Content -->
+                    <div id="aiAnalysisTabContent">
+                        <div style="text-align: center; padding: 40px; color: #999;">
+                            <p style="font-size: 18px; margin-bottom: 10px;">🤖 AI Semantic Analysis</p>
+                            <p style="font-size: 14px; line-height: 1.6;">Configure your AI provider above and click <strong>🚀 Analyze Document</strong> to find semantic patterns.<br><br>The AI will find sentences with similar meanings and group them into patterns.</p>
                         </div>
                     </div>
                 </div>

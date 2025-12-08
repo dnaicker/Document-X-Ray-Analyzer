@@ -11,19 +11,32 @@ The AI Semantic Analysis feature uses Google's Gemini AI to intelligently analyz
 
 ## Getting Started
 
-### 1. Obtain a Free Gemini API Key
+### Option 1: Local Ollama (Recommended ⭐)
 
-Google Gemini API offers a generous **free tier** that's perfect for document analysis:
+**Best choice!** - Free, private, no API keys needed.
 
-1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+1. Install Ollama from [ollama.com](https://ollama.com)
+2. Open terminal and run: `ollama pull llama3.2`
+3. Start Ollama: `ollama serve`
+4. In the app, select "Local Ollama" - Done!
+
+**See:** `OLLAMA_SETUP_GUIDE.md` for detailed instructions
+
+### Option 2: Google Gemini (Free Online)
+
+Google AI Studio offers a generous **free tier** that's perfect for document analysis:
+
+1. Visit [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Sign in with your Google account
-3. Click "Create API Key"
-4. Copy your API key
+3. Click "Get API Key" or "Create API Key"
+4. Select "Create API key in new project" (or use existing project)
+5. Copy your API key
 
 **Free Tier Limits:**
-- 60 requests per minute
+- 15 requests per minute
 - 1,500 requests per day
 - Perfect for analyzing multiple documents
+- No credit card required!
 
 ### 2. Configure Your API Key
 
@@ -182,17 +195,20 @@ Works best with:
 ### "Document too short"
 **Solution:** The document must have at least 5 sentences for meaningful analysis
 
-### "API call failed"
+### "API call failed" or "Model not found"
 **Possible causes:**
 - Invalid API key
+- Model name changed (Google updates their API)
 - Rate limit exceeded (free tier: 60/min, 1500/day)
 - Network connectivity issues
 - API service temporarily unavailable
 
 **Solutions:**
 - Verify your API key is correct
+- The app automatically tries multiple model names - if all fail, Google may have changed their API
 - Wait a few minutes if you hit rate limits
 - Check your internet connection
+- Check Google AI Studio for model availability: https://ai.google.dev/
 - Try again later if Google's service is down
 
 ### "No patterns found"
@@ -208,16 +224,18 @@ Works best with:
 
 ## API Costs
 
-### Free Tier
-- **Cost:** $0
-- **Requests:** 1,500/day, 60/minute
-- **Perfect for:** Individual use, small projects
+### Free Tier (Google AI Studio)
+- **Cost:** $0 - Completely free!
+- **Requests:** 1,500/day, 15/minute
+- **Perfect for:** Individual use, small projects, testing
+- **No credit card required**
 
 ### If You Need More
 If you exceed free tier limits:
 1. Wait for the daily reset (midnight Pacific Time)
-2. Consider upgrading to Google AI's paid tier (pay-as-you-go)
-3. Typical cost: $0.00025 per request (very affordable)
+2. For higher limits, you can set up billing in Google AI Studio
+3. Typical cost: Very affordable pay-as-you-go pricing
+4. Or just use the free tier - 1,500/day is quite generous!
 
 ## Technical Details
 
@@ -230,10 +248,14 @@ If you exceed free tier limits:
 6. Mindmap nodes are generated for visualization
 
 ### API Model
-- **Model:** Gemini 1.5 Flash
+- **Primary Model:** Gemini 1.5 Flash Latest
+- **Fallback Models:** Gemini 1.5 Flash, Gemini Pro, Gemini 1.0 Pro
+- **Auto-Selection:** The app tries multiple models automatically
 - **Why:** Fast, efficient, and cost-effective
 - **Context window:** Up to 1M tokens
 - **Response time:** Typically 2-5 seconds
+
+**Note:** The app will automatically try different model versions if one isn't available, ensuring maximum compatibility with Google's API.
 
 ### Data Processing
 - Sentence splitting uses simple regex patterns

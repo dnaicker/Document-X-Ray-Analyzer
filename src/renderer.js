@@ -581,6 +581,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Restore POS section states
     restorePOSSectionStates();
+    
+    // Initialize AI Semantic Analysis
+    initializeAISemanticAnalysis();
 });
 
 // Helper function to download missing file
@@ -1914,6 +1917,11 @@ async function loadPDFFile(filePath, cachedState = null) {
                     statsPanel.renderStats(currentAnalysis);
                     updatePOSCounts(currentAnalysis);
                 }
+                
+                // Load cached AI analysis if available
+                if (window.aiSemanticAnalyzer) {
+                    setTimeout(() => loadAndDisplayCachedAIResults(), 100);
+                }
 
                 const snipBtn = document.getElementById('snipBtn');
                 if (snipBtn) {
@@ -2006,6 +2014,11 @@ async function loadPDFFile(filePath, cachedState = null) {
             if (currentAnalysis) {
                 statsPanel.renderStats(currentAnalysis);
                 updatePOSCounts(currentAnalysis);
+            }
+            
+            // Load cached AI analysis if available
+            if (window.aiSemanticAnalyzer) {
+                setTimeout(() => loadAndDisplayCachedAIResults(), 100);
             }
 
             const snipBtn = document.getElementById('snipBtn');
@@ -3614,9 +3627,9 @@ function switchView(view) {
         case 'notes':
             notesBtn.classList.add('active');
             notesView.classList.add('active');
-            // Refresh notes list
+            // Refresh notes list (force render to bypass visibility optimization)
             if (typeof notesManager !== 'undefined') {
-                setTimeout(() => notesManager.render(), 10);
+                setTimeout(() => notesManager.render(true), 10);
             }
             break;
         case 'translate':
@@ -5479,7 +5492,14 @@ function initResize(e, targetPanel, direction) {
     const onMouseMove = (e) => {
         // direction: 1 for dragging right increasing width, -1 for dragging right decreasing width
         const dx = (e.clientX - startX) * direction;
-        const newWidth = Math.max(200, startWidth + dx); // Min width 200px
+        let newWidth = startWidth + dx;
+        
+        // Apply min and max width constraints
+        if (targetPanel === statsPanelEl) {
+            newWidth = Math.max(250, Math.min(800, newWidth)); // Stats panel: 250px to 800px
+        } else {
+            newWidth = Math.max(200, newWidth); // Other panels: min 200px
+        }
         
         // Update flex-basis
         targetPanel.style.flex = `0 0 ${newWidth}px`;
@@ -6921,50 +6941,369 @@ function resetTranslationState() {
 // AI Semantic Analysis UI Handlers
 // ========================================
 
-// Check if API key exists on load and update UI
-if (window.aiSemanticAnalyzer) {
-    const geminiApiKeyInput = document.getElementById('geminiApiKey');
-    const runAIAnalysisBtn = document.getElementById('runAIAnalysisBtn');
-    const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
-    const applyAIHighlightsBtn = document.getElementById('applyAIHighlightsBtn');
-    const showAIPatternsBtn = document.getElementById('showAIPatternsBtn');
-    const addToMindmapBtn = document.getElementById('addToMindmapBtn');
-    const aiAnalysisStatus = document.getElementById('aiAnalysisStatus');
-    const aiAnalysisProgress = document.getElementById('aiAnalysisProgress');
-    const aiAnalysisResults = document.getElementById('aiAnalysisResults');
-    const aiResultsSummary = document.getElementById('aiResultsSummary');
-    
-    // Load existing API key if available
-    const existingKey = window.aiSemanticAnalyzer.getApiKey();
-    if (existingKey && geminiApiKeyInput) {
-        geminiApiKeyInput.value = existingKey;
-        if (runAIAnalysisBtn) runAIAnalysisBtn.disabled = false;
+function initializeAISemanticAnalysis() {
+    // Check if AI analyzer is available
+    if (!window.aiSemanticAnalyzer) {
+        console.warn('AI Semantic Analyzer not available');
+        return;
     }
     
-    // Save API Key
-    if (saveApiKeyBtn && geminiApiKeyInput) {
-        saveApiKeyBtn.addEventListener('click', () => {
-            const apiKey = geminiApiKeyInput.value.trim();
-            if (apiKey) {
-                window.aiSemanticAnalyzer.setApiKey(apiKey);
-                if (runAIAnalysisBtn) runAIAnalysisBtn.disabled = false;
-                alert('✓ API Key saved successfully!');
+    // Get UI elements
+    const aiProviderSelect = document.getElementById('aiProviderSelect');
+    const openaiApiKeyInput = document.getElementById('openaiApiKey');
+    const geminiApiKeyInput = document.getElementById('geminiApiKey');
+    const ollamaEndpointInput = document.getElementById('ollamaEndpoint');
+    const ollamaModelSelect = document.getElementById('ollamaModel');
+    const openaiKeySection = document.getElementById('openaiApiKeySection');
+    const geminiKeySection = document.getElementById('geminiApiKeySection');
+    const ollamaConfigSection = document.getElementById('ollamaConfigSection');
+    const saveOpenAIKeyBtn = document.getElementById('saveOpenAIKeyBtn');
+    const saveGeminiKeyBtn = document.getElementById('saveGeminiKeyBtn');
+    const saveOllamaConfigBtn = document.getElementById('saveOllamaConfigBtn');
+    const testOpenAIKeyBtn = document.getElementById('testOpenAIKeyBtn');
+    const testGeminiKeyBtn = document.getElementById('testGeminiKeyBtn');
+    const testOllamaBtn = document.getElementById('testOllamaBtn');
+    const runAIAnalysisBtn = document.getElementById('runAIAnalysisBtn');
+    const aiAnalysisStatus = document.getElementById('aiAnalysisStatus');
+    const aiAnalysisProgress = document.getElementById('aiAnalysisProgress');
+    
+    // Check if elements exist
+    if (!aiProviderSelect || !runAIAnalysisBtn) {
+        console.warn('AI Analysis UI elements not found');
+        return;
+    }
+    
+    // AI Config collapse/expand handlers
+    const aiConfigHeader = document.getElementById('aiConfigHeader');
+    const aiConfigContent = document.getElementById('aiConfigContent');
+    const aiConfigArrow = document.getElementById('aiConfigArrow');
+    const closeAiConfigBtn = document.getElementById('closeAiConfigBtn');
+    
+    // Load saved config visibility state
+    const configCollapsed = localStorage.getItem('aiConfigCollapsed') === 'true';
+    const configHidden = localStorage.getItem('aiConfigHidden') === 'true';
+    
+    if (configCollapsed) {
+        aiConfigContent.style.display = 'none';
+        aiConfigArrow.style.transform = 'rotate(-90deg)';
+    }
+    
+    if (configHidden) {
+        const configSection = aiConfigHeader.closest('div[style*="margin-bottom: 20px"]');
+        if (configSection) {
+            configSection.style.display = 'none';
+            
+            // Show the "Show Configuration" button
+            const aiTabContent = document.querySelector('[data-stats-content="ai-analysis"]');
+            if (aiTabContent) {
+                let showConfigBtn = document.getElementById('showAiConfigBtn');
+                if (!showConfigBtn) {
+                    showConfigBtn = document.createElement('button');
+                    showConfigBtn.id = 'showAiConfigBtn';
+                    showConfigBtn.className = 'btn-secondary';
+                    showConfigBtn.style.cssText = 'margin: 10px 16px; padding: 10px; font-size: 13px; width: calc(100% - 32px);';
+                    showConfigBtn.innerHTML = '⚙️ Show Configuration';
+                    showConfigBtn.addEventListener('click', () => {
+                        configSection.style.display = 'block';
+                        localStorage.setItem('aiConfigHidden', 'false');
+                        showConfigBtn.remove();
+                    });
+                    const firstChild = aiTabContent.querySelector('div');
+                    if (firstChild) {
+                        aiTabContent.insertBefore(showConfigBtn, firstChild);
+                    } else {
+                        aiTabContent.appendChild(showConfigBtn);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Toggle collapse/expand
+    if (aiConfigHeader) {
+        aiConfigHeader.addEventListener('click', (e) => {
+            // Don't toggle if clicking the close button
+            if (e.target.closest('#closeAiConfigBtn')) return;
+            
+            const isCollapsed = aiConfigContent.style.display === 'none';
+            
+            if (isCollapsed) {
+                aiConfigContent.style.display = 'block';
+                aiConfigArrow.style.transform = 'rotate(0deg)';
+                localStorage.setItem('aiConfigCollapsed', 'false');
             } else {
-                alert('Please enter a valid API key');
+                aiConfigContent.style.display = 'none';
+                aiConfigArrow.style.transform = 'rotate(-90deg)';
+                localStorage.setItem('aiConfigCollapsed', 'true');
             }
         });
+    }
+    
+    // Close/hide configuration
+    if (closeAiConfigBtn) {
+        closeAiConfigBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const configSection = aiConfigHeader.closest('div[style*="margin-bottom: 20px"]');
+            if (configSection) {
+                configSection.style.display = 'none';
+                localStorage.setItem('aiConfigHidden', 'true');
+                
+                // Show a button to restore it
+                const aiTabContent = document.querySelector('[data-stats-content="ai-analysis"]');
+                if (aiTabContent) {
+                    let showConfigBtn = document.getElementById('showAiConfigBtn');
+                    if (!showConfigBtn) {
+                        showConfigBtn = document.createElement('button');
+                        showConfigBtn.id = 'showAiConfigBtn';
+                        showConfigBtn.className = 'btn-secondary';
+                        showConfigBtn.style.cssText = 'margin: 10px 16px; padding: 10px; font-size: 13px; width: calc(100% - 32px);';
+                        showConfigBtn.innerHTML = '⚙️ Show Configuration';
+                        showConfigBtn.addEventListener('click', () => {
+                            configSection.style.display = 'block';
+                            localStorage.setItem('aiConfigHidden', 'false');
+                            showConfigBtn.remove();
+                        });
+                        aiTabContent.insertBefore(showConfigBtn, aiTabContent.firstChild);
+                    }
+                }
+            }
+        });
+    }
+    
+    // Load saved provider and API keys
+    const savedProvider = window.aiSemanticAnalyzer.getProvider();
+    aiProviderSelect.value = savedProvider;
+    
+    const openaiKey = window.aiSemanticAnalyzer.getApiKey('openai');
+    const geminiKey = window.aiSemanticAnalyzer.getApiKey('gemini');
+    const ollamaConfig = window.aiSemanticAnalyzer.getOllamaConfig();
+    
+    if (openaiKey && openaiApiKeyInput) {
+        openaiApiKeyInput.value = openaiKey;
+    }
+    if (geminiKey && geminiApiKeyInput) {
+        geminiApiKeyInput.value = geminiKey;
+    }
+    if (ollamaEndpointInput) {
+        ollamaEndpointInput.value = ollamaConfig.endpoint;
+    }
+    if (ollamaModelSelect) {
+        ollamaModelSelect.value = ollamaConfig.model;
+    }
+    
+    // Show/hide sections based on provider
+    const updateProviderUI = () => {
+        const provider = aiProviderSelect.value;
+        window.aiSemanticAnalyzer.setProvider(provider);
         
-        // Also enable button when typing
+        // Hide all sections first
+        if (openaiKeySection) openaiKeySection.style.display = 'none';
+        if (geminiKeySection) geminiKeySection.style.display = 'none';
+        if (ollamaConfigSection) ollamaConfigSection.style.display = 'none';
+        
+        // Show appropriate section
+        if (provider === 'openai') {
+            if (openaiKeySection) openaiKeySection.style.display = 'block';
+            runAIAnalysisBtn.disabled = !openaiApiKeyInput?.value.trim();
+        } else if (provider === 'gemini') {
+            if (geminiKeySection) geminiKeySection.style.display = 'block';
+            runAIAnalysisBtn.disabled = !geminiApiKeyInput?.value.trim();
+        } else if (provider === 'ollama') {
+            if (ollamaConfigSection) ollamaConfigSection.style.display = 'block';
+            runAIAnalysisBtn.disabled = false; // Ollama doesn't need API key
+        }
+    };
+    
+    updateProviderUI();
+    
+    // Provider change handler
+    aiProviderSelect.addEventListener('change', updateProviderUI);
+    
+    // Save OpenAI API Key
+    saveOpenAIKeyBtn.addEventListener('click', () => {
+        const apiKey = openaiApiKeyInput.value.trim();
+        if (apiKey) {
+            window.aiSemanticAnalyzer.setApiKey(apiKey, 'openai');
+            runAIAnalysisBtn.disabled = false;
+            
+            // Visual feedback
+            saveOpenAIKeyBtn.textContent = '✓';
+            saveOpenAIKeyBtn.style.background = '#4caf50';
+            setTimeout(() => {
+                saveOpenAIKeyBtn.textContent = '💾';
+                saveOpenAIKeyBtn.style.background = '';
+            }, 1500);
+            
+            alert('✓ OpenAI API Key saved successfully!');
+        } else {
+            alert('Please enter a valid API key');
+        }
+    });
+    
+    // Save Gemini API Key
+    saveGeminiKeyBtn.addEventListener('click', () => {
+        const apiKey = geminiApiKeyInput.value.trim();
+        if (apiKey) {
+            window.aiSemanticAnalyzer.setApiKey(apiKey, 'gemini');
+            runAIAnalysisBtn.disabled = false;
+            
+            // Visual feedback
+            saveGeminiKeyBtn.textContent = '✓';
+            saveGeminiKeyBtn.style.background = '#4caf50';
+            setTimeout(() => {
+                saveGeminiKeyBtn.textContent = '💾';
+                saveGeminiKeyBtn.style.background = '';
+            }, 1500);
+            
+            alert('✓ Gemini API Key saved successfully!');
+        } else {
+            alert('Please enter a valid API key');
+        }
+    });
+    
+    // Save Ollama Configuration
+    if (saveOllamaConfigBtn && ollamaEndpointInput && ollamaModelSelect) {
+        saveOllamaConfigBtn.addEventListener('click', () => {
+            const endpoint = ollamaEndpointInput.value.trim();
+            const model = ollamaModelSelect.value;
+            
+            window.aiSemanticAnalyzer.setOllamaConfig(endpoint, model);
+            
+            // Visual feedback
+            saveOllamaConfigBtn.textContent = '✓ Saved';
+            saveOllamaConfigBtn.style.background = '#4caf50';
+            setTimeout(() => {
+                saveOllamaConfigBtn.textContent = '💾 Save Config';
+                saveOllamaConfigBtn.style.background = '';
+            }, 1500);
+        });
+    }
+    
+    // Enable button when typing
+    if (openaiApiKeyInput) {
+        openaiApiKeyInput.addEventListener('input', () => {
+            if (aiProviderSelect.value === 'openai') {
+                runAIAnalysisBtn.disabled = !openaiApiKeyInput.value.trim();
+            }
+        });
+    }
+    
+    if (geminiApiKeyInput) {
         geminiApiKeyInput.addEventListener('input', () => {
-            if (runAIAnalysisBtn) {
+            if (aiProviderSelect.value === 'gemini') {
                 runAIAnalysisBtn.disabled = !geminiApiKeyInput.value.trim();
             }
         });
     }
     
+    // Test OpenAI API Key
+    testOpenAIKeyBtn.addEventListener('click', async () => {
+        const apiKey = openaiApiKeyInput.value.trim();
+        if (!apiKey) {
+            alert('Please enter an API key first');
+            return;
+        }
+        
+        // Save key temporarily for testing
+        window.aiSemanticAnalyzer.setApiKey(apiKey, 'openai');
+        
+        testOpenAIKeyBtn.disabled = true;
+        testOpenAIKeyBtn.textContent = '⏳';
+        
+        try {
+            const result = await window.aiSemanticAnalyzer.testApiKey('openai');
+            
+            if (result.valid) {
+                const modelList = result.availableModels.length > 0 
+                    ? result.availableModels.join('\n• ')
+                    : 'No models found';
+                    
+                alert(`✓ OpenAI API Key is valid!\n\nAvailable models:\n• ${modelList}`);
+                runAIAnalysisBtn.disabled = false;
+            } else {
+                alert(`✗ API Key test failed:\n\n${result.error}\n\nPlease get a new API key from:\nhttps://platform.openai.com/api-keys`);
+            }
+        } catch (error) {
+            alert(`✗ Test failed: ${error.message}`);
+        } finally {
+            testOpenAIKeyBtn.disabled = false;
+            testOpenAIKeyBtn.textContent = '🔍';
+        }
+    });
+    
+    // Test Gemini API Key
+    testGeminiKeyBtn.addEventListener('click', async () => {
+        const apiKey = geminiApiKeyInput.value.trim();
+        if (!apiKey) {
+            alert('Please enter an API key first');
+            return;
+        }
+        
+        // Save key temporarily for testing
+        window.aiSemanticAnalyzer.setApiKey(apiKey, 'gemini');
+        
+        testGeminiKeyBtn.disabled = true;
+        testGeminiKeyBtn.textContent = '⏳';
+        
+        try {
+            const result = await window.aiSemanticAnalyzer.testApiKey('gemini');
+            
+            if (result.valid) {
+                const modelList = result.availableModels.length > 0 
+                    ? result.availableModels.join('\n• ')
+                    : 'No models found';
+                    
+                alert(`✓ Gemini API Key is valid!\n\nAvailable models:\n• ${modelList}`);
+                runAIAnalysisBtn.disabled = false;
+            } else {
+                alert(`✗ API Key test failed:\n\n${result.error}\n\nPlease get a new API key from:\nhttps://aistudio.google.com/app/apikey`);
+            }
+        } catch (error) {
+            alert(`✗ Test failed: ${error.message}`);
+        } finally {
+            testGeminiKeyBtn.disabled = false;
+            testGeminiKeyBtn.textContent = '🔍';
+        }
+    });
+    
+    // Test Ollama Connection
+    if (testOllamaBtn) {
+        testOllamaBtn.addEventListener('click', async () => {
+            // Save config first
+            if (ollamaEndpointInput && ollamaModelSelect) {
+                window.aiSemanticAnalyzer.setOllamaConfig(
+                    ollamaEndpointInput.value.trim(),
+                    ollamaModelSelect.value
+                );
+            }
+            
+            testOllamaBtn.disabled = true;
+            testOllamaBtn.textContent = '⏳';
+            
+            try {
+                const result = await window.aiSemanticAnalyzer.testApiKey('ollama');
+                
+                if (result.valid) {
+                    const modelList = result.availableModels.length > 0 
+                        ? result.availableModels.join('\n• ')
+                        : 'No models found (run: ollama pull llama3.2)';
+                        
+                    alert(`✓ Ollama is running!\n\nEndpoint: ${result.endpoint}\nCurrent model: ${result.currentModel}\n\nInstalled models:\n• ${modelList}\n\n✨ Ready to analyze!`);
+                    runAIAnalysisBtn.disabled = false;
+                } else {
+                    alert(`✗ Cannot connect to Ollama:\n\n${result.error}\n\nTo start Ollama:\n1. Open terminal\n2. Run: ollama serve\n3. Test again`);
+                }
+            } catch (error) {
+                alert(`✗ Test failed: ${error.message}`);
+            } finally {
+                testOllamaBtn.disabled = false;
+                testOllamaBtn.textContent = '🔍 Test Connection';
+            }
+        });
+    }
+    
     // Run AI Analysis
-    if (runAIAnalysisBtn) {
-        runAIAnalysisBtn.addEventListener('click', async () => {
+    runAIAnalysisBtn.addEventListener('click', async () => {
             try {
                 // Get the current document text
                 const rawTextContent = document.getElementById('rawTextContent');
@@ -6976,46 +7315,208 @@ if (window.aiSemanticAnalyzer) {
                 const documentText = rawTextContent.textContent.trim();
                 
                 // Show status
-                if (aiAnalysisStatus) aiAnalysisStatus.style.display = 'block';
-                if (aiAnalysisResults) aiAnalysisResults.style.display = 'none';
-                if (runAIAnalysisBtn) runAIAnalysisBtn.disabled = true;
+                aiAnalysisStatus.style.display = 'block';
+                runAIAnalysisBtn.disabled = true;
                 
                 // Run analysis with progress updates
                 const results = await window.aiSemanticAnalyzer.analyzeDocument(
                     documentText,
                     (message, progress) => {
-                        if (aiAnalysisProgress) {
-                            aiAnalysisProgress.textContent = `${message} (${progress}%)`;
-                        }
+                        aiAnalysisProgress.textContent = `${message} (${progress}%)`;
                     }
                 );
                 
-                // Hide status, show results
-                if (aiAnalysisStatus) aiAnalysisStatus.style.display = 'none';
-                if (aiAnalysisResults) aiAnalysisResults.style.display = 'block';
+                // Hide status
+                aiAnalysisStatus.style.display = 'none';
                 
-                // Update summary
-                if (aiResultsSummary) {
-                    aiResultsSummary.innerHTML = `
-                        Found <strong>${results.patternsFound}</strong> semantic patterns<br>
-                        across <strong>${results.similarGroups.length}</strong> groups<br>
-                        <span style="font-size: 11px; color: #666;">Analyzed ${results.totalSentences} sentences</span>
-                    `;
+                // Cache the results
+                cacheAIAnalysisResults(currentFilePath, results);
+                
+                // Display results in Statistics panel AI tab
+                displayAIResultsInStatsPanel(results, false);
+                
+                // Switch to Statistics panel AI Analysis tab
+                const aiAnalysisTab = document.querySelector('[data-stats-tab="ai-analysis"]');
+                if (aiAnalysisTab) {
+                    aiAnalysisTab.click();
                 }
+                
+                // Show success message
+                setTimeout(() => {
+                    alert(`✓ Analysis complete! Found ${results.similarGroups.length} pattern groups.\n\nResults are shown below. Click any sentence to navigate to it in the document.`);
+                }, 500);
                 
             } catch (error) {
                 console.error('AI Analysis error:', error);
                 alert(`Analysis failed: ${error.message}`);
-                if (aiAnalysisStatus) aiAnalysisStatus.style.display = 'none';
+                aiAnalysisStatus.style.display = 'none';
             } finally {
-                if (runAIAnalysisBtn) runAIAnalysisBtn.disabled = false;
+                runAIAnalysisBtn.disabled = false;
+            }
+        });
+    
+    console.log('✓ AI Semantic Analysis initialized');
+}
+
+// Cache AI Analysis results
+function cacheAIAnalysisResults(filePath, results) {
+    if (!filePath) return;
+    
+    const cacheKey = `aiAnalysis_${btoa(filePath)}`; // Base64 encode the file path
+    
+    // Serialize the similarSentences Map
+    const similarSentencesArray = Array.from(window.aiSemanticAnalyzer.similarSentences.entries());
+    
+    const cacheData = {
+        results: results,
+        similarSentencesArray: similarSentencesArray, // Serialized Map
+        timestamp: Date.now(),
+        filePath: filePath
+    };
+    
+    try {
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        console.log(`✓ Cached AI analysis for: ${filePath}`);
+    } catch (error) {
+        console.warn('Failed to cache AI analysis:', error);
+    }
+}
+
+// Load cached AI Analysis results
+function loadCachedAIAnalysisResults(filePath) {
+    if (!filePath) return null;
+    
+    const cacheKey = `aiAnalysis_${btoa(filePath)}`;
+    
+    try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            const cacheData = JSON.parse(cached);
+            console.log(`✓ Loaded cached AI analysis for: ${filePath}`);
+            return cacheData;
+        }
+    } catch (error) {
+        console.warn('Failed to load cached AI analysis:', error);
+    }
+    
+    return null;
+}
+
+// Clear cached AI Analysis results
+function clearCachedAIAnalysisResults(filePath) {
+    if (!filePath) return;
+    
+    const cacheKey = `aiAnalysis_${btoa(filePath)}`;
+    localStorage.removeItem(cacheKey);
+    console.log(`✓ Cleared cached AI analysis for: ${filePath}`);
+}
+
+// Display AI results in Statistics panel
+function displayAIResultsInStatsPanel(results, isCached = false) {
+    const aiTabContent = document.getElementById('aiAnalysisTabContent');
+    if (!aiTabContent) return;
+    
+    let providerName = 'Unknown';
+    if (results.provider === 'openai') providerName = 'OpenAI GPT-4';
+    else if (results.provider === 'gemini') providerName = 'Google Gemini';
+    else if (results.provider === 'ollama') providerName = `Ollama (${window.aiSemanticAnalyzer.getOllamaConfig().model})`;
+    
+    const fullData = window.aiSemanticAnalyzer.similarSentences;
+    const colors = ['#2196f3', '#4caf50', '#ff9800', '#9c27b0', '#f44336'];
+    
+    let patternsHTML = '';
+    fullData.forEach((groupData, patternId) => {
+        const idx = Array.from(fullData.keys()).indexOf(patternId);
+        const borderColor = colors[idx % colors.length];
+        
+        patternsHTML += `
+            <div style="margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; border-left: 4px solid ${borderColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div style="font-weight: 600; margin-bottom: 8px; color: #333; font-size: 15px;">
+                    Pattern ${idx + 1}: ${escapeHtml(groupData.theme)}
+                </div>
+                <div style="font-size: 12px; color: #666; margin-bottom: 12px;">
+                    <strong>${groupData.sentences.length}</strong> similar sentences found
+                    <span style="margin-left: 10px; padding: 2px 8px; background: ${
+                        groupData.significance === 'high' ? '#4caf50' : 
+                        groupData.significance === 'medium' ? '#ff9800' : '#9e9e9e'
+                    }; color: white; border-radius: 3px; font-size: 10px; font-weight: 600;">
+                        ${groupData.significance.toUpperCase()}
+                    </span>
+                </div>
+                <div style="max-height: 250px; overflow-y: auto; background: #f9f9f9; padding: 10px; border-radius: 6px;">
+                    ${groupData.sentences.map((sentence, sIdx) => `
+                        <div class="ai-pattern-sentence" data-sentence-text="${escapeHtml(sentence)}" 
+                             style="padding: 8px; margin-bottom: 6px; background: white; border-radius: 4px; cursor: pointer; font-size: 13px; line-height: 1.6; border: 1px solid #e0e0e0; transition: all 0.2s;"
+                             onmouseover="this.style.borderColor='${borderColor}'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'; this.style.transform='translateX(2px)'"
+                             onmouseout="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'; this.style.transform='translateX(0)'">
+                            <span style="color: ${borderColor}; font-weight: 600; margin-right: 6px; font-size: 12px;">${sIdx + 1}.</span>
+                            <span style="color: #333;">"${escapeHtml(sentence)}"</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+    
+    const cacheInfo = isCached ? `
+        <div style="font-size: 11px; opacity: 0.9; margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
+            <span>📦 Cached results from ${new Date(isCached).toLocaleString()}</span>
+            <button id="reAnalyzeBtn" class="btn-icon" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 4px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;">
+                🔄 Re-analyze
+            </button>
+        </div>
+    ` : '';
+    
+    aiTabContent.innerHTML = `
+        <div style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white;">
+            <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">🤖 AI Pattern Analysis Results ${isCached ? '(Cached)' : ''}</div>
+            <div style="font-size: 14px; opacity: 0.9;">
+                Found <strong>${results.patternsFound}</strong> semantic patterns across <strong>${results.similarGroups.length}</strong> groups
+            </div>
+            <div style="font-size: 12px; opacity: 0.8; margin-top: 6px;">
+                Analyzed ${results.totalSentences} sentences using ${providerName}
+            </div>
+            ${cacheInfo}
+        </div>
+        
+        <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <button id="applyAIHighlightsBtn2" class="btn-primary" style="flex: 1; min-width: 200px; padding: 10px; font-size: 13px;">
+                ✨ Apply Pattern Highlights
+            </button>
+            <button id="addToMindmapBtn2" class="btn-secondary" style="flex: 1; min-width: 200px; padding: 10px; font-size: 13px;">
+                🧠 Add to Mindmap
+            </button>
+        </div>
+        
+        ${patternsHTML}
+    `;
+    
+    // Add click handlers for sentence navigation
+    aiTabContent.querySelectorAll('.ai-pattern-sentence').forEach(el => {
+        el.addEventListener('click', () => {
+            const sentenceText = el.dataset.sentenceText;
+            navigateToSentenceInDocument(sentenceText);
+        });
+    });
+    
+    // Add click handler for re-analyze button
+    const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
+    if (reAnalyzeBtn) {
+        reAnalyzeBtn.addEventListener('click', () => {
+            if (confirm('Re-analyze this document? This will replace the cached results.')) {
+                clearCachedAIAnalysisResults(currentFilePath);
+                const runBtn = document.getElementById('runAIAnalysisBtn');
+                if (runBtn) runBtn.click();
             }
         });
     }
     
-    // Apply AI Highlights
-    if (applyAIHighlightsBtn) {
-        applyAIHighlightsBtn.addEventListener('click', () => {
+    // Add click handlers for action buttons
+    const applyBtn2 = document.getElementById('applyAIHighlightsBtn2');
+    const mindmapBtn2 = document.getElementById('addToMindmapBtn2');
+    
+    if (applyBtn2) {
+        applyBtn2.addEventListener('click', () => {
             try {
                 const rawTextContent = document.getElementById('rawTextContent');
                 if (!rawTextContent || !window.notesManager) {
@@ -7034,7 +7535,6 @@ if (window.aiSemanticAnalyzer) {
                     return;
                 }
                 
-                // Add highlights to notes manager
                 highlights.forEach(h => window.notesManager.highlights.push(h));
                 window.notesManager.saveToStorage();
                 window.notesManager.renderDebounced();
@@ -7042,10 +7542,8 @@ if (window.aiSemanticAnalyzer) {
                 
                 alert(`✓ Applied ${highlights.length} pattern highlights!`);
                 
-                // Switch to notes view to see the highlights
                 const notesBtn = document.getElementById('notesBtn');
                 if (notesBtn) notesBtn.click();
-                
             } catch (error) {
                 console.error('Error applying highlights:', error);
                 alert(`Failed to apply highlights: ${error.message}`);
@@ -7053,114 +7551,178 @@ if (window.aiSemanticAnalyzer) {
         });
     }
     
-    // Show AI Patterns Detail
-    if (showAIPatternsBtn) {
-        showAIPatternsBtn.addEventListener('click', () => {
-            const summary = window.aiSemanticAnalyzer.getSummary();
-            
-            if (summary.groups.length === 0) {
-                alert('No patterns found');
-                return;
-            }
-            
-            // Create dialog to show patterns
-            const dialog = document.createElement('div');
-            dialog.className = 'note-dialog-overlay';
-            dialog.innerHTML = `
-                <div class="note-dialog" style="max-width: 700px; max-height: 80vh; overflow-y: auto;">
-                    <div class="note-dialog-header">
-                        <h3>🤖 AI Pattern Analysis</h3>
-                        <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
-                    </div>
-                    <div class="note-dialog-body">
-                        <div style="margin-bottom: 15px; padding: 10px; background: #e3f2fd; border-radius: 6px;">
-                            <strong>Summary:</strong> Found ${summary.totalGroups} semantic pattern groups
-                        </div>
-                        ${summary.groups.map((group, idx) => `
-                            <div style="margin-bottom: 20px; padding: 12px; background: #f5f5f5; border-radius: 6px; border-left: 4px solid #2196f3;">
-                                <div style="font-weight: 600; margin-bottom: 8px; color: #333;">
-                                    Pattern ${idx + 1}: ${escapeHtml(group.theme)}
-                                </div>
-                                <div style="font-size: 12px; color: #666; margin-bottom: 6px;">
-                                    <strong>${group.count}</strong> similar sentences found
-                                    <span style="margin-left: 10px; padding: 2px 8px; background: ${
-                                        group.significance === 'high' ? '#4caf50' : 
-                                        group.significance === 'medium' ? '#ff9800' : '#9e9e9e'
-                                    }; color: white; border-radius: 3px; font-size: 10px;">
-                                        ${group.significance.toUpperCase()}
-                                    </span>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div class="note-dialog-footer">
-                        <button class="btn-primary" onclick="this.closest('.note-dialog-overlay').remove()">Close</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(dialog);
-        });
+    if (mindmapBtn2) {
+        mindmapBtn2.addEventListener('click', addAIPatternsToMindmap);
     }
+}
+
+// Add AI patterns to mindmap
+function addAIPatternsToMindmap() {
+    try {
+        if (!window.mindmapManager) {
+            alert('Mindmap not available');
+            return;
+        }
+        
+        const summary = window.aiSemanticAnalyzer.getSummary();
+        
+        if (summary.groups.length === 0) {
+            alert('No patterns to add');
+            return;
+        }
+        
+        // Get the AI patterns from similar sentences
+        const groups = Array.from(window.aiSemanticAnalyzer.similarSentences.values());
+        
+        // Add patterns to mindmap
+        groups.forEach((group, idx) => {
+            // Create a parent node for the pattern theme
+            const themeNode = {
+                id: `ai_theme_${Date.now()}_${idx}`,
+                text: `🤖 ${group.theme}`,
+                x: 200 + (idx % 3) * 250,
+                y: 150 + Math.floor(idx / 3) * 200,
+                color: ['#2196f3', '#4caf50', '#ff9800', '#9c27b0', '#f44336'][idx % 5],
+                connections: []
+            };
+            
+            // Add child nodes for each sentence in the group
+            group.sentences.forEach((sentence, sIdx) => {
+                const sentenceNode = {
+                    id: `ai_sentence_${Date.now()}_${idx}_${sIdx}`,
+                    text: sentence.substring(0, 50) + (sentence.length > 50 ? '...' : ''),
+                    x: themeNode.x + (sIdx % 2) * 150 - 75,
+                    y: themeNode.y + 100 + Math.floor(sIdx / 2) * 80,
+                    color: themeNode.color,
+                    connections: []
+                };
+                
+                window.mindmapManager.addNode(sentenceNode);
+                window.mindmapManager.addConnection(themeNode.id, sentenceNode.id);
+            });
+            
+            window.mindmapManager.addNode(themeNode);
+        });
+        
+        alert(`✓ Added ${groups.length} pattern groups to mindmap!`);
+        
+        // Switch to mindmap view
+        const mindmapBtn = document.getElementById('mindmapBtn');
+        if (mindmapBtn) mindmapBtn.click();
+        
+    } catch (error) {
+        console.error('Error adding to mindmap:', error);
+        alert(`Failed to add to mindmap: ${error.message}`);
+    }
+}
+
+// Stats panel tab switching
+document.addEventListener('DOMContentLoaded', () => {
+    const statsTabs = document.querySelectorAll('.stats-tab-btn');
+    const statsContents = document.querySelectorAll('.stats-tab-content');
     
-    // Add to Mindmap
-    if (addToMindmapBtn) {
-        addToMindmapBtn.addEventListener('click', () => {
-            try {
-                if (!window.mindmapManager) {
-                    alert('Mindmap not available');
-                    return;
+    statsTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.statsTab;
+            
+            // Update tab buttons
+            statsTabs.forEach(t => {
+                t.classList.remove('active');
+            });
+            tab.classList.add('active');
+            
+            // Update tab contents
+            statsContents.forEach(content => {
+                if (content.dataset.statsContent === targetTab) {
+                    content.style.display = 'block';
+                } else {
+                    content.style.display = 'none';
                 }
-                
-                const summary = window.aiSemanticAnalyzer.getSummary();
-                
-                if (summary.groups.length === 0) {
-                    alert('No patterns to add');
-                    return;
-                }
-                
-                // Get the AI patterns from similar sentences
-                const groups = Array.from(window.aiSemanticAnalyzer.similarSentences.values());
-                
-                // Add patterns to mindmap
-                groups.forEach((group, idx) => {
-                    // Create a parent node for the pattern theme
-                    const themeNode = {
-                        id: `ai_theme_${Date.now()}_${idx}`,
-                        text: `🤖 ${group.theme}`,
-                        x: 200 + (idx % 3) * 250,
-                        y: 150 + Math.floor(idx / 3) * 200,
-                        color: ['#2196f3', '#4caf50', '#ff9800', '#9c27b0', '#f44336'][idx % 5],
-                        connections: []
-                    };
-                    
-                    // Add child nodes for each sentence in the group
-                    group.sentences.forEach((sentence, sIdx) => {
-                        const sentenceNode = {
-                            id: `ai_sentence_${Date.now()}_${idx}_${sIdx}`,
-                            text: sentence.substring(0, 50) + (sentence.length > 50 ? '...' : ''),
-                            x: themeNode.x + (sIdx % 2) * 150 - 75,
-                            y: themeNode.y + 100 + Math.floor(sIdx / 2) * 80,
-                            color: themeNode.color,
-                            connections: []
-                        };
-                        
-                        window.mindmapManager.addNode(sentenceNode);
-                        window.mindmapManager.addConnection(themeNode.id, sentenceNode.id);
-                    });
-                    
-                    window.mindmapManager.addNode(themeNode);
-                });
-                
-                alert(`✓ Added ${groups.length} pattern groups to mindmap!`);
-                
-                // Switch to mindmap view
-                const mindmapBtn = document.getElementById('mindmapBtn');
-                if (mindmapBtn) mindmapBtn.click();
-                
-            } catch (error) {
-                console.error('Error adding to mindmap:', error);
-                alert(`Failed to add to mindmap: ${error.message}`);
+            });
+            
+            // Load cached AI results when switching to AI Analysis tab
+            if (targetTab === 'ai-analysis' && currentFilePath && window.aiSemanticAnalyzer) {
+                loadAndDisplayCachedAIResults();
             }
         });
+    });
+});
+
+// Load and display cached AI results
+function loadAndDisplayCachedAIResults() {
+    const cached = loadCachedAIAnalysisResults(currentFilePath);
+    if (cached && cached.results) {
+        // Restore the similarSentences Map from the serialized array
+        if (cached.similarSentencesArray && Array.isArray(cached.similarSentencesArray)) {
+            window.aiSemanticAnalyzer.similarSentences = new Map(cached.similarSentencesArray);
+        }
+        
+        // Display the cached results
+        displayAIResultsInStatsPanel(cached.results, cached.timestamp);
+        console.log('✓ Displayed cached AI analysis results');
+    }
+}
+
+// Navigate to sentence in document
+function navigateToSentenceInDocument(sentenceText) {
+    try {
+        // Try to find the sentence in the raw text content
+        const rawTextContent = document.getElementById('rawTextContent');
+        const highlightedTextContent = document.getElementById('highlightedTextContent');
+        
+        if (!rawTextContent) {
+            alert('Cannot navigate: document not loaded');
+            return;
+        }
+        
+        const docText = rawTextContent.textContent;
+        const index = docText.indexOf(sentenceText);
+        
+        if (index === -1) {
+            alert('Cannot find sentence in document');
+            return;
+        }
+        
+        // Switch to the appropriate view
+        const analyseBtn = document.querySelector('[data-view="highlighted"]') || document.getElementById('analyseBtn');
+        if (analyseBtn) analyseBtn.click();
+        
+        // Scroll to the sentence
+        setTimeout(() => {
+            const container = highlightedTextContent || rawTextContent;
+            if (!container) return;
+            
+            // Try to find the text node containing this sentence
+            const walker = document.createTreeWalker(
+                container,
+                NodeFilter.SHOW_TEXT,
+                null
+            );
+            
+            let node;
+            while (node = walker.nextNode()) {
+                if (node.textContent.includes(sentenceText)) {
+                    // Found it! Scroll the parent element into view
+                    const element = node.parentElement;
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        // Highlight temporarily
+                        const originalBG = element.style.background;
+                        element.style.background = '#ffeb3b';
+                        element.style.transition = 'background 0.3s';
+                        
+                        setTimeout(() => {
+                            element.style.background = originalBG;
+                        }, 2000);
+                    }
+                    break;
+                }
+            }
+        }, 300);
+        
+    } catch (error) {
+        console.error('Navigation error:', error);
+        alert('Failed to navigate to sentence');
     }
 }

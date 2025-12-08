@@ -1019,7 +1019,7 @@ class NotesManager {
             links: highlight.links || []
         }));
         
-        this.render();
+        this.render(true); // Force render when loading from file
         this.applyHighlights();
         this.updateButtonStates();
         
@@ -2318,10 +2318,10 @@ class NotesManager {
                                         const linkPreview = linkedItem.type === 'highlight' ? linkedItem.text : linkedItem.text;
                                         const truncated = (linkPreview || '').length > 50 ? (linkPreview || '').substring(0, 50) + '...' : (linkPreview || '');
                                         const isCrossDoc = linkFilePath !== this.currentFilePath;
-                                        const docLabel = isCrossDoc ? `<span class="linked-note-doc">📚 ${this.escapeHtml(linkFileName)}</span>` : '';
+                                        const docLabel = isCrossDoc ? `<span class="linked-note-doc">📚 ${this.escapeHtml(linkFileName || 'unknown file')}</span>` : '';
                                         
                                         // Escape backslashes for JS string in onclick
-                                        const safeLinkFilePath = linkFilePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                                        const safeLinkFilePath = (linkFilePath || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                                         
                                         return `
                                             <div class="linked-note-badge ${isCrossDoc ? 'cross-doc' : ''}" title="${isCrossDoc ? 'Cross-document link' : 'Same document link'}">
@@ -2353,8 +2353,9 @@ class NotesManager {
     }
     
     escapeHtml(text) {
+        if (text == null) return ''; // Handle null or undefined
         const div = document.createElement('div');
-        div.textContent = text;
+        div.textContent = String(text); // Convert to string to be safe
         return div.innerHTML;
     }
     
