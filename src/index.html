@@ -253,6 +253,57 @@
                             <label><input type="checkbox" id="highlightCurrencySymbols"> 💲 Symbols <span class="pos-count" id="countCurrencySymbols">-</span></label>
                         </div>
                     </div>
+                    
+                    <!-- AI Semantic Analysis Section -->
+                    <div class="pos-section" style="border-top: 2px solid #e0e0e0; padding-top: 10px; margin-top: 10px;">
+                        <div class="pos-section-header" onclick="togglePOSSection('aiAnalysis')">
+                            <span class="pos-section-arrow" id="aiAnalysis-arrow">▼</span>
+                            <span style="font-weight: 600;">🤖 AI Semantic Analysis</span>
+                        </div>
+                        <div class="pos-section-content" id="aiAnalysis-content">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 10px; line-height: 1.4;">
+                                Find patterns of sentences with similar meanings using Google Gemini AI (Free tier available)
+                            </div>
+                            
+                            <div id="aiApiKeySection" style="margin-bottom: 10px;">
+                                <div style="display: flex; gap: 5px; margin-bottom: 8px;">
+                                    <input type="password" id="geminiApiKey" placeholder="Enter Gemini API Key" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px;">
+                                    <button id="saveApiKeyBtn" class="btn-icon" style="padding: 6px 10px; font-size: 11px;" title="Save API Key">💾</button>
+                                </div>
+                                <a href="https://makersuite.google.com/app/apikey" target="_blank" style="font-size: 11px; color: #2196f3; text-decoration: none;">Get free API key →</a>
+                            </div>
+                            
+                            <button id="runAIAnalysisBtn" class="btn-primary" style="width: 100%; padding: 8px; font-size: 13px; margin-bottom: 10px;" disabled>
+                                🚀 Analyze Document
+                            </button>
+                            
+                            <div id="aiAnalysisStatus" style="font-size: 12px; color: #666; display: none; padding: 8px; background: #f5f5f5; border-radius: 4px; margin-bottom: 8px;">
+                                <div id="aiAnalysisProgress"></div>
+                            </div>
+                            
+                            <div id="aiAnalysisResults" style="font-size: 12px; display: none;">
+                                <div style="background: #e3f2fd; padding: 8px; border-radius: 4px; margin-bottom: 8px;">
+                                    <strong>Analysis Complete!</strong><br>
+                                    <span id="aiResultsSummary"></span>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <button id="applyAIHighlightsBtn" class="btn-primary" style="width: 100%; padding: 6px; font-size: 12px;">
+                                        ✨ Apply Pattern Highlights
+                                    </button>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <button id="showAIPatternsBtn" class="btn-secondary" style="width: 100%; padding: 6px; font-size: 12px;">
+                                        📋 View Pattern Details
+                                    </button>
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <button id="addToMindmapBtn" class="btn-secondary" style="width: 100%; padding: 6px; font-size: 12px;">
+                                        🧠 Add to Mindmap
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="text-content-wrapper">
                     <div id="highlightedTextContent" class="text-content">
@@ -951,6 +1002,7 @@
     <script src="components/library-manager.js"></script>
     <script src="components/library-ui.js"></script>
     <script src="components/mindmap-manager.js"></script>
+    <script src="components/ai-semantic-analyzer.js"></script>
     <script src="renderer.js"></script>
 </body>
 </html>

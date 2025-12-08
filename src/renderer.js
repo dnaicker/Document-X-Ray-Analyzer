@@ -6916,3 +6916,251 @@ function resetTranslationState() {
         `;
     }
 }
+
+// ========================================
+// AI Semantic Analysis UI Handlers
+// ========================================
+
+// Check if API key exists on load and update UI
+if (window.aiSemanticAnalyzer) {
+    const geminiApiKeyInput = document.getElementById('geminiApiKey');
+    const runAIAnalysisBtn = document.getElementById('runAIAnalysisBtn');
+    const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+    const applyAIHighlightsBtn = document.getElementById('applyAIHighlightsBtn');
+    const showAIPatternsBtn = document.getElementById('showAIPatternsBtn');
+    const addToMindmapBtn = document.getElementById('addToMindmapBtn');
+    const aiAnalysisStatus = document.getElementById('aiAnalysisStatus');
+    const aiAnalysisProgress = document.getElementById('aiAnalysisProgress');
+    const aiAnalysisResults = document.getElementById('aiAnalysisResults');
+    const aiResultsSummary = document.getElementById('aiResultsSummary');
+    
+    // Load existing API key if available
+    const existingKey = window.aiSemanticAnalyzer.getApiKey();
+    if (existingKey && geminiApiKeyInput) {
+        geminiApiKeyInput.value = existingKey;
+        if (runAIAnalysisBtn) runAIAnalysisBtn.disabled = false;
+    }
+    
+    // Save API Key
+    if (saveApiKeyBtn && geminiApiKeyInput) {
+        saveApiKeyBtn.addEventListener('click', () => {
+            const apiKey = geminiApiKeyInput.value.trim();
+            if (apiKey) {
+                window.aiSemanticAnalyzer.setApiKey(apiKey);
+                if (runAIAnalysisBtn) runAIAnalysisBtn.disabled = false;
+                alert('✓ API Key saved successfully!');
+            } else {
+                alert('Please enter a valid API key');
+            }
+        });
+        
+        // Also enable button when typing
+        geminiApiKeyInput.addEventListener('input', () => {
+            if (runAIAnalysisBtn) {
+                runAIAnalysisBtn.disabled = !geminiApiKeyInput.value.trim();
+            }
+        });
+    }
+    
+    // Run AI Analysis
+    if (runAIAnalysisBtn) {
+        runAIAnalysisBtn.addEventListener('click', async () => {
+            try {
+                // Get the current document text
+                const rawTextContent = document.getElementById('rawTextContent');
+                if (!rawTextContent || !rawTextContent.textContent.trim()) {
+                    alert('No document loaded. Please open a document first.');
+                    return;
+                }
+                
+                const documentText = rawTextContent.textContent.trim();
+                
+                // Show status
+                if (aiAnalysisStatus) aiAnalysisStatus.style.display = 'block';
+                if (aiAnalysisResults) aiAnalysisResults.style.display = 'none';
+                if (runAIAnalysisBtn) runAIAnalysisBtn.disabled = true;
+                
+                // Run analysis with progress updates
+                const results = await window.aiSemanticAnalyzer.analyzeDocument(
+                    documentText,
+                    (message, progress) => {
+                        if (aiAnalysisProgress) {
+                            aiAnalysisProgress.textContent = `${message} (${progress}%)`;
+                        }
+                    }
+                );
+                
+                // Hide status, show results
+                if (aiAnalysisStatus) aiAnalysisStatus.style.display = 'none';
+                if (aiAnalysisResults) aiAnalysisResults.style.display = 'block';
+                
+                // Update summary
+                if (aiResultsSummary) {
+                    aiResultsSummary.innerHTML = `
+                        Found <strong>${results.patternsFound}</strong> semantic patterns<br>
+                        across <strong>${results.similarGroups.length}</strong> groups<br>
+                        <span style="font-size: 11px; color: #666;">Analyzed ${results.totalSentences} sentences</span>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('AI Analysis error:', error);
+                alert(`Analysis failed: ${error.message}`);
+                if (aiAnalysisStatus) aiAnalysisStatus.style.display = 'none';
+            } finally {
+                if (runAIAnalysisBtn) runAIAnalysisBtn.disabled = false;
+            }
+        });
+    }
+    
+    // Apply AI Highlights
+    if (applyAIHighlightsBtn) {
+        applyAIHighlightsBtn.addEventListener('click', () => {
+            try {
+                const rawTextContent = document.getElementById('rawTextContent');
+                if (!rawTextContent || !window.notesManager) {
+                    alert('Cannot apply highlights at this time');
+                    return;
+                }
+                
+                const documentText = rawTextContent.textContent.trim();
+                const highlights = window.aiSemanticAnalyzer.createPatternHighlights(
+                    window.notesManager,
+                    documentText
+                );
+                
+                if (highlights.length === 0) {
+                    alert('No patterns found to highlight');
+                    return;
+                }
+                
+                // Add highlights to notes manager
+                highlights.forEach(h => window.notesManager.highlights.push(h));
+                window.notesManager.saveToStorage();
+                window.notesManager.renderDebounced();
+                window.notesManager.applyHighlightsDebounced();
+                
+                alert(`✓ Applied ${highlights.length} pattern highlights!`);
+                
+                // Switch to notes view to see the highlights
+                const notesBtn = document.getElementById('notesBtn');
+                if (notesBtn) notesBtn.click();
+                
+            } catch (error) {
+                console.error('Error applying highlights:', error);
+                alert(`Failed to apply highlights: ${error.message}`);
+            }
+        });
+    }
+    
+    // Show AI Patterns Detail
+    if (showAIPatternsBtn) {
+        showAIPatternsBtn.addEventListener('click', () => {
+            const summary = window.aiSemanticAnalyzer.getSummary();
+            
+            if (summary.groups.length === 0) {
+                alert('No patterns found');
+                return;
+            }
+            
+            // Create dialog to show patterns
+            const dialog = document.createElement('div');
+            dialog.className = 'note-dialog-overlay';
+            dialog.innerHTML = `
+                <div class="note-dialog" style="max-width: 700px; max-height: 80vh; overflow-y: auto;">
+                    <div class="note-dialog-header">
+                        <h3>🤖 AI Pattern Analysis</h3>
+                        <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                    </div>
+                    <div class="note-dialog-body">
+                        <div style="margin-bottom: 15px; padding: 10px; background: #e3f2fd; border-radius: 6px;">
+                            <strong>Summary:</strong> Found ${summary.totalGroups} semantic pattern groups
+                        </div>
+                        ${summary.groups.map((group, idx) => `
+                            <div style="margin-bottom: 20px; padding: 12px; background: #f5f5f5; border-radius: 6px; border-left: 4px solid #2196f3;">
+                                <div style="font-weight: 600; margin-bottom: 8px; color: #333;">
+                                    Pattern ${idx + 1}: ${escapeHtml(group.theme)}
+                                </div>
+                                <div style="font-size: 12px; color: #666; margin-bottom: 6px;">
+                                    <strong>${group.count}</strong> similar sentences found
+                                    <span style="margin-left: 10px; padding: 2px 8px; background: ${
+                                        group.significance === 'high' ? '#4caf50' : 
+                                        group.significance === 'medium' ? '#ff9800' : '#9e9e9e'
+                                    }; color: white; border-radius: 3px; font-size: 10px;">
+                                        ${group.significance.toUpperCase()}
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="note-dialog-footer">
+                        <button class="btn-primary" onclick="this.closest('.note-dialog-overlay').remove()">Close</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+        });
+    }
+    
+    // Add to Mindmap
+    if (addToMindmapBtn) {
+        addToMindmapBtn.addEventListener('click', () => {
+            try {
+                if (!window.mindmapManager) {
+                    alert('Mindmap not available');
+                    return;
+                }
+                
+                const summary = window.aiSemanticAnalyzer.getSummary();
+                
+                if (summary.groups.length === 0) {
+                    alert('No patterns to add');
+                    return;
+                }
+                
+                // Get the AI patterns from similar sentences
+                const groups = Array.from(window.aiSemanticAnalyzer.similarSentences.values());
+                
+                // Add patterns to mindmap
+                groups.forEach((group, idx) => {
+                    // Create a parent node for the pattern theme
+                    const themeNode = {
+                        id: `ai_theme_${Date.now()}_${idx}`,
+                        text: `🤖 ${group.theme}`,
+                        x: 200 + (idx % 3) * 250,
+                        y: 150 + Math.floor(idx / 3) * 200,
+                        color: ['#2196f3', '#4caf50', '#ff9800', '#9c27b0', '#f44336'][idx % 5],
+                        connections: []
+                    };
+                    
+                    // Add child nodes for each sentence in the group
+                    group.sentences.forEach((sentence, sIdx) => {
+                        const sentenceNode = {
+                            id: `ai_sentence_${Date.now()}_${idx}_${sIdx}`,
+                            text: sentence.substring(0, 50) + (sentence.length > 50 ? '...' : ''),
+                            x: themeNode.x + (sIdx % 2) * 150 - 75,
+                            y: themeNode.y + 100 + Math.floor(sIdx / 2) * 80,
+                            color: themeNode.color,
+                            connections: []
+                        };
+                        
+                        window.mindmapManager.addNode(sentenceNode);
+                        window.mindmapManager.addConnection(themeNode.id, sentenceNode.id);
+                    });
+                    
+                    window.mindmapManager.addNode(themeNode);
+                });
+                
+                alert(`✓ Added ${groups.length} pattern groups to mindmap!`);
+                
+                // Switch to mindmap view
+                const mindmapBtn = document.getElementById('mindmapBtn');
+                if (mindmapBtn) mindmapBtn.click();
+                
+            } catch (error) {
+                console.error('Error adding to mindmap:', error);
+                alert(`Failed to add to mindmap: ${error.message}`);
+            }
+        });
+    }
+}
