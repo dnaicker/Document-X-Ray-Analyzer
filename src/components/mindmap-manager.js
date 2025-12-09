@@ -829,24 +829,8 @@ class MindmapManager {
             }
         }
 
-        // Check if clicking on a group
-        if (e.button === 0) {
-            const clickedGroup = this.getGroupAtPoint(worldPos.x, worldPos.y);
-            if (clickedGroup) {
-                this.selectedGroup = clickedGroup;
-                this.draggedGroup = clickedGroup;
-                this.render();
-                return;
-            } else {
-                // Clicked outside any group, deselect
-                if (this.selectedGroup) {
-                    this.selectedGroup = null;
-                    this.render();
-                }
-            }
-        }
-
-        // Check if clicking a node (reverse order to check top nodes first)
+        // Check if clicking a node FIRST (reverse order to check top nodes first)
+        // This ensures notes are clickable even when inside group rectangles
         for (let i = this.nodes.length - 1; i >= 0; i--) {
             const node = this.nodes[i];
             if (worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
@@ -881,7 +865,24 @@ class MindmapManager {
             }
         }
 
-        // If background clicked
+        // Check if clicking on a group (only if no node was clicked)
+        if (e.button === 0) {
+            const clickedGroup = this.getGroupAtPoint(worldPos.x, worldPos.y);
+            if (clickedGroup) {
+                this.selectedGroup = clickedGroup;
+                this.draggedGroup = clickedGroup;
+                this.render();
+                return;
+            } else {
+                // Clicked outside any group, deselect
+                if (this.selectedGroup) {
+                    this.selectedGroup = null;
+                    this.render();
+                }
+            }
+        }
+
+        // If background clicked (no node or group)
         if (e.button === 0 || e.button === 1 || e.button === 2) {
             this.isPanning = true;
             this.canvas.style.cursor = 'grabbing';
@@ -1050,21 +1051,35 @@ class MindmapManager {
                 }
             }
             
-            // Check if hovering over a group
-            const hoveredGroup = this.getGroupAtPoint(worldPos.x, worldPos.y);
-            if (hoveredGroup !== this.hoveredGroup) {
-                this.hoveredGroup = hoveredGroup;
-                this.canvas.style.cursor = hoveredGroup ? 'move' : 'default';
-                this.render();
+            // Check if hovering over a node first (nodes have priority)
+            let hoveringNode = false;
+            for (let i = this.nodes.length - 1; i >= 0; i--) {
+                const node = this.nodes[i];
+                if (worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
+                    worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
+                    hoveringNode = true;
+                    this.canvas.style.cursor = 'pointer';
+                    break;
+                }
             }
             
-            // Check if hovering over a connection (only if not hovering over group)
-            if (!hoveredGroup) {
-                const hoveredConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
-                if (hoveredConnection !== this.hoveredConnection) {
-                    this.hoveredConnection = hoveredConnection;
-                    this.canvas.style.cursor = hoveredConnection ? 'pointer' : 'default';
+            // Check if hovering over a group (only if not hovering over a node)
+            if (!hoveringNode) {
+                const hoveredGroup = this.getGroupAtPoint(worldPos.x, worldPos.y);
+                if (hoveredGroup !== this.hoveredGroup) {
+                    this.hoveredGroup = hoveredGroup;
+                    this.canvas.style.cursor = hoveredGroup ? 'move' : 'default';
                     this.render();
+                }
+                
+                // Check if hovering over a connection (only if not hovering over group)
+                if (!hoveredGroup) {
+                    const hoveredConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
+                    if (hoveredConnection !== this.hoveredConnection) {
+                        this.hoveredConnection = hoveredConnection;
+                        this.canvas.style.cursor = hoveredConnection ? 'pointer' : 'default';
+                        this.render();
+                    }
                 }
             }
         }
@@ -2051,8 +2066,6 @@ class MindmapManager {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         const worldPos = this.screenToWorld(mouseX, mouseY);
-        
-        console.log('Right-click at world position:', worldPos, 'Groups:', this.groups.length);
 
         // Check if clicked on a node
         let clickedNode = null;
@@ -2082,11 +2095,9 @@ class MindmapManager {
 
         // Check if clicked on a group
         const clickedGroup = this.getGroupAtPoint(worldPos.x, worldPos.y);
-        console.log('Clicked group:', clickedGroup ? clickedGroup.label : 'none');
         if (clickedGroup) {
             this.selectedGroup = clickedGroup;
             this.render();
-            console.log('Showing group context menu for:', clickedGroup.label);
             this.showContextMenu(e.clientX, e.clientY, null, worldPos, clickedGroup);
             return;
         }
@@ -2096,15 +2107,12 @@ class MindmapManager {
     }
 
     showContextMenu(x, y, node, worldPos, group = null) {
-        console.log('showContextMenu called with:', { node: !!node, group: group ? group.label : null });
-        
         this.contextMenu.innerHTML = '';
         this.contextMenu.style.left = x + 'px';
         this.contextMenu.style.top = y + 'px';
         this.contextMenu.classList.remove('hidden');
 
         if (group) {
-            console.log('Displaying group menu for:', group.label);
             // Group options
             const header = document.createElement('div');
             header.className = 'context-menu-header';
