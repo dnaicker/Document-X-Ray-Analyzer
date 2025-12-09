@@ -21,7 +21,6 @@ class NotesManager {
         this.contextHighlightGroup = document.getElementById('contextHighlightGroup');
         
         this.contextHighlight = document.getElementById('contextHighlight');
-        this.contextHighlightAndNote = document.getElementById('contextHighlightAndNote');
         this.contextAddNote = document.getElementById('contextAddNote');
         
         this.contextEditNote = document.getElementById('contextEditNote');
@@ -395,7 +394,7 @@ class NotesManager {
     setupContextMenuButtons() {
         // Set up context menu button listeners ONCE (called only from constructor)
         // Defensive: Check if context menu elements exist
-        if (!this.contextMenu || !this.contextHighlight || !this.contextHighlightAndNote) {
+        if (!this.contextMenu || !this.contextHighlight) {
             console.warn('⚠️ Context menu elements not found, skipping context menu setup');
             return;
         }
@@ -414,12 +413,6 @@ class NotesManager {
         this.contextHighlight.addEventListener('click', (e) => {
             e.stopPropagation();
             this.highlightSelectionFromContext();
-            this.hideContextMenu();
-        });
-        
-        this.contextHighlightAndNote.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.highlightAndNoteFromContext();
             this.hideContextMenu();
         });
 

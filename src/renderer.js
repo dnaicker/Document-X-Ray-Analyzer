@@ -1908,7 +1908,15 @@ async function loadPDFFile(filePath, cachedState = null) {
                 
                 // Restore HTML Content & Stats IMMEDIATELY
                 if (persistentCache.rawTextHTML) document.getElementById('rawTextContent').innerHTML = persistentCache.rawTextHTML;
-                if (persistentCache.highlightedTextHTML) document.getElementById('highlightedTextContent').innerHTML = persistentCache.highlightedTextHTML;
+                if (persistentCache.highlightedTextHTML) {
+                    const highlightedContent = document.getElementById('highlightedTextContent');
+                    highlightedContent.innerHTML = persistentCache.highlightedTextHTML;
+                    
+                    // Re-attach context menu for highlighting/note functionality
+                    if (typeof notesManager !== 'undefined') {
+                        notesManager.setupContextMenu(highlightedContent);
+                    }
+                }
                 if (persistentCache.figuresHTML && document.getElementById('figuresGrid')) {
                     document.getElementById('figuresGrid').innerHTML = persistentCache.figuresHTML;
                     if (document.getElementById('figuresCount')) document.getElementById('figuresCount').textContent = persistentCache.figuresCount;
@@ -2006,7 +2014,15 @@ async function loadPDFFile(filePath, cachedState = null) {
             
             // Restore HTML Content & Stats IMMEDIATELY
             if (cachedState.rawTextHTML) document.getElementById('rawTextContent').innerHTML = cachedState.rawTextHTML;
-            if (cachedState.highlightedTextHTML) document.getElementById('highlightedTextContent').innerHTML = cachedState.highlightedTextHTML;
+            if (cachedState.highlightedTextHTML) {
+                const highlightedContent = document.getElementById('highlightedTextContent');
+                highlightedContent.innerHTML = cachedState.highlightedTextHTML;
+                
+                // Re-attach context menu for highlighting/note functionality
+                if (typeof notesManager !== 'undefined') {
+                    notesManager.setupContextMenu(highlightedContent);
+                }
+            }
             if (cachedState.figuresHTML && document.getElementById('figuresGrid')) {
                 document.getElementById('figuresGrid').innerHTML = cachedState.figuresHTML;
                 if (document.getElementById('figuresCount')) document.getElementById('figuresCount').textContent = cachedState.figuresCount;
@@ -2214,7 +2230,15 @@ async function loadEPUBFile(filePath, cachedState = null) {
                 
                 // Restore HTML Content & Stats IMMEDIATELY
                 if (persistentCache.rawTextHTML) document.getElementById('rawTextContent').innerHTML = persistentCache.rawTextHTML;
-                if (persistentCache.highlightedTextHTML) document.getElementById('highlightedTextContent').innerHTML = persistentCache.highlightedTextHTML;
+                if (persistentCache.highlightedTextHTML) {
+                    const highlightedContent = document.getElementById('highlightedTextContent');
+                    highlightedContent.innerHTML = persistentCache.highlightedTextHTML;
+                    
+                    // Re-attach context menu for highlighting/note functionality
+                    if (typeof notesManager !== 'undefined') {
+                        notesManager.setupContextMenu(highlightedContent);
+                    }
+                }
                 
                 if (currentAnalysis) {
                     statsPanel.renderStats(currentAnalysis);
@@ -2359,7 +2383,13 @@ async function loadEPUBFile(filePath, cachedState = null) {
                     }
                     
                     if (cachedState.highlightedTextHTML) {
-                        document.getElementById('highlightedTextContent').innerHTML = cachedState.highlightedTextHTML;
+                        const highlightedContent = document.getElementById('highlightedTextContent');
+                        highlightedContent.innerHTML = cachedState.highlightedTextHTML;
+                        
+                        // Re-attach context menu for highlighting/note functionality
+                        if (typeof notesManager !== 'undefined') {
+                            notesManager.setupContextMenu(highlightedContent);
+                        }
                     }
                 } else {
                     // Display text in raw text view
@@ -2504,7 +2534,15 @@ async function loadDOCXFile(filePath) {
                 
                 // Restore HTML Content & Stats IMMEDIATELY
                 if (persistentCache.rawTextHTML) document.getElementById('rawTextContent').innerHTML = persistentCache.rawTextHTML;
-                if (persistentCache.highlightedTextHTML) document.getElementById('highlightedTextContent').innerHTML = persistentCache.highlightedTextHTML;
+                if (persistentCache.highlightedTextHTML) {
+                    const highlightedContent = document.getElementById('highlightedTextContent');
+                    highlightedContent.innerHTML = persistentCache.highlightedTextHTML;
+                    
+                    // Re-attach context menu for highlighting/note functionality
+                    if (typeof notesManager !== 'undefined') {
+                        notesManager.setupContextMenu(highlightedContent);
+                    }
+                }
                 
                 if (currentAnalysis) {
                     statsPanel.renderStats(currentAnalysis);
@@ -2740,7 +2778,15 @@ async function loadMarkdownFile(filePath, cachedState = null) {
                 
                 // Restore HTML Content & Stats IMMEDIATELY
                 if (persistentCache.rawTextHTML) document.getElementById('rawTextContent').innerHTML = persistentCache.rawTextHTML;
-                if (persistentCache.highlightedTextHTML) document.getElementById('highlightedTextContent').innerHTML = persistentCache.highlightedTextHTML;
+                if (persistentCache.highlightedTextHTML) {
+                    const highlightedContent = document.getElementById('highlightedTextContent');
+                    highlightedContent.innerHTML = persistentCache.highlightedTextHTML;
+                    
+                    // Re-attach context menu for highlighting/note functionality
+                    if (typeof notesManager !== 'undefined') {
+                        notesManager.setupContextMenu(highlightedContent);
+                    }
+                }
                 
                 if (currentAnalysis) {
                     statsPanel.renderStats(currentAnalysis);
@@ -2985,7 +3031,15 @@ async function loadTxtFile(filePath, cachedState = null) {
                 
                 // Restore HTML Content & Stats IMMEDIATELY
                 if (persistentCache.rawTextHTML) document.getElementById('rawTextContent').innerHTML = persistentCache.rawTextHTML;
-                if (persistentCache.highlightedTextHTML) document.getElementById('highlightedTextContent').innerHTML = persistentCache.highlightedTextHTML;
+                if (persistentCache.highlightedTextHTML) {
+                    const highlightedContent = document.getElementById('highlightedTextContent');
+                    highlightedContent.innerHTML = persistentCache.highlightedTextHTML;
+                    
+                    // Re-attach context menu for highlighting/note functionality
+                    if (typeof notesManager !== 'undefined') {
+                        notesManager.setupContextMenu(highlightedContent);
+                    }
+                }
                 
                 if (currentAnalysis) {
                     statsPanel.renderStats(currentAnalysis);
@@ -3345,6 +3399,11 @@ async function performAnalysis() {
         if (highlightedContent) {
             highlightedContent.innerHTML = highlightedHtml;
             console.log('✅ POS highlighted text rendered');
+            
+            // Re-attach context menu for highlighting/note functionality
+            if (typeof notesManager !== 'undefined') {
+                notesManager.setupContextMenu(highlightedContent);
+            }
         } else {
             console.warn('⚠️ highlightedTextContent element not found');
         }
@@ -5015,7 +5074,13 @@ function setupSelectAllCheckbox(selectAllId, prefix) {
                     currentAnalysis,
                     getHighlightOptions()
                 );
-                document.getElementById('highlightedTextContent').innerHTML = highlightedHtml;
+                const highlightedContent = document.getElementById('highlightedTextContent');
+                highlightedContent.innerHTML = highlightedHtml;
+                
+                // Re-attach context menu for highlighting/note functionality
+                if (typeof notesManager !== 'undefined') {
+                    notesManager.setupContextMenu(highlightedContent);
+                }
                 
                 // Re-apply user highlights after POS rendering
                 if (typeof notesManager !== 'undefined') {
