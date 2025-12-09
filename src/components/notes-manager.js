@@ -776,7 +776,7 @@ class NotesManager {
             id: Date.now().toString(),
             type: 'highlight',
             text: this.selectedText,
-            note: this.selectedText, // Auto-fill note with selected text
+            note: '', // Leave note empty - user can add via edit
             color: this.currentColor,
             page: this.getPageNumberFromSelection(),
             createdAt: new Date().toISOString(),
