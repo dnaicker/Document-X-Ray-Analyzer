@@ -659,13 +659,6 @@ class MindmapManager {
             }
             dialog.remove();
         });
-        
-        // Close on background click
-        dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) {
-                dialog.remove();
-            }
-        });
     }
 
     showGroupCreationDialog(x, y, width, height) {
@@ -746,13 +739,6 @@ class MindmapManager {
             this.saveLayout();
             this.render();
             dialog.remove();
-        });
-        
-        // Close on background click
-        dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) {
-                dialog.remove();
-            }
         });
     }
 
@@ -2435,13 +2421,6 @@ class MindmapManager {
             console.log('✓ Link deleted');
             dialog.remove();
         });
-        
-        // Close on background click
-        dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) {
-                dialog.remove();
-            }
-        });
     }
 
     addNote(x, y) {
@@ -2594,13 +2573,6 @@ class MindmapManager {
                 handleSave();
             }
         });
-        
-        // Close on background click
-        dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) {
-                dialog.remove();
-            }
-        });
     }
 
     showColorPicker(node) {
@@ -2658,13 +2630,6 @@ class MindmapManager {
                 console.log('✓ Color changed to', selectedColor);
             }
             dialog.remove();
-        });
-        
-        // Close on background click
-        dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) {
-                dialog.remove();
-            }
         });
     }
 
@@ -2724,13 +2689,6 @@ class MindmapManager {
         document.getElementById('confirmGroupColorBtn').addEventListener('click', () => {
             this.updateGroupColor(group, selectedColor);
             dialog.remove();
-        });
-        
-        // Close on background click
-        dialog.addEventListener('click', (e) => {
-            if (e.target === dialog) {
-                dialog.remove();
-            }
         });
     }
 

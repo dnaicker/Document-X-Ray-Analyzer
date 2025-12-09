@@ -1063,8 +1063,7 @@ class NotesManager {
     showAddNoteDialog() {
         this.openDialog('Add New Note', '', (noteText) => {
             if (noteText) {
-                // this.addNote(noteText);
-                this.addNote('');
+                this.addNote(noteText);
             }
         });
     }
