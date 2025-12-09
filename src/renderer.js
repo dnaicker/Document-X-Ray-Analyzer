@@ -2252,6 +2252,11 @@ async function loadEPUBFile(filePath, cachedState = null) {
                     switchView(lastLocation.view);
                 }
                 
+                // Load cached AI analysis if available
+                if (window.aiSemanticAnalyzer) {
+                    setTimeout(() => loadAndDisplayCachedAIResults(), 100);
+                }
+                
                 setStatus(`✅ Restored: ${currentFileName}`);
                 
                 // Refresh map if it's the active view
@@ -2537,6 +2542,11 @@ async function loadDOCXFile(filePath) {
                     switchView(lastLocation.view);
                 }
                 
+                // Load cached AI analysis if available
+                if (window.aiSemanticAnalyzer) {
+                    setTimeout(() => loadAndDisplayCachedAIResults(), 100);
+                }
+                
                 setStatus(`✅ Restored: ${currentFileName}`);
         hideLoading();
                 
@@ -2766,6 +2776,11 @@ async function loadMarkdownFile(filePath, cachedState = null) {
                 const lastLocation = recentFilesManager.getLastLocation(filePath);
                 if (lastLocation && lastLocation.view) {
                     switchView(lastLocation.view);
+                }
+                
+                // Load cached AI analysis if available
+                if (window.aiSemanticAnalyzer) {
+                    setTimeout(() => loadAndDisplayCachedAIResults(), 100);
                 }
                 
                 setStatus(`✅ Restored: ${currentFileName}`);
@@ -3006,6 +3021,11 @@ async function loadTxtFile(filePath, cachedState = null) {
                 const lastLocation = recentFilesManager.getLastLocation(filePath);
                 if (lastLocation && lastLocation.view) {
                     switchView(lastLocation.view);
+                }
+                
+                // Load cached AI analysis if available
+                if (window.aiSemanticAnalyzer) {
+                    setTimeout(() => loadAndDisplayCachedAIResults(), 100);
                 }
                 
                 setStatus(`✅ Restored: ${currentFileName}`);
@@ -7651,6 +7671,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // Load and display cached AI results
 function loadAndDisplayCachedAIResults() {
     const cached = loadCachedAIAnalysisResults(currentFilePath);
+    const aiTabContent = document.getElementById('aiAnalysisTabContent');
+    
     if (cached && cached.results) {
         // Restore the similarSentences Map from the serialized array
         if (cached.similarSentencesArray && Array.isArray(cached.similarSentencesArray)) {
@@ -7660,6 +7682,21 @@ function loadAndDisplayCachedAIResults() {
         // Display the cached results
         displayAIResultsInStatsPanel(cached.results, cached.timestamp);
         console.log('✓ Displayed cached AI analysis results');
+    } else {
+        // Clear AI analysis display if no cached results for this document
+        if (aiTabContent) {
+            aiTabContent.innerHTML = `
+                <div class="placeholder-text">
+                    <p>🤖 AI Semantic Analysis</p>
+                    <p>Configure your AI provider above and click <strong>🚀 Analyze Document</strong> to find semantic patterns.</p>
+                </div>
+            `;
+        }
+        // Clear the similarSentences Map
+        if (window.aiSemanticAnalyzer) {
+            window.aiSemanticAnalyzer.similarSentences = new Map();
+        }
+        console.log('✓ Cleared AI analysis (no cached results for this document)');
     }
 }
 
