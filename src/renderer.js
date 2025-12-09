@@ -7384,6 +7384,69 @@ function initializeAISemanticAnalysis() {
             }
         });
     
+    // Ollama Setup Guide Modal handlers
+    const openOllamaSetupGuideBtn = document.getElementById('openOllamaSetupGuide');
+    const ollamaSetupDialog = document.getElementById('ollamaSetupDialog');
+    const closeOllamaSetupDialog = document.getElementById('closeOllamaSetupDialog');
+    
+    if (openOllamaSetupGuideBtn && ollamaSetupDialog) {
+        // Open modal
+        openOllamaSetupGuideBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            ollamaSetupDialog.classList.remove('hidden');
+        });
+        
+        // Close modal
+        if (closeOllamaSetupDialog) {
+            closeOllamaSetupDialog.addEventListener('click', () => {
+                ollamaSetupDialog.classList.add('hidden');
+            });
+        }
+        
+        // Close on overlay click
+        ollamaSetupDialog.addEventListener('click', (e) => {
+            if (e.target === ollamaSetupDialog) {
+                ollamaSetupDialog.classList.add('hidden');
+            }
+        });
+        
+        // Platform tabs
+        const platformTabs = document.querySelectorAll('.ollama-platform-tab');
+        const platformContents = document.querySelectorAll('.ollama-platform-content');
+        
+        platformTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const platform = tab.dataset.platform;
+                
+                // Update active tab
+                platformTabs.forEach(t => {
+                    t.classList.remove('active');
+                    t.style.color = '#666';
+                    t.style.borderBottomColor = 'transparent';
+                });
+                tab.classList.add('active');
+                tab.style.color = '#667eea';
+                tab.style.borderBottomColor = '#667eea';
+                
+                // Update visible content
+                platformContents.forEach(content => {
+                    content.classList.add('hidden');
+                });
+                const targetContent = document.getElementById(`ollamaPlatform${platform.charAt(0).toUpperCase() + platform.slice(1)}`);
+                if (targetContent) {
+                    targetContent.classList.remove('hidden');
+                }
+            });
+        });
+        
+        // Set default active tab styles
+        const activeTab = document.querySelector('.ollama-platform-tab.active');
+        if (activeTab) {
+            activeTab.style.color = '#667eea';
+            activeTab.style.borderBottomColor = '#667eea';
+        }
+    }
+    
     console.log('✓ AI Semantic Analysis initialized');
 }
 

@@ -774,7 +774,8 @@
                             </div>
                             <div style="font-size: 11px; color: #666; line-height: 1.5; padding: 8px; background: white; border-radius: 4px;">
                                 <strong>Setup:</strong> <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">ollama serve</code><br>
-                                <strong>Install:</strong> <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">ollama pull llama3.2</code>
+                                <strong>Install:</strong> <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">ollama pull llama3.2</code><br>
+                                <a href="#" id="openOllamaSetupGuide" style="color: #2196f3; text-decoration: none; font-weight: 600; margin-top: 5px; display: inline-block;">📖 Full Setup Guide (Windows, Mac, Linux) →</a>
                             </div>
                         </div>
                         
@@ -931,6 +932,386 @@
         <div id="loadingMessage">Processing...</div>
         <div class="progress-container">
             <div id="progressBar" class="progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- Ollama Setup Guide Dialog -->
+    <div id="ollamaSetupDialog" class="note-dialog-overlay hidden">
+        <div class="note-dialog" style="max-width: 800px; height: 90vh;">
+            <div class="note-dialog-header">
+                <h3>🏠 Ollama Setup Guide</h3>
+                <button class="note-dialog-close" id="closeOllamaSetupDialog">×</button>
+            </div>
+            <div class="note-dialog-body" style="padding: 20px; overflow-y: auto;">
+                <!-- Platform Tabs -->
+                <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid #e0e0e0;">
+                    <button id="ollamaTabWindows" class="ollama-platform-tab active" data-platform="windows" style="flex: 1; padding: 12px; border: none; background: none; cursor: pointer; font-weight: 600; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s;">
+                        🪟 Windows
+                    </button>
+                    <button id="ollamaTabMac" class="ollama-platform-tab" data-platform="mac" style="flex: 1; padding: 12px; border: none; background: none; cursor: pointer; font-weight: 600; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s;">
+                        🍎 macOS
+                    </button>
+                    <button id="ollamaTabLinux" class="ollama-platform-tab" data-platform="linux" style="flex: 1; padding: 12px; border: none; background: none; cursor: pointer; font-weight: 600; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s;">
+                        🐧 Linux
+                    </button>
+                </div>
+
+                <!-- Benefits Section (Common to all platforms) -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 15px 0; font-size: 18px;">✨ Why Use Ollama?</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+                        <div>
+                            <div style="font-size: 24px; margin-bottom: 5px;">💰</div>
+                            <strong>100% FREE</strong>
+                            <div style="font-size: 13px; opacity: 0.9;">No API keys or billing</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 24px; margin-bottom: 5px;">🔒</div>
+                            <strong>PRIVATE</strong>
+                            <div style="font-size: 13px; opacity: 0.9;">All data stays local</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 24px; margin-bottom: 5px;">⚡</div>
+                            <strong>POWERFUL</strong>
+                            <div style="font-size: 13px; opacity: 0.9;">Works offline</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 24px; margin-bottom: 5px;">🚀</div>
+                            <strong>EASY</strong>
+                            <div style="font-size: 13px; opacity: 0.9;">5 minute setup</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Windows Instructions -->
+                <div id="ollamaPlatformWindows" class="ollama-platform-content">
+                    <h4 style="color: #333; margin-top: 0;">🚀 Quick Start (5 Minutes)</h4>
+                    
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 1: Install Ollama</strong>
+                        <ol style="margin: 10px 0 0 0; padding-left: 20px;">
+                            <li>Download from <a href="https://ollama.com/download/windows" target="_blank" style="color: #0066cc;">ollama.com/download/windows</a></li>
+                            <li>Run the installer (OllamaSetup.exe)</li>
+                            <li>Follow the installation wizard</li>
+                            <li>Ollama starts automatically after installation!</li>
+                        </ol>
+                    </div>
+
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 2: Pull a Model</strong>
+                        <p style="margin: 8px 0;">Open Command Prompt or PowerShell and run:</p>
+                        <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; margin: 8px 0;">ollama pull llama3.2</code>
+                        <p style="margin: 8px 0; font-size: 13px; color: #666;">This downloads Llama 3.2 (~2GB). Best for semantic analysis!</p>
+                        
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; color: #0066cc; font-weight: 600;">Other recommended models</summary>
+                            <div style="margin-top: 10px; padding-left: 15px;">
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull mistral</code>
+                                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Alternative, excellent quality (~4GB)</div>
+                                
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull phi3</code>
+                                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Smaller, faster (~2GB)</div>
+                                
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull gemma2</code>
+                                <div style="font-size: 12px; color: #666;">Google's model (~3GB)</div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 3: Verify It's Running</strong>
+                        <p style="margin: 8px 0;">In Command Prompt or PowerShell:</p>
+                        <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; margin: 8px 0;">ollama list</code>
+                        <p style="margin: 8px 0; font-size: 13px; color: #666;">You should see your installed models!</p>
+                        <div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 13px;">
+                            <strong>Note:</strong> Ollama usually starts automatically on Windows. If the command doesn't work, run <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">ollama serve</code>
+                        </div>
+                    </div>
+
+                    <div style="background: #e8f5e9; padding: 15px; border-radius: 6px; border-left: 4px solid #4caf50;">
+                        <strong style="color: #2e7d32;">Step 4: Use in Grammar Highlighter</strong>
+                        <ol style="margin: 10px 0 0 0; padding-left: 20px;">
+                            <li>Go to <strong>Statistics & AI → AI Analysis</strong> tab</li>
+                            <li>Select <strong>🏠 Local Ollama</strong> from the provider dropdown</li>
+                            <li>Click <strong>🔍 Test Connection</strong> to verify</li>
+                            <li>Click <strong>🚀 Analyze Document</strong></li>
+                        </ol>
+                        <div style="margin-top: 10px; font-size: 18px; text-align: center;">🎉 Done!</div>
+                    </div>
+
+                    <details style="margin-top: 20px;">
+                        <summary style="cursor: pointer; color: #0066cc; font-weight: 600; font-size: 15px;">🐛 Troubleshooting</summary>
+                        <div style="margin-top: 15px; padding-left: 15px;">
+                            <div style="margin-bottom: 15px;">
+                                <strong>Problem: "Command not found"</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Close and reopen Command Prompt/PowerShell</li>
+                                    <li>Restart your computer</li>
+                                    <li>Reinstall Ollama from the official website</li>
+                                </ul>
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <strong>Problem: "Cannot connect to Ollama"</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Run: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">ollama serve</code></li>
+                                    <li>Leave the terminal window open</li>
+                                    <li>Check if Ollama is running in Task Manager</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <strong>Problem: Analysis is slow or crashes</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Use a smaller model like <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">phi3</code></li>
+                                    <li>Close other applications to free up RAM</li>
+                                    <li>Analyze shorter documents (20-30 sentences at a time)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- macOS Instructions -->
+                <div id="ollamaPlatformMac" class="ollama-platform-content hidden">
+                    <h4 style="color: #333; margin-top: 0;">🚀 Quick Start (5 Minutes)</h4>
+                    
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 1: Install Ollama</strong>
+                        <ol style="margin: 10px 0 0 0; padding-left: 20px;">
+                            <li>Download from <a href="https://ollama.com/download/mac" target="_blank" style="color: #0066cc;">ollama.com/download/mac</a></li>
+                            <li>Open the downloaded .dmg file</li>
+                            <li>Drag Ollama to Applications folder</li>
+                            <li>Open Ollama from Applications</li>
+                            <li>Ollama icon appears in menu bar!</li>
+                        </ol>
+                    </div>
+
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 2: Pull a Model</strong>
+                        <p style="margin: 8px 0;">Open Terminal and run:</p>
+                        <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; margin: 8px 0;">ollama pull llama3.2</code>
+                        <p style="margin: 8px 0; font-size: 13px; color: #666;">This downloads Llama 3.2 (~2GB). Best for semantic analysis!</p>
+                        
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; color: #0066cc; font-weight: 600;">Other recommended models</summary>
+                            <div style="margin-top: 10px; padding-left: 15px;">
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull mistral</code>
+                                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Alternative, excellent quality (~4GB)</div>
+                                
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull phi3</code>
+                                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Smaller, faster (~2GB)</div>
+                                
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull gemma2</code>
+                                <div style="font-size: 12px; color: #666;">Google's model (~3GB)</div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 3: Verify It's Running</strong>
+                        <p style="margin: 8px 0;">In Terminal:</p>
+                        <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; margin: 8px 0;">ollama list</code>
+                        <p style="margin: 8px 0; font-size: 13px; color: #666;">You should see your installed models!</p>
+                        <div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 13px;">
+                            <strong>Tip:</strong> Check the Ollama icon in your menu bar - it should show it's running. If not, open Ollama from Applications.
+                        </div>
+                    </div>
+
+                    <div style="background: #e8f5e9; padding: 15px; border-radius: 6px; border-left: 4px solid #4caf50;">
+                        <strong style="color: #2e7d32;">Step 4: Use in Grammar Highlighter</strong>
+                        <ol style="margin: 10px 0 0 0; padding-left: 20px;">
+                            <li>Go to <strong>Statistics & AI → AI Analysis</strong> tab</li>
+                            <li>Select <strong>🏠 Local Ollama</strong> from the provider dropdown</li>
+                            <li>Click <strong>🔍 Test Connection</strong> to verify</li>
+                            <li>Click <strong>🚀 Analyze Document</strong></li>
+                        </ol>
+                        <div style="margin-top: 10px; font-size: 18px; text-align: center;">🎉 Done!</div>
+                    </div>
+
+                    <details style="margin-top: 20px;">
+                        <summary style="cursor: pointer; color: #0066cc; font-weight: 600; font-size: 15px;">🐛 Troubleshooting</summary>
+                        <div style="margin-top: 15px; padding-left: 15px;">
+                            <div style="margin-bottom: 15px;">
+                                <strong>Problem: "Command not found"</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Make sure Ollama is in your Applications folder</li>
+                                    <li>Open Ollama from Applications at least once</li>
+                                    <li>Restart Terminal</li>
+                                </ul>
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <strong>Problem: "Cannot connect to Ollama"</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Check if Ollama icon is in the menu bar</li>
+                                    <li>Click the icon and make sure it shows "Running"</li>
+                                    <li>If not running, open Ollama from Applications</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <strong>Problem: Analysis is slow or crashes</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Use a smaller model like <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">phi3</code></li>
+                                    <li>Close other applications to free up RAM</li>
+                                    <li>Analyze shorter documents (20-30 sentences at a time)</li>
+                                    <li>For Apple Silicon Macs: Models run very fast!</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Linux Instructions -->
+                <div id="ollamaPlatformLinux" class="ollama-platform-content hidden">
+                    <h4 style="color: #333; margin-top: 0;">🚀 Quick Start (5 Minutes)</h4>
+                    
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 1: Install Ollama</strong>
+                        <p style="margin: 8px 0;">Open Terminal and run:</p>
+                        <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; margin: 8px 0;">curl -fsSL https://ollama.com/install.sh | sh</code>
+                        <p style="margin: 8px 0; font-size: 13px; color: #666;">This installs Ollama automatically. Works on most Linux distributions!</p>
+                        <div style="background: #e3f2fd; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 13px;">
+                            <strong>Alternative:</strong> Manual installation instructions at <a href="https://github.com/ollama/ollama/blob/main/docs/linux.md" target="_blank" style="color: #0066cc;">github.com/ollama/ollama</a>
+                        </div>
+                    </div>
+
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 2: Start Ollama</strong>
+                        <p style="margin: 8px 0;">In Terminal:</p>
+                        <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; margin: 8px 0;">ollama serve</code>
+                        <p style="margin: 8px 0; font-size: 13px; color: #666;">Keep this terminal window open while using the app.</p>
+                        
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; color: #0066cc; font-weight: 600;">Run as a system service (optional)</summary>
+                            <div style="margin-top: 10px; padding-left: 15px; font-size: 13px;">
+                                <p>To run Ollama automatically on startup:</p>
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">sudo systemctl enable ollama</code>
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">sudo systemctl start ollama</code>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 3: Pull a Model</strong>
+                        <p style="margin: 8px 0;">Open a new Terminal tab and run:</p>
+                        <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; margin: 8px 0;">ollama pull llama3.2</code>
+                        <p style="margin: 8px 0; font-size: 13px; color: #666;">This downloads Llama 3.2 (~2GB). Best for semantic analysis!</p>
+                        
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; color: #0066cc; font-weight: 600;">Other recommended models</summary>
+                            <div style="margin-top: 10px; padding-left: 15px;">
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull mistral</code>
+                                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Alternative, excellent quality (~4GB)</div>
+                                
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull phi3</code>
+                                <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Smaller, faster (~2GB)</div>
+                                
+                                <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 8px; border-radius: 4px; margin: 5px 0;">ollama pull gemma2</code>
+                                <div style="font-size: 12px; color: #666;">Google's model (~3GB)</div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <strong style="color: #0066cc;">Step 4: Verify It's Running</strong>
+                        <p style="margin: 8px 0;">In Terminal:</p>
+                        <code style="display: block; background: #2d2d2d; color: #f8f8f2; padding: 12px; border-radius: 4px; font-family: 'Courier New', monospace; margin: 8px 0;">ollama list</code>
+                        <p style="margin: 8px 0; font-size: 13px; color: #666;">You should see your installed models!</p>
+                    </div>
+
+                    <div style="background: #e8f5e9; padding: 15px; border-radius: 6px; border-left: 4px solid #4caf50;">
+                        <strong style="color: #2e7d32;">Step 5: Use in Grammar Highlighter</strong>
+                        <ol style="margin: 10px 0 0 0; padding-left: 20px;">
+                            <li>Go to <strong>Statistics & AI → AI Analysis</strong> tab</li>
+                            <li>Select <strong>🏠 Local Ollama</strong> from the provider dropdown</li>
+                            <li>Click <strong>🔍 Test Connection</strong> to verify</li>
+                            <li>Click <strong>🚀 Analyze Document</strong></li>
+                        </ol>
+                        <div style="margin-top: 10px; font-size: 18px; text-align: center;">🎉 Done!</div>
+                    </div>
+
+                    <details style="margin-top: 20px;">
+                        <summary style="cursor: pointer; color: #0066cc; font-weight: 600; font-size: 15px;">🐛 Troubleshooting</summary>
+                        <div style="margin-top: 15px; padding-left: 15px;">
+                            <div style="margin-bottom: 15px;">
+                                <strong>Problem: "Command not found"</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Make sure the installation completed successfully</li>
+                                    <li>Try: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">source ~/.bashrc</code> or restart terminal</li>
+                                    <li>Check if ollama is in PATH: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">which ollama</code></li>
+                                </ul>
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <strong>Problem: "Cannot connect to Ollama"</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Make sure <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">ollama serve</code> is running</li>
+                                    <li>Check if the service is running: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">systemctl status ollama</code></li>
+                                    <li>Try restarting: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">sudo systemctl restart ollama</code></li>
+                                </ul>
+                            </div>
+                            <div>
+                                <strong>Problem: Analysis is slow or crashes</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px; font-size: 13px;">
+                                    <li>Use a smaller model like <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">phi3</code></li>
+                                    <li>Close other applications to free up RAM</li>
+                                    <li>Analyze shorter documents (20-30 sentences at a time)</li>
+                                    <li>Consider upgrading RAM if analyzing large documents frequently</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Common FAQ Section -->
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+                    <h4 style="color: #333;">💡 Common Questions</h4>
+                    
+                    <details style="margin-bottom: 10px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #555;">Which model should I use?</summary>
+                        <div style="padding: 10px 15px; font-size: 13px;">
+                            <p><strong>Recommended: Mistral</strong> - Best balance of size, speed, and quality</p>
+                            <p><strong>Limited RAM?</strong> Use phi3 (smallest, ~2GB)</p>
+                            <p><strong>Want best quality?</strong> Use mistral or llama3.1 (larger, ~4GB+)</p>
+                        </div>
+                    </details>
+                    
+                    <details style="margin-bottom: 10px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #555;">How much RAM do I need?</summary>
+                        <div style="padding: 10px 15px; font-size: 13px;">
+                            <p><strong>Minimum:</strong> 8GB RAM for 2GB models</p>
+                            <p><strong>Recommended:</strong> 16GB+ RAM for best experience</p>
+                            <p>Model size + 4GB = Recommended RAM (e.g., 2GB model needs ~8GB total RAM)</p>
+                        </div>
+                    </details>
+                    
+                    <details style="margin-bottom: 10px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #555;">Is my data really private?</summary>
+                        <div style="padding: 10px 15px; font-size: 13px;">
+                            <p><strong>Yes! 100% private.</strong></p>
+                            <p>✓ All processing happens on YOUR computer</p>
+                            <p>✓ No data sent to cloud services</p>
+                            <p>✓ No internet needed (after downloading models)</p>
+                            <p>✓ Perfect for confidential documents</p>
+                        </div>
+                    </details>
+                    
+                    <details style="margin-bottom: 10px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #555;">How do I update Ollama?</summary>
+                        <div style="padding: 10px 15px; font-size: 13px;">
+                            <p><strong>Windows/Mac:</strong> Download and run the latest installer from ollama.com</p>
+                            <p><strong>Linux:</strong> Run the install script again: <code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">curl -fsSL https://ollama.com/install.sh | sh</code></p>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Additional Resources -->
+                <div style="margin-top: 20px; background: #f0f7ff; padding: 15px; border-radius: 6px;">
+                    <strong style="color: #0066cc;">📚 Additional Resources:</strong>
+                    <ul style="margin: 10px 0 0 0; padding-left: 20px; font-size: 13px;">
+                        <li><a href="https://ollama.com/library" target="_blank" style="color: #0066cc;">Ollama Model Library</a> - Browse all available models</li>
+                        <li><a href="https://github.com/ollama/ollama" target="_blank" style="color: #0066cc;">Ollama GitHub</a> - Documentation and support</li>
+                        <li><a href="https://discord.gg/ollama" target="_blank" style="color: #0066cc;">Ollama Discord</a> - Community support</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 
