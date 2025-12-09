@@ -35,6 +35,10 @@ class MindmapManager {
         this.groupCreateStart = null; // {x, y}
         this.groupCreateEnd = null; // {x, y}
         
+        // Node resize state
+        this.nodeResizeHandle = null; // {node, handle: 'se'|'sw'|'ne'|'nw'}
+        this.isResizingNode = false;
+        
         // Constants
         this.NODE_WIDTH = 200;
         this.NODE_PADDING = 15;
@@ -230,23 +234,34 @@ class MindmapManager {
             
             if (item.type === 'highlight') {
                 const highlightedText = item.text || '';
+                const note = item.note || '';
                 const comment = item.comment || '';
                 
                 // Highlighted text (max 3 lines, smaller font)
                 const highlightLines = Math.min(Math.ceil(highlightedText.length / charsPerLine), 3);
                 estimatedLines += highlightLines;
                 
-                // If there's a comment, add separator space + comment lines
-                if (comment) {
+                // If there's a note or comment, add separator space + lines
+                // Note is used for AI patterns, comment for user comments
+                const noteContent = note || comment;
+                if (noteContent) {
                     estimatedLines += 1; // Separator space
-                    const commentLines = Math.ceil(comment.length / charsPerLine);
-                    estimatedLines += Math.min(commentLines, 10); // Max 10 lines for comment
+                    const noteContentLines = Math.ceil(noteContent.length / charsPerLine);
+                    estimatedLines += noteContentLines; // Show all lines
                 }
             } else {
-                // Regular note
+                // Regular note - show full content
                 const text = item.text || item.note || '';
                 const noteLines = Math.ceil(text.length / charsPerLine);
-                estimatedLines = Math.min(noteLines, 10); // Max 10 lines for notes
+                estimatedLines = noteLines; // Show all lines for notes
+                
+                // If note has a comment, add it to the height calculation
+                const noteComment = item.comment || '';
+                if (noteComment) {
+                    estimatedLines += 1; // Separator space
+                    const commentLines = Math.ceil(noteComment.length / charsPerLine);
+                    estimatedLines += commentLines; // Show all comment lines
+                }
             }
             
             const height = this.HEADER_HEIGHT + (estimatedLines * this.LINE_HEIGHT) + (this.NODE_PADDING * 3);
@@ -260,8 +275,8 @@ class MindmapManager {
                 data: item,
                 x: existing ? existing.x : 100 + (col * (this.NODE_WIDTH + 50)),
                 y: existing ? existing.y : 100 + (row * 200),
-                width: this.NODE_WIDTH,
-                height: Math.max(height, 120),
+                width: existing && existing.width ? existing.width : this.NODE_WIDTH,
+                height: existing && existing.height ? existing.height : Math.max(height, 120),
                 color: item.color || 'yellow',
                 isSelected: false
             };
@@ -276,15 +291,18 @@ class MindmapManager {
             let estimatedLines = 0;
             const charsPerLine = 22;
             const highlightedText = extHighlight.text || '';
+            const note = extHighlight.note || '';
             const comment = extHighlight.comment || '';
             
             const highlightLines = Math.min(Math.ceil(highlightedText.length / charsPerLine), 3);
             estimatedLines += highlightLines;
             
-            if (comment) {
+            // Check for note or comment
+            const noteContent = note || comment;
+            if (noteContent) {
                 estimatedLines += 1;
-                const commentLines = Math.ceil(comment.length / charsPerLine);
-                estimatedLines += Math.min(commentLines, 10);
+                const noteContentLines = Math.ceil(noteContent.length / charsPerLine);
+                estimatedLines += noteContentLines; // Show all lines
             }
             
             const height = this.HEADER_HEIGHT + (estimatedLines * this.LINE_HEIGHT) + (this.NODE_PADDING * 3);
@@ -457,7 +475,13 @@ class MindmapManager {
     saveLayout() {
         if (!this.notesManager || !this.notesManager.currentFilePath) return;
         const layout = {
-            nodes: this.nodes.map(n => ({ id: n.id, x: n.x, y: n.y })),
+            nodes: this.nodes.map(n => ({ 
+                id: n.id, 
+                x: n.x, 
+                y: n.y, 
+                width: n.width, 
+                height: n.height 
+            })),
             groups: this.groups.map(g => ({ 
                 id: g.id, 
                 x: g.x, 
@@ -823,6 +847,15 @@ class MindmapManager {
                 worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
                 
                 if (e.button === 0) { // Left click
+                    // Check if clicking on resize handle first
+                    const resizeHandle = this.getNodeResizeHandleAtPoint(node, worldPos.x, worldPos.y);
+                    if (resizeHandle) {
+                        this.isResizingNode = true;
+                        this.nodeResizeHandle = { node, handle: resizeHandle };
+                        this.canvas.style.cursor = 'se-resize';
+                        return;
+                    }
+                    
                     // Check if clicking on link handle (small circle on right edge)
                     const handleX = node.x + node.width - 10;
                     const handleY = node.y + node.height / 2;
@@ -979,6 +1012,32 @@ class MindmapManager {
             return;
         }
 
+        // Handle node resizing
+        if (this.isResizingNode && this.nodeResizeHandle) {
+            const dx = (mouseX - this.lastMouseX) / this.scale;
+            const dy = (mouseY - this.lastMouseY) / this.scale;
+            const node = this.nodeResizeHandle.node;
+            const handle = this.nodeResizeHandle.handle;
+            
+            const minWidth = 150;
+            const minHeight = 80;
+            
+            // Only support SE resize handle for simplicity
+            if (handle === 'se') {
+                if (node.width + dx >= minWidth) {
+                    node.width += dx;
+                }
+                if (node.height + dy >= minHeight) {
+                    node.height += dy;
+                }
+            }
+            
+            this.lastMouseX = mouseX;
+            this.lastMouseY = mouseY;
+            this.render();
+            return;
+        }
+
         if (this.isLinkDragging) {
             // Update link drag position
             this.linkDragX = worldPos.x;
@@ -1044,7 +1103,14 @@ class MindmapManager {
                 if (worldPos.x >= node.x && worldPos.x <= node.x + node.width &&
                     worldPos.y >= node.y && worldPos.y <= node.y + node.height) {
                     hoveringNode = true;
-                    this.canvas.style.cursor = 'pointer';
+                    
+                    // Check if hovering over resize handle
+                    const resizeHandle = this.getNodeResizeHandleAtPoint(node, worldPos.x, worldPos.y);
+                    if (resizeHandle) {
+                        this.canvas.style.cursor = 'se-resize';
+                    } else {
+                        this.canvas.style.cursor = 'pointer';
+                    }
                     break;
                 }
             }
@@ -1108,6 +1174,16 @@ class MindmapManager {
         // Handle group drag end
         if (this.draggedGroup) {
             this.draggedGroup = null;
+            this.saveLayout();
+            this.canvas.style.cursor = 'default';
+            this.render();
+            return;
+        }
+
+        // Handle node resize end
+        if (this.isResizingNode && this.nodeResizeHandle) {
+            this.isResizingNode = false;
+            this.nodeResizeHandle = null;
             this.saveLayout();
             this.canvas.style.cursor = 'default';
             this.render();
@@ -1347,6 +1423,13 @@ class MindmapManager {
         // Draw link handles on nodes
         this.nodes.forEach(node => {
             this.drawLinkHandle(node);
+        });
+        
+        // Draw resize handles on hovered or selected nodes
+        this.nodes.forEach(node => {
+            if (node.isSelected || (this.draggedNode === node && !this.isResizingNode)) {
+                this.drawNodeResizeHandles(node);
+            }
         });
 
         this.ctx.restore();
@@ -1637,6 +1720,7 @@ class MindmapManager {
         // Body Text
         let currentY = y + 50;
         const comment = node.data.comment || '';
+        const note = node.data.note || '';
         const highlightedText = node.data.text || '';
         
         // Always show the highlighted text first (in italic, lighter color)
@@ -1645,8 +1729,9 @@ class MindmapManager {
         const highlightLines = this.wrapTextWithReturn(highlightedText, x + 15, currentY, w - 30, 16, 3);
         currentY += highlightLines * 16;
         
-        // If there's a comment, show it below with a separator
-        if (comment) {
+        // Show note/comment below (note is used for AI patterns, comment for user comments)
+        const noteContent = note || comment;
+        if (noteContent) {
             currentY += 8; // Spacing
             
             // Small separator line
@@ -1658,10 +1743,10 @@ class MindmapManager {
             
             currentY += 12;
             
-            // Comment text
+            // Note/comment text
             this.ctx.fillStyle = '#333';
             this.ctx.font = `${this.FONT_SIZE}px Arial`;
-            this.wrapTextWithReturn(comment, x + 15, currentY, w - 30, this.LINE_HEIGHT, 10);
+            this.wrapTextWithReturn(noteContent, x + 15, currentY, w - 30, this.LINE_HEIGHT, 999); // Show all lines
         }
     }
 
@@ -1891,6 +1976,7 @@ class MindmapManager {
         
         if (isHighlight) {
             const comment = node.data.comment || '';
+            const note = node.data.note || '';
             const highlightedText = node.data.text || '';
             
             // Always show the highlighted text first (in italic, lighter color)
@@ -1899,8 +1985,9 @@ class MindmapManager {
             const highlightLines = this.wrapTextWithReturn(highlightedText, x + 15, currentY, w - 30, 16, 3);
             currentY += highlightLines * 16;
             
-            // If there's a comment, show it below with a separator
-            if (comment) {
+            // Show note/comment below (note is used for AI patterns, comment for user comments)
+            const noteContent = note || comment;
+            if (noteContent) {
                 // Add a small visual separator
                 currentY += 8;
                 this.ctx.strokeStyle = '#e0e0e0';
@@ -1911,17 +1998,39 @@ class MindmapManager {
                 this.ctx.stroke();
                 currentY += 12;
                 
-                // Show comment in regular style
+                // Show note/comment in regular style
                 this.ctx.fillStyle = '#444';
                 this.ctx.font = `${this.FONT_SIZE}px Arial`;
-                this.wrapTextWithReturn(comment, x + 15, currentY, w - 30, 18, 10);
+                this.wrapTextWithReturn(noteContent, x + 15, currentY, w - 30, 18, 999); // Show all lines
             }
         } else {
-            // For notes, show the note text
+            // For notes, show the full note text (no line limit)
+            const noteText = node.data.text || node.data.note || '';
+            const noteComment = node.data.comment || '';
+            
+            // Show the note text
             this.ctx.fillStyle = '#444';
             this.ctx.font = `${this.FONT_SIZE}px Arial`;
-            const text = node.data.text || node.data.note || '';
-            this.wrapTextWithReturn(text, x + 15, currentY, w - 30, 18, 10);
+            const noteLines = this.wrapTextWithReturn(noteText, x + 15, currentY, w - 30, 18, 999);
+            currentY += noteLines * 18;
+            
+            // If there's a comment on the note, show it below with a separator
+            if (noteComment) {
+                // Add a small visual separator
+                currentY += 8;
+                this.ctx.strokeStyle = '#e0e0e0';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.moveTo(x + 15, currentY);
+                this.ctx.lineTo(x + w - 15, currentY);
+                this.ctx.stroke();
+                currentY += 12;
+                
+                // Show comment in a slightly different style (italic)
+                this.ctx.fillStyle = '#666';
+                this.ctx.font = `italic ${this.FONT_SIZE}px Arial`;
+                this.wrapTextWithReturn(noteComment, x + 15, currentY, w - 30, 18, 999); // Show all comment lines
+            }
         }
     }
 
@@ -2046,6 +2155,39 @@ class MindmapManager {
         this.ctx.textBaseline = 'alphabetic';
     }
 
+    drawNodeResizeHandles(node) {
+        const handleSize = 8;
+        const handles = [
+            { x: node.x + node.width, y: node.y + node.height, cursor: 'se-resize', handle: 'se' }
+        ];
+        
+        handles.forEach(h => {
+            // Draw resize handle
+            this.ctx.fillStyle = '#2196F3';
+            this.ctx.fillRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
+        });
+    }
+
+    getNodeResizeHandleAtPoint(node, x, y) {
+        const handleSize = 8;
+        const handles = [
+            { x: node.x + node.width, y: node.y + node.height, handle: 'se' }
+        ];
+        
+        for (const h of handles) {
+            const dx = x - h.x;
+            const dy = y - h.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= handleSize) {
+                return h.handle;
+            }
+        }
+        return null;
+    }
+
     handleContextMenu(e) {
         e.preventDefault();
         const rect = this.canvas.getBoundingClientRect();
@@ -2160,7 +2302,7 @@ class MindmapManager {
                 const header = document.createElement('div');
                 header.className = 'context-menu-header';
                 header.style.cssText = 'padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 11px; color: #666; background: #f9f9f9;';
-                const displayText = (node.data.text || node.data.comment || 'External Highlight').substring(0, 30);
+                const displayText = (node.data.text || node.data.note || node.data.comment || 'External Highlight').substring(0, 30);
                 header.innerHTML = `
                     <div style="margin-bottom: 4px; font-weight: 600;">📎 External Highlight</div>
                     <div style="font-size: 10px; color: #555;">"${this.escapeHtml(displayText)}${displayText.length >= 30 ? '...' : ''}"</div>
@@ -2211,10 +2353,10 @@ class MindmapManager {
             sourceText = connection.source.data.fileName || 'Document';
             sourceIcon = '📄';
         } else if (connection.source.data.type === 'external-highlight') {
-            sourceText = connection.source.data.text || connection.source.data.comment || 'External Highlight';
+            sourceText = connection.source.data.text || connection.source.data.note || connection.source.data.comment || 'External Highlight';
             sourceIcon = '📎';
         } else if (connection.source.data.type === 'highlight') {
-            sourceText = connection.source.data.text || connection.source.data.comment || 'Highlight';
+            sourceText = connection.source.data.text || connection.source.data.note || connection.source.data.comment || 'Highlight';
             sourceIcon = '🖍️';
         } else {
             sourceText = connection.source.data.note || connection.source.data.text || 'Note';
@@ -2228,10 +2370,10 @@ class MindmapManager {
             targetText = connection.target.data.fileName || 'Document';
             targetIcon = '📄';
         } else if (connection.target.data.type === 'external-highlight') {
-            targetText = connection.target.data.text || connection.target.data.comment || 'External Highlight';
+            targetText = connection.target.data.text || connection.target.data.note || connection.target.data.comment || 'External Highlight';
             targetIcon = '📎';
         } else if (connection.target.data.type === 'highlight') {
-            targetText = connection.target.data.text || connection.target.data.comment || 'Highlight';
+            targetText = connection.target.data.text || connection.target.data.note || connection.target.data.comment || 'Highlight';
             targetIcon = '🖍️';
         } else {
             targetText = connection.target.data.note || connection.target.data.text || 'Note';
@@ -2475,7 +2617,8 @@ class MindmapManager {
 
     editNode(node) {
         const currentText = node.data.text || node.data.note || '';
-        const currentComment = node.data.comment || '';
+        // For highlights, check both note (AI patterns) and comment (user comments)
+        const currentComment = node.data.comment || node.data.note || '';
         const isHighlight = node.data.type === 'highlight';
         
         // Create edit dialog
@@ -2546,7 +2689,13 @@ class MindmapManager {
                 const item = this.notesManager.getItemById(node.id);
                 if (item) {
                     if (isHighlight) {
-                        item.comment = newText;
+                        // For highlights, update whichever field was originally populated
+                        // (note is used for AI patterns, comment for user comments)
+                        if (item.note && !item.comment) {
+                            item.note = newText;
+                        } else {
+                            item.comment = newText;
+                        }
                     } else {
                         item.text = newText;
                         item.note = newText; // Some notes use 'note' property
