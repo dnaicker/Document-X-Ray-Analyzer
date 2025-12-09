@@ -706,39 +706,80 @@ Empty arrays if no patterns found.`;
         
         const highlights = [];
         const colors = ['yellow', 'green', 'blue', 'purple', 'orange'];
+        const usedPositions = new Set(); // Track which text positions have been highlighted
         
         this.similarSentences.forEach((group, patternId) => {
             const color = colors[highlights.length % colors.length];
             
+            // Create a comprehensive note with all related sentences in this pattern
+            const patternNote = this.createPatternNote(group, group.sentences.length);
+            
             group.sentences.forEach(sentence => {
-                // Find the sentence in the full text
-                const index = text.indexOf(sentence);
-                if (index !== -1) {
-                    const highlight = {
-                        id: `ai_${Date.now()}_${Math.random()}`,
-                        type: 'highlight',
-                        text: sentence,
-                        note: `AI Pattern: ${group.theme}`,
-                        color: color,
-                        page: 1,
-                        createdAt: new Date().toISOString(),
-                        links: [],
-                        startOffset: index,
-                        endOffset: index + sentence.length,
-                        filePath: notesManager.currentFilePath,
-                        fileName: notesManager.getFileName(notesManager.currentFilePath),
-                        sourceView: 'raw',
-                        aiGenerated: true, // Flag to identify AI-generated highlights
-                        patternId: patternId,
-                        patternTheme: group.theme
-                    };
+                // Find ALL occurrences of the sentence in the text
+                let searchIndex = 0;
+                let foundAny = false;
+                
+                while (searchIndex < text.length) {
+                    const index = text.indexOf(sentence, searchIndex);
                     
-                    highlights.push(highlight);
+                    if (index === -1) break; // No more occurrences
+                    
+                    // Check if this position is already highlighted
+                    const positionKey = `${index}-${index + sentence.length}`;
+                    if (!usedPositions.has(positionKey)) {
+                        const highlight = {
+                            id: `ai_${Date.now()}_${Math.random()}`,
+                            type: 'highlight',
+                            text: sentence,
+                            note: patternNote, // Use comprehensive note with all related sentences
+                            color: color,
+                            page: 1,
+                            createdAt: new Date().toISOString(),
+                            links: [],
+                            tags: [{ name: 'ai', color: 'purple' }], // Add AI tag
+                            startOffset: index,
+                            endOffset: index + sentence.length,
+                            filePath: notesManager.currentFilePath,
+                            fileName: notesManager.getFileName(notesManager.currentFilePath),
+                            sourceView: 'raw',
+                            aiGenerated: true, // Flag to identify AI-generated highlights
+                            patternId: patternId,
+                            patternTheme: group.theme
+                        };
+                        
+                        highlights.push(highlight);
+                        usedPositions.add(positionKey);
+                        foundAny = true;
+                    }
+                    
+                    // Move search position forward
+                    searchIndex = index + 1;
+                }
+                
+                // If sentence wasn't found at all, log a warning
+                if (!foundAny) {
+                    console.warn('AI pattern sentence not found in text:', sentence.substring(0, 50) + '...');
                 }
             });
         });
         
         return highlights;
+    }
+    
+    /**
+     * Create a comprehensive note showing the pattern theme and all related sentences
+     */
+    createPatternNote(group, totalCount) {
+        let note = `🤖 AI Pattern: ${group.theme}\n`;
+        note += `📊 ${totalCount} related sentence${totalCount > 1 ? 's' : ''} found in this pattern:\n\n`;
+        
+        // Add all sentences with numbering
+        group.sentences.forEach((sentence, idx) => {
+            const truncated = sentence.length > 150 ? sentence.substring(0, 150) + '...' : sentence;
+            note += `${idx + 1}. "${truncated}"\n\n`;
+        });
+        
+        return note.trim();
     }
     
     /**

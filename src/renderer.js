@@ -7432,7 +7432,25 @@ function clearCachedAIAnalysisResults(filePath) {
 }
 
 // Display AI results in Statistics panel
+// Store current page for each pattern's sentences
+const patternSentencePages = new Map(); // patternId -> currentPage
+const SENTENCES_PER_PAGE = 5; // Show 5 sentences per page within each pattern
+let currentAIResults = null;
+let currentAIResultsCached = false;
+
 function displayAIResultsInStatsPanel(results, isCached = false) {
+    const aiTabContent = document.getElementById('aiAnalysisTabContent');
+    if (!aiTabContent) return;
+    
+    // Reset pagination for all patterns and store results
+    patternSentencePages.clear();
+    currentAIResults = results;
+    currentAIResultsCached = isCached;
+    
+    renderAIPatternPage(results, isCached);
+}
+
+function renderAIPatternPage(results, isCached = false) {
     const aiTabContent = document.getElementById('aiAnalysisTabContent');
     if (!aiTabContent) return;
     
@@ -7443,14 +7461,72 @@ function displayAIResultsInStatsPanel(results, isCached = false) {
     
     const fullData = window.aiSemanticAnalyzer.similarSentences;
     const colors = ['#2196f3', '#4caf50', '#ff9800', '#9c27b0', '#f44336'];
+    const allPatterns = Array.from(fullData.entries());
     
+    // Generate HTML for all patterns with individual pagination
     let patternsHTML = '';
-    fullData.forEach((groupData, patternId) => {
+    allPatterns.forEach(([patternId, groupData]) => {
         const idx = Array.from(fullData.keys()).indexOf(patternId);
         const borderColor = colors[idx % colors.length];
         
+        // Get current page for this pattern (default to 1)
+        if (!patternSentencePages.has(patternId)) {
+            patternSentencePages.set(patternId, 1);
+        }
+        const currentPage = patternSentencePages.get(patternId);
+        
+        // Calculate sentence pagination for this pattern
+        const totalSentences = groupData.sentences.length;
+        const totalPages = Math.ceil(totalSentences / SENTENCES_PER_PAGE);
+        const startIdx = (currentPage - 1) * SENTENCES_PER_PAGE;
+        const endIdx = Math.min(startIdx + SENTENCES_PER_PAGE, totalSentences);
+        const sentencesToShow = groupData.sentences.slice(startIdx, endIdx);
+        
+        // Generate pagination controls for this pattern
+        const patternPagination = totalPages > 1 ? `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 6px;">
+                <button class="pattern-prev-btn" data-pattern-id="${patternId}" 
+                        style="padding: 6px 12px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; transition: all 0.2s;" 
+                        ${currentPage === 1 ? 'disabled' : ''}>
+                    ← Prev
+                </button>
+                <div style="display: flex; gap: 4px; align-items: center;">
+                    ${Array.from({length: Math.min(totalPages, 7)}, (_, i) => {
+                        // Show first 3 pages, last 3 pages, and current page
+                        let pageNum;
+                        if (totalPages <= 7) {
+                            pageNum = i + 1;
+                        } else if (i < 3) {
+                            pageNum = i + 1;
+                        } else if (i >= totalPages - 3) {
+                            pageNum = totalPages - (totalPages - i - 1);
+                        } else if (currentPage >= 4 && currentPage <= totalPages - 3) {
+                            pageNum = currentPage;
+                        } else {
+                            return '';
+                        }
+                        
+                        return `
+                            <button class="pattern-page-btn" data-pattern-id="${patternId}" data-page="${pageNum}" 
+                                    style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd; background: ${pageNum === currentPage ? borderColor : 'white'}; color: ${pageNum === currentPage ? 'white' : '#333'}; font-weight: ${pageNum === currentPage ? '600' : '400'}; cursor: pointer; transition: all 0.2s; font-size: 11px; min-width: 28px;">
+                                ${pageNum}
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+                <button class="pattern-next-btn" data-pattern-id="${patternId}" 
+                        style="padding: 6px 12px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px; transition: all 0.2s;" 
+                        ${currentPage === totalPages ? 'disabled' : ''}>
+                    Next →
+                </button>
+                <div style="font-size: 11px; color: #666; margin-left: 10px;">
+                    ${startIdx + 1}-${endIdx} of ${totalSentences}
+                </div>
+            </div>
+        ` : '';
+        
         patternsHTML += `
-            <div style="margin-bottom: 15px; padding: 15px; background: white; border-radius: 8px; border-left: 4px solid ${borderColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div style="margin-bottom: 20px; padding: 15px; background: white; border-radius: 8px; border-left: 4px solid ${borderColor}; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                 <div style="font-weight: 600; margin-bottom: 8px; color: #333; font-size: 15px;">
                     Pattern ${idx + 1}: ${escapeHtml(groupData.theme)}
                 </div>
@@ -7463,20 +7539,26 @@ function displayAIResultsInStatsPanel(results, isCached = false) {
                         ${groupData.significance.toUpperCase()}
                     </span>
                 </div>
-                <div style="max-height: 250px; overflow-y: auto; background: #f9f9f9; padding: 10px; border-radius: 6px;">
-                    ${groupData.sentences.map((sentence, sIdx) => `
-                        <div class="ai-pattern-sentence" data-sentence-text="${escapeHtml(sentence)}" 
-                             style="padding: 8px; margin-bottom: 6px; background: white; border-radius: 4px; cursor: pointer; font-size: 13px; line-height: 1.6; border: 1px solid #e0e0e0; transition: all 0.2s;"
-                             onmouseover="this.style.borderColor='${borderColor}'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'; this.style.transform='translateX(2px)'"
-                             onmouseout="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'; this.style.transform='translateX(0)'">
-                            <span style="color: ${borderColor}; font-weight: 600; margin-right: 6px; font-size: 12px;">${sIdx + 1}.</span>
-                            <span style="color: #333;">"${escapeHtml(sentence)}"</span>
-                        </div>
-                    `).join('')}
+                <div style="background: #f9f9f9; padding: 10px; border-radius: 6px; min-height: 150px;">
+                    ${sentencesToShow.map((sentence, sIdx) => {
+                        const absoluteIdx = startIdx + sIdx;
+                        return `
+                            <div class="ai-pattern-sentence" data-sentence-text="${escapeHtml(sentence)}" 
+                                 style="padding: 8px; margin-bottom: 6px; background: white; border-radius: 4px; cursor: pointer; font-size: 13px; line-height: 1.6; border: 1px solid #e0e0e0; transition: all 0.2s;"
+                                 onmouseover="this.style.borderColor='${borderColor}'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'; this.style.transform='translateX(2px)'"
+                                 onmouseout="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none'; this.style.transform='translateX(0)'">
+                                <span style="color: ${borderColor}; font-weight: 600; margin-right: 6px; font-size: 12px;">${absoluteIdx + 1}.</span>
+                                <span style="color: #333;">"${escapeHtml(sentence)}"</span>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
+                ${patternPagination}
             </div>
         `;
     });
+    
+    const paginationHTML = '';
     
     const cacheInfo = isCached ? `
         <div style="font-size: 11px; opacity: 0.9; margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.15); border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
@@ -7509,6 +7591,7 @@ function displayAIResultsInStatsPanel(results, isCached = false) {
         </div>
         
         ${patternsHTML}
+        ${paginationHTML}
     `;
     
     // Add click handlers for sentence navigation
@@ -7516,6 +7599,47 @@ function displayAIResultsInStatsPanel(results, isCached = false) {
         el.addEventListener('click', () => {
             const sentenceText = el.dataset.sentenceText;
             navigateToSentenceInDocument(sentenceText);
+        });
+    });
+    
+    // Add click handlers for per-pattern pagination - Previous buttons
+    aiTabContent.querySelectorAll('.pattern-prev-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const patternId = btn.dataset.patternId;
+            const currentPage = patternSentencePages.get(patternId) || 1;
+            if (currentPage > 1) {
+                patternSentencePages.set(patternId, currentPage - 1);
+                renderAIPatternPage(currentAIResults, currentAIResultsCached);
+            }
+        });
+    });
+    
+    // Add click handlers for per-pattern pagination - Next buttons
+    aiTabContent.querySelectorAll('.pattern-next-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const patternId = btn.dataset.patternId;
+            const groupData = window.aiSemanticAnalyzer.similarSentences.get(patternId);
+            if (groupData) {
+                const totalPages = Math.ceil(groupData.sentences.length / SENTENCES_PER_PAGE);
+                const currentPage = patternSentencePages.get(patternId) || 1;
+                if (currentPage < totalPages) {
+                    patternSentencePages.set(patternId, currentPage + 1);
+                    renderAIPatternPage(currentAIResults, currentAIResultsCached);
+                }
+            }
+        });
+    });
+    
+    // Add click handlers for per-pattern pagination - Page number buttons
+    aiTabContent.querySelectorAll('.pattern-page-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const patternId = btn.dataset.patternId;
+            const targetPage = parseInt(btn.dataset.page);
+            const currentPage = patternSentencePages.get(patternId) || 1;
+            if (targetPage !== currentPage) {
+                patternSentencePages.set(patternId, targetPage);
+                renderAIPatternPage(currentAIResults, currentAIResultsCached);
+            }
         });
     });
     
@@ -7560,10 +7684,17 @@ function displayAIResultsInStatsPanel(results, isCached = false) {
                 window.notesManager.renderDebounced();
                 window.notesManager.applyHighlightsDebounced();
                 
-                alert(`✓ Applied ${highlights.length} pattern highlights!`);
+                alert(`✓ Applied ${highlights.length} pattern highlights with 'ai' tag!\n\nView them in:\n• Analyse tab (highlighted text)\n• Notes tab (all highlights)`);
                 
-                const notesBtn = document.getElementById('notesBtn');
-                if (notesBtn) notesBtn.click();
+                // Switch to highlighted view to show AI highlights immediately
+                const highlightedTextBtn = document.getElementById('highlightedTextBtn');
+                if (highlightedTextBtn) {
+                    highlightedTextBtn.click();
+                    // Give it a moment to render, then apply highlights
+                    setTimeout(() => {
+                        window.notesManager.applyHighlights();
+                    }, 100);
+                }
             } catch (error) {
                 console.error('Error applying highlights:', error);
                 alert(`Failed to apply highlights: ${error.message}`);
