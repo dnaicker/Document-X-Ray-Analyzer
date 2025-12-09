@@ -7703,7 +7703,6 @@ function loadAndDisplayCachedAIResults() {
 // Navigate to sentence in document
 function navigateToSentenceInDocument(sentenceText) {
     try {
-        // Try to find the sentence in the raw text content
         const rawTextContent = document.getElementById('rawTextContent');
         const highlightedTextContent = document.getElementById('highlightedTextContent');
         
@@ -7712,17 +7711,26 @@ function navigateToSentenceInDocument(sentenceText) {
             return;
         }
         
-        const docText = rawTextContent.textContent;
-        const index = docText.indexOf(sentenceText);
-        
-        if (index === -1) {
-            alert('Cannot find sentence in document');
-            return;
+        // Always switch to the Analyse tab first
+        const highlightedTextBtn = document.getElementById('highlightedTextBtn');
+        if (highlightedTextBtn) {
+            highlightedTextBtn.click();
         }
         
-        // Switch to the appropriate view
-        const analyseBtn = document.querySelector('[data-view="highlighted"]') || document.getElementById('analyseBtn');
-        if (analyseBtn) analyseBtn.click();
+        // Normalize text for better matching
+        const normalizeText = (text) => {
+            return text
+                .replace(/\s+/g, ' ')  // Normalize whitespace
+                .replace(/["'"'"]/g, '"')  // Normalize quotes
+                .replace(/['']/g, "'")  // Normalize apostrophes
+                .trim();
+        };
+        
+        const normalizedSentence = normalizeText(sentenceText);
+        const docText = normalizeText(rawTextContent.textContent);
+        
+        // Try exact match first
+        let found = false;
         
         // Scroll to the sentence
         setTimeout(() => {
@@ -7737,9 +7745,15 @@ function navigateToSentenceInDocument(sentenceText) {
             );
             
             let node;
+            let bestMatch = null;
+            let bestMatchScore = 0;
+            
             while (node = walker.nextNode()) {
-                if (node.textContent.includes(sentenceText)) {
-                    // Found it! Scroll the parent element into view
+                const nodeText = normalizeText(node.textContent);
+                
+                // Try exact match
+                if (nodeText.includes(normalizedSentence)) {
+                    found = true;
                     const element = node.parentElement;
                     if (element) {
                         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -7755,11 +7769,46 @@ function navigateToSentenceInDocument(sentenceText) {
                     }
                     break;
                 }
+                
+                // Try partial match (find the best match based on word overlap)
+                const sentenceWords = normalizedSentence.split(' ').filter(w => w.length > 3);
+                const nodeWords = nodeText.split(' ');
+                const matchCount = sentenceWords.filter(w => nodeWords.includes(w)).length;
+                const matchScore = matchCount / sentenceWords.length;
+                
+                if (matchScore > bestMatchScore && matchScore > 0.5) {
+                    bestMatchScore = matchScore;
+                    bestMatch = node.parentElement;
+                }
+            }
+            
+            // If no exact match but we have a good partial match, use it
+            if (!found && bestMatch) {
+                found = true;
+                bestMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                const originalBG = bestMatch.style.background;
+                bestMatch.style.background = '#ffc107';
+                bestMatch.style.transition = 'background 0.3s';
+                
+                setTimeout(() => {
+                    bestMatch.style.background = originalBG;
+                }, 2000);
+                
+                setStatus(`⚠️ Approximate match found (${Math.round(bestMatchScore * 100)}% similarity)`);
+            }
+            
+            // If still not found, show helpful message
+            if (!found) {
+                setStatus('❌ Sentence not found in document - text may have been modified or processed differently');
+                console.log('Could not find sentence:', sentenceText);
+            } else {
+                setStatus('✅ Navigated to sentence');
             }
         }, 300);
         
     } catch (error) {
         console.error('Navigation error:', error);
-        alert('Failed to navigate to sentence');
+        setStatus('❌ Failed to navigate to sentence');
     }
 }

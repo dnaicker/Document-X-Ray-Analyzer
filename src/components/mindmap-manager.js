@@ -8,6 +8,7 @@ class MindmapManager {
         // State
         this.nodes = [];
         this.connections = [];
+        this.groups = []; // Grouping rectangles
         this.offsetX = 0;
         this.offsetY = 0;
         this.scale = 1;
@@ -24,6 +25,15 @@ class MindmapManager {
         this.linkDragY = 0;
         this.hoveredConnection = null;
         this.selectedConnection = null; // Connection with open context menu
+        
+        // Group interaction state
+        this.draggedGroup = null;
+        this.groupResizeHandle = null; // {group, handle: 'nw'|'ne'|'sw'|'se'|'n'|'s'|'e'|'w'}
+        this.hoveredGroup = null;
+        this.selectedGroup = null;
+        this.isCreatingGroup = false;
+        this.groupCreateStart = null; // {x, y}
+        this.groupCreateEnd = null; // {x, y}
         
         // Constants
         this.NODE_WIDTH = 200;
@@ -121,7 +131,10 @@ class MindmapManager {
         
         // Load saved layout
         const savedLayout = this.loadLayout();
-        const layoutMap = new Map(Array.isArray(savedLayout) ? savedLayout.map(n => [n.id, n]) : []);
+        const layoutMap = new Map(savedLayout.nodes.map(n => [n.id, n]));
+        
+        // Load saved groups
+        this.groups = savedLayout.groups.map(g => ({ ...g }));
         
         // Reuse existing positions if available, or create new nodes
         const existingNodesMap = new Map(this.nodes.map(n => [n.id, n]));
@@ -443,15 +456,26 @@ class MindmapManager {
 
     saveLayout() {
         if (!this.notesManager || !this.notesManager.currentFilePath) return;
-        const layout = this.nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
+        const layout = {
+            nodes: this.nodes.map(n => ({ id: n.id, x: n.x, y: n.y })),
+            groups: this.groups.map(g => ({ 
+                id: g.id, 
+                x: g.x, 
+                y: g.y, 
+                width: g.width, 
+                height: g.height, 
+                label: g.label, 
+                color: g.color 
+            }))
+        };
         // Use file-specific key to prevent layout sharing between documents
         const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
-        console.log(`Saving mindmap layout to key: ${key}`);
+        console.log(`Saving mindmap layout to key: ${key}`, layout);
         localStorage.setItem(key, JSON.stringify(layout));
     }
 
     loadLayout() {
-        if (!this.notesManager || !this.notesManager.currentFilePath) return [];
+        if (!this.notesManager || !this.notesManager.currentFilePath) return { nodes: [], groups: [] };
         try {
             // Try loading file-specific layout
             const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
@@ -464,10 +488,19 @@ class MindmapManager {
                 stored = localStorage.getItem('mindmap_layout');
             }
             
-            return stored ? JSON.parse(stored) : [];
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                // Handle both old format (array) and new format (object with nodes and groups)
+                if (Array.isArray(parsed)) {
+                    return { nodes: parsed, groups: [] };
+                }
+                return { nodes: parsed.nodes || [], groups: parsed.groups || [] };
+            }
+            
+            return { nodes: [], groups: [] };
         } catch (e) {
             console.error('Error loading mindmap layout:', e);
-            return [];
+            return { nodes: [], groups: [] };
         }
     }
 
@@ -510,6 +543,257 @@ class MindmapManager {
         };
     }
 
+    // Group Helper Methods
+    getGroupAtPoint(x, y) {
+        // Check groups in reverse order (top to bottom)
+        for (let i = this.groups.length - 1; i >= 0; i--) {
+            const group = this.groups[i];
+            if (x >= group.x && x <= group.x + group.width &&
+                y >= group.y && y <= group.y + group.height) {
+                return group;
+            }
+        }
+        return null;
+    }
+
+    getGroupResizeHandleAtPoint(x, y) {
+        if (!this.selectedGroup) return null;
+        
+        const group = this.selectedGroup;
+        const handleSize = 10;
+        const tolerance = handleSize;
+        
+        const handles = [
+            { x: group.x, y: group.y, handle: 'nw' },
+            { x: group.x + group.width, y: group.y, handle: 'ne' },
+            { x: group.x, y: group.y + group.height, handle: 'sw' },
+            { x: group.x + group.width, y: group.y + group.height, handle: 'se' },
+            { x: group.x + group.width / 2, y: group.y, handle: 'n' },
+            { x: group.x + group.width / 2, y: group.y + group.height, handle: 's' },
+            { x: group.x, y: group.y + group.height / 2, handle: 'w' },
+            { x: group.x + group.width, y: group.y + group.height / 2, handle: 'e' }
+        ];
+        
+        for (const h of handles) {
+            if (Math.abs(x - h.x) <= tolerance && Math.abs(y - h.y) <= tolerance) {
+                return { group, handle: h.handle };
+            }
+        }
+        
+        return null;
+    }
+
+    getNodesInGroup(group) {
+        return this.nodes.filter(node => {
+            const nodeCenterX = node.x + node.width / 2;
+            const nodeCenterY = node.y + node.height / 2;
+            return nodeCenterX >= group.x && nodeCenterX <= group.x + group.width &&
+                   nodeCenterY >= group.y && nodeCenterY <= group.y + group.height;
+        });
+    }
+
+    createGroup(x, y, width = 300, height = 200, label = '') {
+        const group = {
+            id: `group-${Date.now()}`,
+            x,
+            y,
+            width,
+            height,
+            label: label || 'Group',
+            color: 'rgba(100, 181, 246, 0.1)'
+        };
+        this.groups.push(group);
+        this.selectedGroup = group;
+        this.saveLayout();
+        this.render();
+        return group;
+    }
+
+    showEditGroupLabelDialog(group) {
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog" style="max-width: 400px;">
+                <div class="note-dialog-header">
+                    <h3>✏️ Edit Group Label</h3>
+                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    <p style="margin-bottom: 15px; color: #666; font-size: 14px;">Enter a new name for this group:</p>
+                    <input type="text" id="editGroupLabelInput" placeholder="Enter group name..." 
+                           style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 14px;"
+                           value="${this.escapeHtml(group.label || '')}">
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
+                    <button class="btn-primary" id="confirmEditLabelBtn">Save</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // Focus input and select text
+        const input = document.getElementById('editGroupLabelInput');
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 100);
+        
+        // Handle enter key
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('confirmEditLabelBtn').click();
+            } else if (e.key === 'Escape') {
+                dialog.remove();
+            }
+        });
+        
+        // Handle confirm button
+        document.getElementById('confirmEditLabelBtn').addEventListener('click', () => {
+            const newLabel = input.value.trim();
+            if (newLabel) {
+                this.updateGroupLabel(group, newLabel);
+            }
+            dialog.remove();
+        });
+        
+        // Close on background click
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        });
+    }
+
+    showGroupCreationDialog(x, y, width, height) {
+        // Create dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog" style="max-width: 400px;">
+                <div class="note-dialog-header">
+                    <h3>📦 Create Group</h3>
+                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    <p style="margin-bottom: 15px; color: #666; font-size: 14px;">Name this group:</p>
+                    <input type="text" id="groupNameInput" placeholder="Enter group name..." 
+                           style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 14px; margin-bottom: 15px;"
+                           value="New Group">
+                    <p style="margin-bottom: 10px; color: #666; font-size: 13px;">Choose a color:</p>
+                    <div class="mindmap-color-picker" id="groupCreationColorPicker" style="justify-content: flex-start; flex-wrap: wrap;">
+                        <div class="color-option-large selected" data-color="rgba(100, 181, 246, 0.1)" style="background: rgba(100, 181, 246, 0.1); border: 3px solid #64b5f6;"></div>
+                        <div class="color-option-large" data-color="rgba(129, 199, 132, 0.1)" style="background: rgba(129, 199, 132, 0.1); border: 3px solid #81c784;"></div>
+                        <div class="color-option-large" data-color="rgba(186, 104, 200, 0.1)" style="background: rgba(186, 104, 200, 0.1); border: 3px solid #ba68c8;"></div>
+                        <div class="color-option-large" data-color="rgba(255, 183, 77, 0.1)" style="background: rgba(255, 183, 77, 0.1); border: 3px solid #ffb74d;"></div>
+                        <div class="color-option-large" data-color="rgba(240, 98, 146, 0.1)" style="background: rgba(240, 98, 146, 0.1); border: 3px solid #f06292;"></div>
+                        <div class="color-option-large" data-color="rgba(255, 213, 79, 0.1)" style="background: rgba(255, 213, 79, 0.1); border: 3px solid #ffd54f;"></div>
+                        <div class="color-option-large" data-color="rgba(158, 158, 158, 0.1)" style="background: rgba(158, 158, 158, 0.1); border: 3px solid #9e9e9e;"></div>
+                    </div>
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
+                    <button class="btn-primary" id="confirmCreateGroupBtn">Create Group</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // Focus input and select text
+        const input = document.getElementById('groupNameInput');
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 100);
+        
+        // Handle color selection
+        let selectedColor = 'rgba(100, 181, 246, 0.1)';
+        const colorOptions = document.querySelectorAll('#groupCreationColorPicker .color-option-large');
+        colorOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                colorOptions.forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                selectedColor = option.dataset.color;
+            });
+        });
+        
+        // Handle enter key
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('confirmCreateGroupBtn').click();
+            }
+        });
+        
+        // Handle confirm button
+        document.getElementById('confirmCreateGroupBtn').addEventListener('click', () => {
+            const label = input.value.trim() || 'New Group';
+            const group = {
+                id: `group-${Date.now()}`,
+                x,
+                y,
+                width,
+                height,
+                label,
+                color: selectedColor
+            };
+            this.groups.push(group);
+            this.selectedGroup = group;
+            this.saveLayout();
+            this.render();
+            dialog.remove();
+        });
+        
+        // Close on background click
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        });
+    }
+
+    deleteGroup(group) {
+        const index = this.groups.indexOf(group);
+        if (index > -1) {
+            this.groups.splice(index, 1);
+            if (this.selectedGroup === group) {
+                this.selectedGroup = null;
+            }
+            this.saveLayout();
+            this.render();
+        }
+    }
+
+    updateGroupLabel(group, label) {
+        group.label = label;
+        this.saveLayout();
+        this.render();
+    }
+
+    updateGroupColor(group, color) {
+        group.color = color;
+        this.saveLayout();
+        this.render();
+    }
+
+    getResizeCursor(handle) {
+        const cursors = {
+            'nw': 'nw-resize',
+            'ne': 'ne-resize',
+            'sw': 'sw-resize',
+            'se': 'se-resize',
+            'n': 'n-resize',
+            's': 's-resize',
+            'e': 'e-resize',
+            'w': 'w-resize'
+        };
+        return cursors[handle] || 'default';
+    }
+
     // Interaction Handlers
     handleMouseDown(e) {
         // Don't process canvas clicks if context menu is open
@@ -524,6 +808,43 @@ class MindmapManager {
 
         this.lastMouseX = mouseX;
         this.lastMouseY = mouseY;
+
+        // Check if Ctrl+Left click to start creating a group
+        if (e.button === 0 && e.ctrlKey) {
+            // Start group creation
+            this.isCreatingGroup = true;
+            this.groupCreateStart = { x: worldPos.x, y: worldPos.y };
+            this.groupCreateEnd = { x: worldPos.x, y: worldPos.y };
+            this.canvas.style.cursor = 'crosshair';
+            return;
+        }
+
+        // Check if clicking on a group resize handle (only if a group is selected)
+        if (e.button === 0 && this.selectedGroup) {
+            const resizeHandle = this.getGroupResizeHandleAtPoint(worldPos.x, worldPos.y);
+            if (resizeHandle) {
+                this.groupResizeHandle = resizeHandle;
+                this.canvas.style.cursor = this.getResizeCursor(resizeHandle.handle);
+                return;
+            }
+        }
+
+        // Check if clicking on a group
+        if (e.button === 0) {
+            const clickedGroup = this.getGroupAtPoint(worldPos.x, worldPos.y);
+            if (clickedGroup) {
+                this.selectedGroup = clickedGroup;
+                this.draggedGroup = clickedGroup;
+                this.render();
+                return;
+            } else {
+                // Clicked outside any group, deselect
+                if (this.selectedGroup) {
+                    this.selectedGroup = null;
+                    this.render();
+                }
+            }
+        }
 
         // Check if clicking a node (reverse order to check top nodes first)
         for (let i = this.nodes.length - 1; i >= 0; i--) {
@@ -574,6 +895,103 @@ class MindmapManager {
         const mouseY = e.clientY - rect.top;
         const worldPos = this.screenToWorld(mouseX, mouseY);
 
+        // Handle group creation dragging
+        if (this.isCreatingGroup) {
+            this.groupCreateEnd = { x: worldPos.x, y: worldPos.y };
+            this.render();
+            return;
+        }
+
+        // Handle group resizing
+        if (this.groupResizeHandle) {
+            const dx = (mouseX - this.lastMouseX) / this.scale;
+            const dy = (mouseY - this.lastMouseY) / this.scale;
+            const group = this.groupResizeHandle.group;
+            const handle = this.groupResizeHandle.handle;
+            
+            const minSize = 100;
+            
+            switch (handle) {
+                case 'nw':
+                    if (group.width - dx >= minSize) {
+                        group.x += dx;
+                        group.width -= dx;
+                    }
+                    if (group.height - dy >= minSize) {
+                        group.y += dy;
+                        group.height -= dy;
+                    }
+                    break;
+                case 'ne':
+                    if (group.width + dx >= minSize) {
+                        group.width += dx;
+                    }
+                    if (group.height - dy >= minSize) {
+                        group.y += dy;
+                        group.height -= dy;
+                    }
+                    break;
+                case 'sw':
+                    if (group.width - dx >= minSize) {
+                        group.x += dx;
+                        group.width -= dx;
+                    }
+                    if (group.height + dy >= minSize) {
+                        group.height += dy;
+                    }
+                    break;
+                case 'se':
+                    if (group.width + dx >= minSize) {
+                        group.width += dx;
+                    }
+                    if (group.height + dy >= minSize) {
+                        group.height += dy;
+                    }
+                    break;
+                case 'n':
+                    if (group.height - dy >= minSize) {
+                        group.y += dy;
+                        group.height -= dy;
+                    }
+                    break;
+                case 's':
+                    if (group.height + dy >= minSize) {
+                        group.height += dy;
+                    }
+                    break;
+                case 'w':
+                    if (group.width - dx >= minSize) {
+                        group.x += dx;
+                        group.width -= dx;
+                    }
+                    break;
+                case 'e':
+                    if (group.width + dx >= minSize) {
+                        group.width += dx;
+                    }
+                    break;
+            }
+            
+            this.lastMouseX = mouseX;
+            this.lastMouseY = mouseY;
+            this.render();
+            return;
+        }
+
+        // Handle group dragging
+        if (this.draggedGroup) {
+            const dx = (mouseX - this.lastMouseX) / this.scale;
+            const dy = (mouseY - this.lastMouseY) / this.scale;
+            
+            this.draggedGroup.x += dx;
+            this.draggedGroup.y += dy;
+            
+            this.lastMouseX = mouseX;
+            this.lastMouseY = mouseY;
+            this.render();
+            return;
+        }
+
         if (this.isLinkDragging) {
             // Update link drag position
             this.linkDragX = worldPos.x;
@@ -621,12 +1039,33 @@ class MindmapManager {
             
             this.render();
         } else {
-            // Check if hovering over a connection
-            const hoveredConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
-            if (hoveredConnection !== this.hoveredConnection) {
-                this.hoveredConnection = hoveredConnection;
-                this.canvas.style.cursor = hoveredConnection ? 'pointer' : 'default';
+            // Check cursor state for group resize handles
+            if (this.selectedGroup) {
+                const resizeHandle = this.getGroupResizeHandleAtPoint(worldPos.x, worldPos.y);
+                if (resizeHandle) {
+                    this.canvas.style.cursor = this.getResizeCursor(resizeHandle.handle);
+                    this.lastMouseX = mouseX;
+                    this.lastMouseY = mouseY;
+                    return;
+                }
+            }
+            
+            // Check if hovering over a group
+            const hoveredGroup = this.getGroupAtPoint(worldPos.x, worldPos.y);
+            if (hoveredGroup !== this.hoveredGroup) {
+                this.hoveredGroup = hoveredGroup;
+                this.canvas.style.cursor = hoveredGroup ? 'move' : 'default';
                 this.render();
+            }
+            
+            // Check if hovering over a connection (only if not hovering over group)
+            if (!hoveredGroup) {
+                const hoveredConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
+                if (hoveredConnection !== this.hoveredConnection) {
+                    this.hoveredConnection = hoveredConnection;
+                    this.canvas.style.cursor = hoveredConnection ? 'pointer' : 'default';
+                    this.render();
+                }
             }
         }
 
@@ -635,6 +1074,45 @@ class MindmapManager {
     }
 
     handleMouseUp(e) {
+        // Handle group creation end
+        if (this.isCreatingGroup) {
+            const minSize = 50; // Minimum size to create a group
+            const x = Math.min(this.groupCreateStart.x, this.groupCreateEnd.x);
+            const y = Math.min(this.groupCreateStart.y, this.groupCreateEnd.y);
+            const w = Math.abs(this.groupCreateEnd.x - this.groupCreateStart.x);
+            const h = Math.abs(this.groupCreateEnd.y - this.groupCreateStart.y);
+            
+            if (w >= minSize && h >= minSize) {
+                // Show dialog to name the group
+                this.showGroupCreationDialog(x, y, w, h);
+            }
+            
+            this.isCreatingGroup = false;
+            this.groupCreateStart = null;
+            this.groupCreateEnd = null;
+            this.canvas.style.cursor = 'default';
+            this.render();
+            return;
+        }
+
+        // Handle group resize end
+        if (this.groupResizeHandle) {
+            this.groupResizeHandle = null;
+            this.saveLayout();
+            this.canvas.style.cursor = 'default';
+            this.render();
+            return;
+        }
+
+        // Handle group drag end
+        if (this.draggedGroup) {
+            this.draggedGroup = null;
+            this.saveLayout();
+            this.canvas.style.cursor = 'default';
+            this.render();
+            return;
+        }
+
         if (this.isLinkDragging) {
             console.log('Link drag ended. Source:', this.linkDragSource?.id, 'Target:', this.linkDragTarget?.id);
             
@@ -803,6 +1281,16 @@ class MindmapManager {
         this.ctx.translate(this.offsetX, this.offsetY);
         this.ctx.scale(this.scale, this.scale);
 
+        // Draw groups (lowest layer, below everything)
+        this.groups.forEach(group => {
+            this.drawGroup(group);
+        });
+        
+        // Draw group creation preview
+        if (this.isCreatingGroup && this.groupCreateStart && this.groupCreateEnd) {
+            this.drawGroupCreationPreview();
+        }
+
         // Draw connections
         this.connections.forEach(conn => {
             const isHovered = this.hoveredConnection === conn || this.selectedConnection === conn;
@@ -881,6 +1369,104 @@ class MindmapManager {
             this.ctx.lineTo(this.canvas.width, y);
         }
         this.ctx.stroke();
+    }
+
+    drawGroup(group) {
+        const x = group.x;
+        const y = group.y;
+        const w = group.width;
+        const h = group.height;
+        const isSelected = this.selectedGroup === group;
+        const isHovered = this.hoveredGroup === group;
+        
+        // Semi-transparent background
+        this.ctx.fillStyle = group.color || 'rgba(100, 181, 246, 0.1)';
+        this.ctx.fillRect(x, y, w, h);
+        
+        // Border
+        this.ctx.strokeStyle = isSelected ? '#2196F3' : (isHovered ? '#64b5f6' : 'rgba(100, 181, 246, 0.4)');
+        this.ctx.lineWidth = isSelected ? 3 : 2;
+        this.ctx.setLineDash(isSelected ? [] : [8, 4]);
+        this.ctx.strokeRect(x, y, w, h);
+        this.ctx.setLineDash([]);
+        
+        // Label at top-left
+        if (group.label) {
+            this.ctx.save();
+            this.ctx.fillStyle = '#2196F3';
+            this.ctx.font = 'bold 16px Arial';
+            const labelPadding = 8;
+            const labelWidth = this.ctx.measureText(group.label).width + labelPadding * 2;
+            const labelHeight = 28;
+            
+            // Label background
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            this.ctx.fillRect(x, y, labelWidth, labelHeight);
+            
+            // Label border
+            this.ctx.strokeStyle = isSelected ? '#2196F3' : 'rgba(100, 181, 246, 0.6)';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(x, y, labelWidth, labelHeight);
+            
+            // Label text
+            this.ctx.fillStyle = '#2196F3';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(group.label, x + labelPadding, y + labelHeight / 2);
+            this.ctx.restore();
+        }
+        
+        // Draw resize handles when selected
+        if (isSelected) {
+            this.drawGroupResizeHandles(group);
+        }
+    }
+
+    drawGroupResizeHandles(group) {
+        const handleSize = 10;
+        const handles = [
+            { x: group.x, y: group.y, cursor: 'nw-resize', handle: 'nw' },
+            { x: group.x + group.width, y: group.y, cursor: 'ne-resize', handle: 'ne' },
+            { x: group.x, y: group.y + group.height, cursor: 'sw-resize', handle: 'sw' },
+            { x: group.x + group.width, y: group.y + group.height, cursor: 'se-resize', handle: 'se' },
+            { x: group.x + group.width / 2, y: group.y, cursor: 'n-resize', handle: 'n' },
+            { x: group.x + group.width / 2, y: group.y + group.height, cursor: 's-resize', handle: 's' },
+            { x: group.x, y: group.y + group.height / 2, cursor: 'w-resize', handle: 'w' },
+            { x: group.x + group.width, y: group.y + group.height / 2, cursor: 'e-resize', handle: 'e' }
+        ];
+        
+        handles.forEach(h => {
+            this.ctx.fillStyle = '#2196F3';
+            this.ctx.fillRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
+            this.ctx.strokeStyle = '#ffffff';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
+        });
+    }
+
+    drawGroupCreationPreview() {
+        const x = Math.min(this.groupCreateStart.x, this.groupCreateEnd.x);
+        const y = Math.min(this.groupCreateStart.y, this.groupCreateEnd.y);
+        const w = Math.abs(this.groupCreateEnd.x - this.groupCreateStart.x);
+        const h = Math.abs(this.groupCreateEnd.y - this.groupCreateStart.y);
+        
+        // Semi-transparent blue preview
+        this.ctx.fillStyle = 'rgba(33, 150, 243, 0.15)';
+        this.ctx.fillRect(x, y, w, h);
+        
+        // Dashed border
+        this.ctx.strokeStyle = '#2196F3';
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([8, 4]);
+        this.ctx.strokeRect(x, y, w, h);
+        this.ctx.setLineDash([]);
+        
+        // Show dimensions
+        this.ctx.fillStyle = '#2196F3';
+        this.ctx.font = 'bold 14px Arial';
+        this.ctx.textBaseline = 'top';
+        const dimensionText = `${Math.round(w)} × ${Math.round(h)}`;
+        this.ctx.fillText(dimensionText, x + 5, y + 5);
+        this.ctx.textBaseline = 'alphabetic';
     }
 
     drawBezierCurve(source, target, isHovered = false) {
@@ -1465,6 +2051,8 @@ class MindmapManager {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         const worldPos = this.screenToWorld(mouseX, mouseY);
+        
+        console.log('Right-click at world position:', worldPos, 'Groups:', this.groups.length);
 
         // Check if clicked on a node
         let clickedNode = null;
@@ -1477,27 +2065,79 @@ class MindmapManager {
             }
         }
 
-        // Check if clicked on a connection (if no node was clicked)
-        if (!clickedNode) {
-            const clickedConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
-            if (clickedConnection) {
-                this.selectedConnection = clickedConnection;
-                this.showConnectionContextMenu(clickedConnection, e.clientX, e.clientY);
-                this.render();
-                return;
-            }
+        // If clicked on a node, show node context menu
+        if (clickedNode) {
+            this.showContextMenu(e.clientX, e.clientY, clickedNode, worldPos, null);
+            return;
         }
 
-        this.showContextMenu(e.clientX, e.clientY, clickedNode, worldPos);
+        // Check if clicked on a connection
+        const clickedConnection = this.getConnectionAtPoint(worldPos.x, worldPos.y);
+        if (clickedConnection) {
+            this.selectedConnection = clickedConnection;
+            this.showConnectionContextMenu(clickedConnection, e.clientX, e.clientY);
+            this.render();
+            return;
+        }
+
+        // Check if clicked on a group
+        const clickedGroup = this.getGroupAtPoint(worldPos.x, worldPos.y);
+        console.log('Clicked group:', clickedGroup ? clickedGroup.label : 'none');
+        if (clickedGroup) {
+            this.selectedGroup = clickedGroup;
+            this.render();
+            console.log('Showing group context menu for:', clickedGroup.label);
+            this.showContextMenu(e.clientX, e.clientY, null, worldPos, clickedGroup);
+            return;
+        }
+
+        // Otherwise show background context menu
+        this.showContextMenu(e.clientX, e.clientY, null, worldPos, null);
     }
 
-    showContextMenu(x, y, node, worldPos) {
+    showContextMenu(x, y, node, worldPos, group = null) {
+        console.log('showContextMenu called with:', { node: !!node, group: group ? group.label : null });
+        
         this.contextMenu.innerHTML = '';
         this.contextMenu.style.left = x + 'px';
         this.contextMenu.style.top = y + 'px';
         this.contextMenu.classList.remove('hidden');
 
-        if (node) {
+        if (group) {
+            console.log('Displaying group menu for:', group.label);
+            // Group options
+            const header = document.createElement('div');
+            header.className = 'context-menu-header';
+            header.style.cssText = 'padding: 10px 12px; border-bottom: 1px solid #e0e0e0; font-size: 11px; color: #666; background: #f9f9f9;';
+            const nodesInGroup = this.getNodesInGroup(group);
+            header.innerHTML = `
+                <div style="margin-bottom: 4px; font-weight: 600;">📦 Group</div>
+                <div style="font-size: 10px; color: #555;">${this.escapeHtml(group.label || 'Unnamed Group')}</div>
+                <div style="font-size: 9px; color: #2196F3; margin-top: 4px; font-weight: 600;">${nodesInGroup.length} ${nodesInGroup.length === 1 ? 'item' : 'items'}</div>
+            `;
+            this.contextMenu.appendChild(header);
+            
+            this.addMenuItem('✏️ Edit Label', () => {
+                this.contextMenu.classList.add('hidden');
+                this.showEditGroupLabelDialog(group);
+            });
+            
+            this.addMenuItem('🎨 Change Color', () => {
+                this.contextMenu.classList.add('hidden');
+                this.showGroupColorPicker(group);
+            });
+            
+            this.addMenuItem('🗑️ Delete Group', () => {
+                this.contextMenu.classList.add('hidden');
+                if (confirm(`Delete group "${group.label}"?\n\nNotes inside will not be deleted.`)) {
+                    this.deleteGroup(group);
+                }
+            }, true);
+            
+            this.addMenuItem('❌ Cancel', () => {
+                this.contextMenu.classList.add('hidden');
+            });
+        } else if (node) {
             // Check if it's a document reference or external highlight (read-only)
             if (node.isDocumentRef && node.data.type === 'document-reference') {
                 // Document reference options (read-only)
@@ -1555,6 +2195,11 @@ class MindmapManager {
         } else {
             // Background options
             this.addMenuItem('📝 Add Note', () => this.addNote(worldPos.x, worldPos.y));
+            
+            const info = document.createElement('div');
+            info.style.cssText = 'padding: 8px 12px; font-size: 11px; color: #999; border-top: 1px solid #e0e0e0; background: #fafafa; font-style: italic;';
+            info.textContent = '💡 Tip: Hold Ctrl and drag to create a group';
+            this.contextMenu.appendChild(info);
         }
     }
 
@@ -2004,6 +2649,72 @@ class MindmapManager {
                 this.refreshData();
                 console.log('✓ Color changed to', selectedColor);
             }
+            dialog.remove();
+        });
+        
+        // Close on background click
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+            }
+        });
+    }
+
+    showGroupColorPicker(group) {
+        const colors = [
+            { name: 'blue', value: 'rgba(100, 181, 246, 0.1)', border: '#64b5f6' },
+            { name: 'green', value: 'rgba(129, 199, 132, 0.1)', border: '#81c784' },
+            { name: 'purple', value: 'rgba(186, 104, 200, 0.1)', border: '#ba68c8' },
+            { name: 'orange', value: 'rgba(255, 183, 77, 0.1)', border: '#ffb74d' },
+            { name: 'pink', value: 'rgba(240, 98, 146, 0.1)', border: '#f06292' },
+            { name: 'yellow', value: 'rgba(255, 213, 79, 0.1)', border: '#ffd54f' },
+            { name: 'grey', value: 'rgba(158, 158, 158, 0.1)', border: '#9e9e9e' }
+        ];
+        
+        const currentColorName = colors.find(c => c.value === group.color)?.name || 'blue';
+        
+        // Create color picker dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'note-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="note-dialog" style="max-width: 350px;">
+                <div class="note-dialog-header">
+                    <h3>🎨 Change Group Color</h3>
+                    <button class="note-dialog-close" onclick="this.closest('.note-dialog-overlay').remove()">×</button>
+                </div>
+                <div class="note-dialog-body">
+                    <p style="margin-bottom: 15px; color: #666; font-size: 14px;">Choose a color for this group:</p>
+                    <div class="mindmap-color-picker" id="groupColorPickerOptions" style="justify-content: center;">
+                        ${colors.map(c => `
+                            <div class="color-option-large ${currentColorName === c.name ? 'selected' : ''}" 
+                                 data-color="${c.value}" 
+                                 style="background: ${c.value}; border: 3px solid ${c.border};"></div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="note-dialog-footer">
+                    <button class="btn-secondary" onclick="this.closest('.note-dialog-overlay').remove()">Cancel</button>
+                    <button class="btn-primary" id="confirmGroupColorBtn">Apply Color</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        // Handle color selection
+        let selectedColor = group.color;
+        const colorOptions = document.querySelectorAll('#groupColorPickerOptions .color-option-large');
+        colorOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                colorOptions.forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                selectedColor = option.dataset.color;
+            });
+        });
+        
+        // Handle confirm button
+        document.getElementById('confirmGroupColorBtn').addEventListener('click', () => {
+            this.updateGroupColor(group, selectedColor);
             dialog.remove();
         });
         
