@@ -505,6 +505,7 @@ const textPanel = document.getElementById('textPanel');
 const statsPanelEl = document.getElementById('statsPanel');
 const resizer1 = document.getElementById('resizer1');
 const resizer2 = document.getElementById('resizer2');
+const resizer3 = document.getElementById('resizer3');
 
 // Toggle POS Section
 window.togglePOSSection = function(sectionId) {
@@ -5393,6 +5394,7 @@ if (showStatsTabBtn) {
             // Hide
             statsPanelEl.style.display = 'none';
             if (resizer2) resizer2.style.display = 'none';
+            if (resizer3) resizer3.style.display = 'none';
             showStatsTabBtn.classList.remove('active');
         } else {
             // Show
@@ -5401,6 +5403,7 @@ if (showStatsTabBtn) {
                 statsPanelEl.style.display = 'flex';
             }
             if (resizer2) resizer2.style.display = '';
+            if (resizer3) resizer3.style.display = '';
             showStatsTabBtn.classList.add('active');
         }
     });
@@ -5477,6 +5480,7 @@ if (collapseStatsBtn && expandStatsBtn && statsPanelEl) {
     collapseStatsBtn.addEventListener('click', () => {
         statsPanelEl.style.display = 'none';
         if (resizer2) resizer2.style.display = 'none';
+        if (resizer3) resizer3.style.display = 'none';
         expandStatsBtn.classList.remove('hidden');
         
         // Position the expand button on the far right of the window
@@ -5491,6 +5495,7 @@ if (collapseStatsBtn && expandStatsBtn && statsPanelEl) {
             statsPanelEl.style.display = 'flex';
         }
         if (resizer2) resizer2.style.display = '';
+        if (resizer3) resizer3.style.display = '';
         expandStatsBtn.classList.add('hidden');
     });
 }
@@ -5502,6 +5507,10 @@ if (resizer1) {
 
 if (resizer2) {
     resizer2.addEventListener('mousedown', (e) => initResize(e, statsPanelEl, -1));
+}
+
+if (resizer3) {
+    resizer3.addEventListener('mousedown', (e) => initResize(e, statsPanelEl, 1));
 }
 
 function initResize(e, targetPanel, direction) {
