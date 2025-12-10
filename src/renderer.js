@@ -572,23 +572,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Initialize Panel Manager
-    if (typeof PanelManager !== 'undefined') {
-        window.panelManager = new PanelManager();
-        console.log('Panel Manager initialized');
-        
-        // Add event listeners for pop-out buttons
-        document.querySelectorAll('.popout-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent tab switch
-                const type = btn.dataset.popout;
-                if (type && window.panelManager) {
-                    window.panelManager.openTabPanel(type);
-                }
-            });
-        });
-    }
-    
     // Finish restoring workspace tabs after everything is loaded
     if (typeof tabManager !== 'undefined' && tabManager.finishRestore) {
         tabManager.finishRestore();
