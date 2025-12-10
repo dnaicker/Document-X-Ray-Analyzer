@@ -165,12 +165,30 @@
                     <span>📝 Extracted Text</span>
                 </h2>
                 <div class="view-toggle">
-                    <button id="highlightedTextBtn" class="btn-toggle active">Analyse</button>
-                    <button id="notesBtn" class="btn-toggle">📌 Notes</button>
-                    <button id="translateTabBtn" class="btn-toggle">🌐 Translate</button>
-                    <button id="mapBtn" class="btn-toggle">🗺️ Map</button>
-                    <button id="mindmapBtn" class="btn-toggle">🧠 Mindmap</button>
-                    <button id="figuresBtn" class="btn-toggle">🖼️ Figures</button>
+                    <button id="highlightedTextBtn" class="btn-toggle active">
+                        Analyse
+                        <span class="popout-btn" data-popout="highlighted" title="Open in new panel">⧉</span>
+                    </button>
+                    <button id="notesBtn" class="btn-toggle">
+                        📌 Notes
+                        <span class="popout-btn" data-popout="notes" title="Open in new panel">⧉</span>
+                    </button>
+                    <button id="translateTabBtn" class="btn-toggle">
+                        🌐 Translate
+                        <span class="popout-btn" data-popout="translate" title="Open in new panel">⧉</span>
+                    </button>
+                    <button id="mapBtn" class="btn-toggle">
+                        🗺️ Map
+                        <span class="popout-btn" data-popout="map" title="Open in new panel">⧉</span>
+                    </button>
+                    <button id="mindmapBtn" class="btn-toggle">
+                        🧠 Mindmap
+                        <span class="popout-btn" data-popout="mindmap" title="Open in new panel">⧉</span>
+                    </button>
+                    <button id="figuresBtn" class="btn-toggle">
+                        🖼️ Figures
+                        <span class="popout-btn" data-popout="figures" title="Open in new panel">⧉</span>
+                    </button>
                     <!-- <button id="showStatsTabBtn" class="btn-toggle" style="margin-left: 10px; border-left: 1px solid rgba(0,0,0,0.1);">📊 Stats</button> -->
                 </div>
             </div>
@@ -1440,6 +1458,7 @@
     <script src="components/library-ui.js"></script>
     <script src="components/mindmap-manager.js"></script>
     <script src="components/ai-semantic-analyzer.js"></script>
+    <script src="components/PanelManager.js"></script>
     <script src="renderer.js"></script>
 </body>
 </html>
