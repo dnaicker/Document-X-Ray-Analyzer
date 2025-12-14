@@ -1234,7 +1234,7 @@ class MindmapManager {
                 if (newNote) {
                     // Add to layout cache at the drop position (linkDragX, linkDragY are in world coordinates)
                     const layout = this.loadLayout();
-                    layout.push({ id: newNote.id, x: this.linkDragX, y: this.linkDragY });
+                    layout.nodes.push({ id: newNote.id, x: this.linkDragX, y: this.linkDragY });
                     // Use file-specific key to prevent layout sharing between documents
                     const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
                     localStorage.setItem(key, JSON.stringify(layout));
@@ -2590,6 +2590,7 @@ class MindmapManager {
         input.focus();
 
         const handleAdd = () => {
+            console.log('handleAdd');
             const text = input.value.trim();
             if (text) {
                 // Add to notesManager
@@ -2598,7 +2599,7 @@ class MindmapManager {
                 if (newNote) {
                     // Add to layout cache
                     const layout = this.loadLayout();
-                    layout.push({ id: newNote.id, x: x, y: y });
+                    layout.nodes.push({ id: newNote.id, x: x, y: y });
                     // Use file-specific key to prevent layout sharing between documents
                     const key = `mindmap_layout_${this.notesManager.currentFilePath}`;
                     localStorage.setItem(key, JSON.stringify(layout));
