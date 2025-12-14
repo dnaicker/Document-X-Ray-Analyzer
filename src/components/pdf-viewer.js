@@ -76,6 +76,18 @@ class PDFViewer {
     
     async renderPage(pageNum) {
         try {
+            // Check if PDF is loaded
+            if (!this.pdfDoc) {
+                console.warn('Cannot render page: No PDF document loaded');
+                return;
+            }
+            
+            // Validate page number
+            if (pageNum < 1 || pageNum > this.totalPages) {
+                console.warn(`Invalid page number: ${pageNum}. Must be between 1 and ${this.totalPages}`);
+                return;
+            }
+            
             const page = await this.pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale: this.scale });
             
@@ -252,24 +264,28 @@ class PDFViewer {
     }
     
     previousPage() {
+        if (!this.pdfDoc) return;
         if (this.currentPage > 1) {
             this.renderPage(this.currentPage - 1);
         }
     }
     
     nextPage() {
+        if (!this.pdfDoc) return;
         if (this.currentPage < this.totalPages) {
             this.renderPage(this.currentPage + 1);
         }
     }
     
     zoomIn() {
+        if (!this.pdfDoc) return;
         this.scale += 0.25;
         this.renderPage(this.currentPage);
         document.getElementById('zoomLevel').textContent = `${Math.round(this.scale * 100)}%`;
     }
     
     zoomOut() {
+        if (!this.pdfDoc) return;
         if (this.scale > 0.5) {
             this.scale -= 0.25;
             this.renderPage(this.currentPage);

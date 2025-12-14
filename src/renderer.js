@@ -5021,6 +5021,12 @@ window.goToPage = function(pageNum, switchTab = true) {
         return;
     }
 
+    // Check if PDF is loaded
+    if (!pdfViewer.pdfDoc) {
+        console.warn('Cannot navigate to page: No PDF document loaded');
+        return;
+    }
+
     // Update PDF Viewer
     pdfViewer.renderPage(pageNum);
     pdfViewer.currentPage = pageNum;

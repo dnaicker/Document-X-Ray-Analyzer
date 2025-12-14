@@ -1756,35 +1756,70 @@ class NotesManager {
             return;
         }
         
-        // Find highlight element in appropriate view
+        // Check where the highlight exists (before switching views)
         let highlightEl = null;
-        const isAnalyseView = document.getElementById('highlightedTextView').classList.contains('active');
+        let targetView = null;
         
-        if (isAnalyseView && this.highlightedTextContent) {
+        // Check if highlight exists in highlightedTextContent
+        if (this.highlightedTextContent) {
             highlightEl = this.highlightedTextContent.querySelector(`.user-highlight[data-highlight-id="${id}"]`);
+            if (highlightEl) {
+                targetView = 'highlighted';
+            }
         }
         
+        // If not found in highlighted view, check raw text
         if (!highlightEl && this.rawTextContent) {
             highlightEl = this.rawTextContent.querySelector(`.user-highlight[data-highlight-id="${id}"]`);
+            if (highlightEl) {
+                targetView = 'raw';
+            }
         }
         
-        if (highlightEl) {
-            // Ensure we are in the correct view
-            const isInHighlighted = this.highlightedTextContent && this.highlightedTextContent.contains(highlightEl);
+        if (highlightEl && targetView) {
+            // Switch to the appropriate view if not already active
+            const highlightedViewActive = document.getElementById('highlightedTextView')?.classList.contains('active');
             
-            if (isInHighlighted && !document.getElementById('highlightedTextView').classList.contains('active')) {
-                 if (window.switchView) window.switchView('highlighted');
+            if (targetView === 'highlighted' && !highlightedViewActive) {
+                if (window.switchView) {
+                    window.switchView('highlighted');
+                }
+                
+                // Wait for view to become active and highlights to be applied
+                setTimeout(() => {
+                    const updatedEl = this.highlightedTextContent.querySelector(`.user-highlight[data-highlight-id="${id}"]`);
+                    if (updatedEl) {
+                        updatedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        // Flash effect
+                        updatedEl.classList.add('flash-highlight');
+                        setTimeout(() => updatedEl.classList.remove('flash-highlight'), 2000);
+                    }
+                }, 100);
+            } else {
+                // Already in correct view, scroll immediately
+                highlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Flash effect
+                highlightEl.classList.add('flash-highlight');
+                setTimeout(() => highlightEl.classList.remove('flash-highlight'), 2000);
             }
-            
-            highlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            // Flash effect
-            highlightEl.classList.add('flash-highlight');
-            setTimeout(() => highlightEl.classList.remove('flash-highlight'), 2000);
         } else {
-            // Fallback to page navigation
+            // Highlight element not found - fallback to page navigation for PDFs
             if (item && item.page && window.goToPage) {
                 window.goToPage(item.page, true);
+                
+                // After navigating to page, try to find and scroll to highlight again
+                setTimeout(() => {
+                    const updatedEl = this.highlightedTextContent?.querySelector(`.user-highlight[data-highlight-id="${id}"]`);
+                    if (updatedEl) {
+                        updatedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        // Flash effect
+                        updatedEl.classList.add('flash-highlight');
+                        setTimeout(() => updatedEl.classList.remove('flash-highlight'), 2000);
+                    }
+                }, 300);
             }
         }
     }
