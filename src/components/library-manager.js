@@ -81,12 +81,55 @@ class LibraryManager {
         try {
             const stored = localStorage.getItem(this.storageKey);
             if (stored) {
-                return JSON.parse(stored);
+                const library = JSON.parse(stored);
+                // Auto-cleanup on load
+                this.cleanupFolderStructure(library);
+                return library;
             }
         } catch (e) {
             console.error('Error loading library:', e);
         }
         return { folders: {}, files: {}, folderOrder: [] };
+    }
+    
+    /**
+     * Clean up corrupted folder structures (circular references, invalid children)
+     */
+    cleanupFolderStructure(library) {
+        if (!library || !library.folders) return;
+        
+        const folders = library.folders;
+        let cleanupCount = 0;
+        
+        // Remove circular references and invalid children
+        Object.keys(folders).forEach(folderId => {
+            const folder = folders[folderId];
+            if (!folder || !folder.children) return;
+            
+            const originalLength = folder.children.length;
+            // Filter out self-references and non-existent folders
+            folder.children = folder.children.filter(childId => {
+                if (childId === folderId) {
+                    console.warn(`Removing self-reference in folder ${folderId}`);
+                    cleanupCount++;
+                    return false;
+                }
+                if (!folders[childId]) {
+                    console.warn(`Removing invalid child reference ${childId} from folder ${folderId}`);
+                    cleanupCount++;
+                    return false;
+                }
+                return true;
+            });
+            
+            if (folder.children.length !== originalLength) {
+                console.log(`Cleaned up folder ${folderId}: removed ${originalLength - folder.children.length} invalid references`);
+            }
+        });
+        
+        if (cleanupCount > 0) {
+            console.log(`Total cleanup: removed ${cleanupCount} corrupted references`);
+        }
     }
     
     /**
@@ -250,28 +293,99 @@ class LibraryManager {
     
     deleteFolder(folderId) {
         const folder = this.library.folders[folderId];
-        if (!folder || folder.type === 'library') return false;
+        if (!folder || folder.type === 'library' || folder.type === 'special') return false;
         
-        // Move files to unfiled
-        folder.files.forEach(filePath => {
-            this.moveFileToFolder(filePath, 'unfiled');
-        });
+        // Three-stage deletion process:
+        // 1. Regular folder → Move to Unfiled Items
+        // 2. Folder in Unfiled → Move to Trash
+        // 3. Folder in Trash → Permanently delete
         
-        // Recursively delete children
-        folder.children.forEach(childId => {
-            this.deleteFolder(childId);
-        });
+        if (folder.parent === 'trash') {
+            // Stage 3: Permanently delete
+            return this.permanentlyDeleteFolder(folderId);
+        } else if (folder.parent === 'unfiled') {
+            // Stage 2: Move to trash
+            return this.moveFolder(folderId, 'trash');
+        } else {
+            // Stage 1: Move to unfiled
+            return this.moveFolder(folderId, 'unfiled');
+        }
+    }
+    
+    permanentlyDeleteFolder(folderId, _deletingSet = null) {
+        // Initialize tracking set on first call to prevent circular references
+        const isTopLevel = _deletingSet === null;
+        const deletingSet = _deletingSet || new Set();
+        
+        // Check if we're already deleting this folder (circular reference)
+        if (deletingSet.has(folderId)) {
+            console.warn(`Circular reference detected: folder ${folderId} already being deleted`);
+            return false;
+        }
+        
+        // Mark this folder as being deleted BEFORE any other operations
+        deletingSet.add(folderId);
+        
+        const folder = this.library.folders[folderId];
+        if (!folder) {
+            console.warn(`Folder ${folderId} not found`);
+            return false;
+        }
+        
+        if (folder.type === 'library' || folder.type === 'special') {
+            console.warn(`Cannot delete special folder: ${folderId}`);
+            return false;
+        }
+        
+        // Recursively delete all child folders first
+        if (folder.children && folder.children.length > 0) {
+            // Filter out self-references and invalid children
+            const validChildren = [...folder.children].filter(childId => {
+                if (childId === folderId) {
+                    console.warn(`Self-reference detected in folder ${folderId}`);
+                    return false;
+                }
+                if (!this.library.folders[childId]) {
+                    console.warn(`Invalid child reference: ${childId} in folder ${folderId}`);
+                    return false;
+                }
+                return true;
+            });
+            
+            validChildren.forEach(childId => {
+                try {
+                    this.permanentlyDeleteFolder(childId, deletingSet);
+                } catch (error) {
+                    console.error(`Error deleting child folder ${childId}:`, error);
+                }
+            });
+        }
+        
+        // Delete all files in this folder
+        if (folder.files && folder.files.length > 0) {
+            folder.files.forEach(filePath => {
+                if (this.library.files[filePath]) {
+                    delete this.library.files[filePath];
+                }
+            });
+        }
         
         // Remove from parent's children
         if (folder.parent && this.library.folders[folder.parent]) {
             const parent = this.library.folders[folder.parent];
-            parent.children = parent.children.filter(id => id !== folderId);
+            if (parent.children) {
+                parent.children = parent.children.filter(id => id !== folderId);
+            }
         }
         
-        // Delete folder
+        // Permanently delete the folder
         delete this.library.folders[folderId];
         
-        this.saveLibrary();
+        // Only save once at the top level (not on every recursive call)
+        if (isTopLevel) {
+            this.saveLibrary();
+        }
+        
         return true;
     }
     
@@ -531,12 +645,15 @@ class LibraryManager {
     
     emptyTrash() {
         const trashFolder = this.library.folders['trash'];
-        if (!trashFolder) return { deleted: 0, errors: [] };
+        if (!trashFolder) return { deleted: 0, folders: 0, errors: [] };
         
         const filesToDelete = [...trashFolder.files]; // Copy array
+        const foldersToDelete = [...trashFolder.children]; // Copy array
         let deleted = 0;
+        let foldersDeleted = 0;
         const errors = [];
         
+        // Delete all files in trash
         filesToDelete.forEach(filePath => {
             try {
                 if (this.removeFile(filePath)) {
@@ -548,7 +665,19 @@ class LibraryManager {
             }
         });
         
-        return { deleted, errors };
+        // Delete all folders in trash
+        foldersToDelete.forEach(folderId => {
+            try {
+                if (this.permanentlyDeleteFolder(folderId)) {
+                    foldersDeleted++;
+                }
+            } catch (error) {
+                console.error('Error deleting folder:', folderId, error);
+                errors.push({ folderId, error: error.message });
+            }
+        });
+        
+        return { deleted, folders: foldersDeleted, errors };
     }
     
     moveAllFilesToTrash(folderId) {

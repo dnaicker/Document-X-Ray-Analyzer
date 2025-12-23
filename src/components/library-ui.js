@@ -445,9 +445,11 @@ class LibraryUI {
         // Special menu for Trash folder
         if (folderId === 'trash') {
             const fileCount = folder.files ? folder.files.length : 0;
+            const folderCount = folder.children ? folder.children.length : 0;
+            const totalCount = fileCount + folderCount;
             menu.innerHTML = `
-                <div class="context-menu-item ${fileCount === 0 ? 'disabled' : ''}" data-action="emptytrash">
-                    🗑️ Empty Trash (${fileCount} ${fileCount === 1 ? 'item' : 'items'})
+                <div class="context-menu-item ${totalCount === 0 ? 'disabled' : ''}" data-action="emptytrash">
+                    🗑️ Empty Trash (${totalCount} ${totalCount === 1 ? 'item' : 'items'})
                 </div>
             `;
         } 
@@ -638,8 +640,21 @@ class LibraryUI {
         const folder = this.libraryManager.getFolder(folderId);
         if (!folder) return;
         
-        if (confirm(`Delete folder "${folder.name}"? Files will be moved to Unfiled Items.`)) {
+        let message;
+        if (folder.parent === 'trash') {
+            // Permanently delete from trash
+            message = `Permanently delete folder "${folder.name}" and all its contents? This cannot be undone.`;
+        } else if (folder.parent === 'unfiled') {
+            // Move to trash
+            message = `Move folder "${folder.name}" to Trash?`;
+        } else {
+            // Move to unfiled
+            message = `Move folder "${folder.name}" to Unfiled Items? The folder and all its contents will be preserved.`;
+        }
+        
+        if (confirm(message)) {
             this.libraryManager.deleteFolder(folderId);
+            this.render(); // Refresh the library view
         }
     }
     
@@ -648,21 +663,30 @@ class LibraryUI {
         if (!trashFolder) return;
         
         const fileCount = trashFolder.files ? trashFolder.files.length : 0;
+        const folderCount = trashFolder.children ? trashFolder.children.length : 0;
+        const totalCount = fileCount + folderCount;
         
-        if (fileCount === 0) {
+        if (totalCount === 0) {
             alert('Trash is already empty');
             return;
         }
         
-        if (confirm(`Permanently delete ${fileCount} ${fileCount === 1 ? 'file' : 'files'} from trash? This cannot be undone.`)) {
+        let itemsText = [];
+        if (fileCount > 0) itemsText.push(`${fileCount} ${fileCount === 1 ? 'file' : 'files'}`);
+        if (folderCount > 0) itemsText.push(`${folderCount} ${folderCount === 1 ? 'folder' : 'folders'}`);
+        const itemsString = itemsText.join(' and ');
+        
+        if (confirm(`Permanently delete ${itemsString} from trash? This cannot be undone.`)) {
             const result = this.libraryManager.emptyTrash();
             
             if (result.errors.length > 0) {
-                alert(`Deleted ${result.deleted} files. ${result.errors.length} errors occurred.`);
+                alert(`Deleted ${result.deleted} files and ${result.folders} folders. ${result.errors.length} errors occurred.`);
                 console.error('Errors emptying trash:', result.errors);
             } else {
-                console.log(`Successfully deleted ${result.deleted} files from trash`);
+                console.log(`Successfully deleted ${result.deleted} files and ${result.folders} folders from trash`);
             }
+            
+            this.render(); // Refresh the library view
         }
     }
     
