@@ -2,12 +2,23 @@
 
 ## Overview
 
-The AI Semantic Analysis feature uses Google's Gemini AI to intelligently analyze your documents and identify patterns of sentences that convey similar meanings, even when written differently. This powerful feature helps you:
+The AI Semantic Analysis feature uses advanced language models (OpenAI GPT-4, Google Gemini, or Local Ollama) to intelligently analyze your documents and source code. This powerful feature helps you:
 
+### For Documents:
 - 🔍 **Discover hidden patterns** in your documents
 - 📊 **Identify recurring themes** across different sections
 - 🎨 **Auto-highlight** semantically similar content
 - 🧠 **Visualize relationships** in the mindmap
+
+### For Source Code (NEW! 💻):
+- 🏗️ **Detect architecture patterns** (MVC, MVVM, Observer, Factory, etc.)
+- 🔗 **Map code connections** and dependencies
+- ⚡ **Identify key functions** and their importance
+- 🎨 **Find design patterns** in use
+- ⭐ **Assess code quality** and get improvement suggestions
+- 📦 **Visualize imports, exports, and relationships**
+
+> **See [`CODE_ANALYSIS_GUIDE.md`](CODE_ANALYSIS_GUIDE.md) for detailed code analysis documentation.**
 
 ## Getting Started
 

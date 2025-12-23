@@ -72,9 +72,10 @@ class AISemanticAnalyzer {
      * Analyze document text for semantic patterns
      * @param {string} text - The document text to analyze
      * @param {function} progressCallback - Optional callback for progress updates
+     * @param {Object} options - Analysis options (fileType, filePath, projectFiles)
      * @returns {Promise<Object>} Analysis results
      */
-    async analyzeDocument(text, progressCallback = null) {
+    async analyzeDocument(text, progressCallback = null, options = {}) {
         const provider = this.getProvider();
         
         if (!this.hasApiKey(provider)) {
@@ -88,25 +89,34 @@ class AISemanticAnalyzer {
         this.isAnalyzing = true;
         
         try {
-            if (progressCallback) progressCallback('Preparing text...', 10);
+            // Detect if this is code analysis
+            const isCodeFile = this.isCodeFile(options.fileType || '');
             
-            // Split text into sentences
-            const sentences = this.splitIntoSentences(text);
+            if (progressCallback) progressCallback('Preparing analysis...', 10);
             
-            if (sentences.length < 5) {
-                throw new Error('Document too short for meaningful analysis (minimum 5 sentences)');
-            }
-            
-            if (progressCallback) progressCallback('Analyzing semantic patterns...', 30);
-            
-            // Call appropriate API based on provider
+            // Use different analysis approaches for code vs text
             let analysisResult;
-            if (provider === 'openai') {
-                analysisResult = await this.callOpenAIAPI(sentences);
-            } else if (provider === 'ollama') {
-                analysisResult = await this.callOllamaAPI(sentences);
+            if (isCodeFile) {
+                if (progressCallback) progressCallback('Analyzing code structure...', 30);
+                analysisResult = await this.analyzeCodeFile(text, options, provider);
             } else {
-                analysisResult = await this.callGeminiAPI(sentences);
+                // Original text analysis logic
+                const sentences = this.splitIntoSentences(text);
+                
+                if (sentences.length < 5) {
+                    throw new Error('Document too short for meaningful analysis (minimum 5 sentences)');
+                }
+                
+                if (progressCallback) progressCallback('Analyzing semantic patterns...', 30);
+                
+                // Call appropriate API based on provider
+                if (provider === 'openai') {
+                    analysisResult = await this.callOpenAIAPI(sentences);
+                } else if (provider === 'ollama') {
+                    analysisResult = await this.callOllamaAPI(sentences);
+                } else {
+                    analysisResult = await this.callGeminiAPI(sentences);
+                }
             }
             
             if (progressCallback) progressCallback('Processing results...', 80);
@@ -115,7 +125,7 @@ class AISemanticAnalyzer {
             this.patterns = analysisResult.patterns || [];
             this.similarSentences = new Map();
             
-            // Group similar sentences
+            // Group similar sentences or code patterns
             if (analysisResult.similarGroups) {
                 analysisResult.similarGroups.forEach((group, index) => {
                     this.similarSentences.set(`pattern_${index}`, {
@@ -131,9 +141,11 @@ class AISemanticAnalyzer {
             return {
                 patterns: this.patterns,
                 similarGroups: Array.from(this.similarSentences.values()),
-                totalSentences: sentences.length,
+                totalSentences: analysisResult.totalItems || 0,
                 patternsFound: this.patterns.length,
-                provider: provider
+                provider: provider,
+                isCodeAnalysis: isCodeFile,
+                codeInsights: analysisResult.codeInsights || null
             };
             
         } catch (error) {
@@ -142,6 +154,116 @@ class AISemanticAnalyzer {
         } finally {
             this.isAnalyzing = false;
         }
+    }
+    
+    /**
+     * Check if file type is source code
+     */
+    isCodeFile(fileType) {
+        const codeExtensions = [
+            'js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 
+            'php', 'rb', 'swift', 'kt', 'gd', 'gdscript', 'lua', 'dart', 'scala'
+        ];
+        return codeExtensions.includes(fileType.toLowerCase());
+    }
+    
+    /**
+     * Analyze source code file for patterns, architecture, and connections
+     */
+    async analyzeCodeFile(code, options, provider) {
+        const prompt = this.buildCodeAnalysisPrompt(code, options);
+        
+        // Call appropriate API
+        let result;
+        if (provider === 'openai') {
+            result = await this.callOpenAIForCode(prompt);
+        } else if (provider === 'ollama') {
+            result = await this.callOllamaForCode(prompt);
+        } else {
+            result = await this.callGeminiForCode(prompt);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Build specialized prompt for code analysis
+     */
+    buildCodeAnalysisPrompt(code, options) {
+        const fileType = options.fileType || 'source code';
+        const fileName = options.fileName || 'file';
+        
+        // Limit code length for API
+        const maxChars = 8000;
+        const analyzedCode = code.length > maxChars ? code.substring(0, maxChars) + '\n... (truncated)' : code;
+        
+        return `Analyze this ${fileType} source code file and provide architectural insights.
+
+FILE: ${fileName}
+LANGUAGE: ${fileType}
+
+CODE:
+\`\`\`${fileType}
+${analyzedCode}
+\`\`\`
+
+Provide analysis in this EXACT JSON format (no markdown, no explanation):
+{
+  "codeInsights": {
+    "architecture": {
+      "pattern": "detected pattern (e.g., MVC, Observer, Factory, etc.)",
+      "description": "brief description of the architecture",
+      "components": ["component1", "component2"]
+    },
+    "mainPurpose": "what this file does in 1-2 sentences",
+    "keyFunctions": [
+      {
+        "name": "function name",
+        "purpose": "what it does",
+        "importance": "high/medium/low"
+      }
+    ],
+    "dependencies": {
+      "imports": ["dependency1", "dependency2"],
+      "exports": ["export1", "export2"],
+      "externalAPIs": ["API1", "API2"]
+    },
+    "connections": {
+      "relatesTo": ["file or module it connects to"],
+      "usedBy": ["potential users of this code"],
+      "extends": ["parent classes or base modules"]
+    },
+    "codeQuality": {
+      "complexity": "low/medium/high",
+      "maintainability": "good/fair/needs improvement",
+      "suggestions": ["suggestion 1", "suggestion 2"]
+    }
+  },
+  "patterns": [
+    {
+      "type": "design_pattern",
+      "name": "pattern name",
+      "description": "where and how it's used",
+      "examples": ["code snippet reference"]
+    }
+  ],
+  "similarGroups": [
+    {
+      "theme": "related functionality theme",
+      "sentences": ["function/method description 1", "function/method description 2"],
+      "significance": "high"
+    }
+  ]
+}
+
+Focus on:
+1. Architecture patterns and design principles
+2. How this code connects to other parts of a project
+3. Main responsibilities and purpose
+4. Code organization and structure
+5. Potential improvements
+
+Return empty arrays if no patterns found.`;
     }
     
     /**
@@ -576,6 +698,205 @@ Empty arrays if no patterns found.`;
             }
             
             throw new Error(`Ollama failed: ${error.message}`);
+        }
+    }
+    
+    /**
+     * Call Gemini API for code analysis
+     */
+    async callGeminiForCode(prompt) {
+        const apiKey = this.getApiKey();
+        const modelNames = [
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-2.5-pro',
+            'gemini-2.0-flash-001'
+        ];
+        
+        let lastError = null;
+        
+        for (const modelName of modelNames) {
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.2,
+                            topK: 32,
+                            topP: 0.9,
+                            maxOutputTokens: 8192
+                        }
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMsg = errorData.error?.message || response.statusText;
+                    
+                    if (errorMsg.includes('not found') || errorMsg.includes('not supported')) {
+                        lastError = new Error(`Model ${modelName} not available`);
+                        continue;
+                    }
+                    
+                    throw new Error(`Gemini API error: ${errorMsg}`);
+                }
+                
+                const data = await response.json();
+                const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!generatedText) {
+                    throw new Error('No response from Gemini API');
+                }
+                
+                let jsonText = generatedText.trim();
+                if (jsonText.startsWith('```')) {
+                    jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+                }
+                
+                const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) {
+                    throw new Error('Could not parse API response');
+                }
+                
+                const result = JSON.parse(jsonMatch[0]);
+                result.totalItems = result.codeInsights?.keyFunctions?.length || 0;
+                
+                console.log(`✓ Successfully analyzed code with: ${modelName}`);
+                return result;
+                
+            } catch (error) {
+                lastError = error;
+                if (error.message.includes('not found') || error.message.includes('not supported')) {
+                    continue;
+                }
+                break;
+            }
+        }
+        
+        throw new Error(`Gemini code analysis failed: ${lastError?.message || 'Unknown error'}`);
+    }
+    
+    /**
+     * Call OpenAI API for code analysis
+     */
+    async callOpenAIForCode(prompt) {
+        const apiKey = this.getApiKey('openai');
+        const apiUrl = 'https://api.openai.com/v1/chat/completions';
+        
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4-turbo-preview',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are a code analysis assistant that returns only valid JSON with architectural insights.'
+                        },
+                        {
+                            role: 'user',
+                            content: prompt
+                        }
+                    ],
+                    response_format: { type: "json_object" },
+                    temperature: 0.2,
+                    max_tokens: 4096
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const generatedText = data.choices?.[0]?.message?.content;
+            
+            if (!generatedText) {
+                throw new Error('No response from OpenAI API');
+            }
+            
+            const result = JSON.parse(generatedText);
+            result.totalItems = result.codeInsights?.keyFunctions?.length || 0;
+            
+            console.log('✓ Successfully analyzed code with OpenAI');
+            return result;
+            
+        } catch (error) {
+            console.error('OpenAI code analysis failed:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Call Ollama API for code analysis
+     */
+    async callOllamaForCode(prompt) {
+        const { endpoint, model } = this.getOllamaConfig();
+        const apiUrl = `${endpoint}/api/generate`;
+        
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    prompt: prompt,
+                    stream: false,
+                    format: "json",
+                    options: {
+                        temperature: 0.2,
+                        num_predict: 4096
+                    }
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Ollama API error: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            const generatedText = data.response;
+            
+            if (!generatedText) {
+                throw new Error('No response from Ollama API');
+            }
+            
+            let cleanText = generatedText.trim();
+            if (cleanText.startsWith('```')) {
+                cleanText = cleanText.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+            }
+            
+            const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                throw new Error('Could not parse JSON from Ollama response');
+            }
+            
+            const result = JSON.parse(jsonMatch[0]);
+            result.totalItems = result.codeInsights?.keyFunctions?.length || 0;
+            
+            console.log(`✓ Successfully analyzed code with Ollama (${model})`);
+            return result;
+            
+        } catch (error) {
+            console.error('Ollama code analysis failed:', error);
+            throw error;
         }
     }
     

@@ -16,6 +16,28 @@ The Grammar Highlighter now supports importing entire folders with their subdire
    - EPUB (`.epub`)
    - Word Documents (`.docx`)
    - Markdown (`.md`)
+   - Text Files (`.txt`)
+   - **Source Code Files (60+ languages)**:
+     - JavaScript/TypeScript (`.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`)
+     - Python (`.py`, `.pyw`)
+     - Java (`.java`)
+     - C/C++ (`.c`, `.cpp`, `.cc`, `.cxx`, `.h`, `.hpp`)
+     - C# (`.cs`)
+     - Go (`.go`)
+     - Rust (`.rs`)
+     - PHP (`.php`)
+     - Ruby (`.rb`)
+     - Swift (`.swift`)
+     - Kotlin (`.kt`, `.kts`)
+     - **GDScript/Godot** (`.gd`, `.gdscript`, `.gdshader`, `.tscn`, `.tres`)
+     - HTML/CSS (`.html`, `.htm`, `.css`, `.scss`, `.sass`, `.less`)
+     - Data formats (`.json`, `.xml`, `.yaml`, `.yml`, `.toml`)
+     - Shell scripts (`.sh`, `.bash`, `.zsh`, `.bat`, `.cmd`, `.ps1`)
+     - SQL (`.sql`)
+     - Lua (`.lua`)
+     - Dart (`.dart`)
+     - Elixir (`.ex`, `.exs`)
+     - And many more!
 
 ### 3. **Automatic Organization**
    - Creates matching folder structure in your library
@@ -82,9 +104,10 @@ After importing, you'll see a summary showing:
 ## Tips
 
 1. **Large Folders**: Importing large folders may take a few moments. Be patient!
-2. **Unsupported Files**: Only PDF, EPUB, DOCX, and MD files are imported. Other file types are skipped.
-3. **Nested Folders**: The feature supports deeply nested folder structures.
-4. **Duplicate Files**: If a file already exists in your library, it won't be duplicated.
+2. **Project Directories**: When importing source code projects, common directories like `node_modules`, `.git`, `dist`, `build`, `__pycache__`, and `venv` are automatically skipped.
+3. **Unsupported Files**: Binary files, images, and other non-text formats are skipped.
+4. **Nested Folders**: The feature supports deeply nested folder structures.
+5. **Duplicate Files**: If a file already exists in your library, it won't be duplicated.
 
 ## Keyboard Shortcuts
 
@@ -106,20 +129,35 @@ The scanner identifies files by their extension:
 - `.epub` → EPUB Reader
 - `.docx` → DOCX Reader
 - `.md` → Markdown Reader
+- `.txt` → Text Viewer
+- `.js`, `.py`, `.java`, etc. → Code Viewer with Syntax Highlighting
+
+### Directory Exclusions
+The scanner automatically skips common development directories:
+- `node_modules` (Node.js)
+- `.git`, `.svn`, `.hg` (Version control)
+- `dist`, `build`, `bin`, `obj` (Build outputs)
+- `__pycache__`, `.venv`, `venv` (Python)
+- `.godot`, `.import` (Godot Engine)
+- `target` (Rust/Cargo)
+- `.vs`, `.idea` (IDE configurations)
 
 ## Troubleshooting
 
 **Q: No files were found in my folder**
-- A: Make sure your folder contains supported file types (PDF, EPUB, DOCX, MD)
+- A: Make sure your folder contains supported file types (documents or source code). The scanner automatically skips directories like `node_modules` and `.git`.
 
 **Q: Some files were skipped**
-- A: Check the import summary to see which files were skipped and why
+- A: Check the import summary to see which files were skipped and why. Binary files, images, and files in excluded directories are skipped.
 
 **Q: The folder structure looks different**
 - A: The app preserves the relative structure from the selected folder downward
 
 **Q: Can I import multiple folders at once?**
 - A: Currently, you need to import folders one at a time. However, you can create a parent folder and import multiple subfolders into it.
+
+**Q: Can I import my entire code project?**
+- A: Yes! The folder scanner will import all source code files while automatically skipping dependencies and build outputs (like `node_modules`, `dist`, etc.).
 
 ## Future Enhancements
 

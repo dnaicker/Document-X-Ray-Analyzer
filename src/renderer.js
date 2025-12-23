@@ -661,6 +661,8 @@ async function openRecentFile(filePath) {
             await loadMarkdownFileFromPath(filePath);
         } else if (ext === 'txt') {
             await loadTxtFileFromPath(filePath);
+        } else if (typeof codeReader !== 'undefined' && codeReader.isSupportedExtension(ext)) {
+            await loadCodeFileFromPath(filePath);
         } else {
             throw new Error(`Unsupported file type: ${ext}`);
         }
@@ -1198,6 +1200,120 @@ async function loadTxtFileFromPath(filePath) {
     }
 }
 
+// Helper function for loading source code files from recent files
+async function loadCodeFileFromPath(filePath) {
+    try {
+        const ext = filePath.split('.').pop().toLowerCase();
+        currentFileType = ext;
+        updateUILabels('code');
+
+        // Set current file info
+        currentFilePath = filePath;
+        currentFileName = filePath.split(/[\\/]/).pop();
+        fileNameDisplay.textContent = currentFileName;
+
+        const fileData = await ipcRenderer.invoke('read-code-file', filePath);
+
+        if (fileData.success) {
+            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+            const result = await codeReader.loadFromBuffer(arrayBuffer, ext);
+
+            if (result.success && result.text && result.text.trim().length > 0) {
+                document.getElementById('rawTextContent').innerHTML =
+                    `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
+
+                // Hide PDF canvas wrapper
+                const pdfCanvas = document.getElementById('pdfCanvas');
+                if (pdfCanvas) pdfCanvas.style.display = 'none';
+
+                const pdfContainer = document.getElementById('pdfViewerContainer');
+
+                // Clean up ALL existing containers first
+                if (pdfContainer) {
+                    const epubContainer = pdfContainer.querySelector('.epub-container');
+                    if (epubContainer) epubContainer.remove();
+                    const docxContainer = pdfContainer.querySelector('.docx-content');
+                    if (docxContainer) docxContainer.remove();
+                    const mdContainer = pdfContainer.querySelector('.markdown-content');
+                    if (mdContainer) mdContainer.remove();
+                    const txtContainer = pdfContainer.querySelector('.txt-content');
+                    if (txtContainer) txtContainer.remove();
+                    const codeContainer = pdfContainer.querySelector('.code-content');
+                    if (codeContainer) codeContainer.remove();
+                }
+
+                // Disable snip button for code files
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                    snipBtn.style.cursor = 'not-allowed';
+                }
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'code-content';
+                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #1e1e1e !important; color: #d4d4d4 !important; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.5; max-width: 100%; margin: 0 auto; font-size: 14px;';
+                
+                // Add language badge
+                const languageBadge = document.createElement('div');
+                languageBadge.style.cssText = 'background: #007acc; color: white; padding: 8px 16px; border-radius: 4px; display: inline-block; margin-bottom: 20px; font-weight: bold; font-size: 12px;';
+                languageBadge.textContent = codeReader.getLanguageDisplayName(result.language);
+                wrapper.appendChild(languageBadge);
+
+                // Add code with syntax highlighting
+                const codeWrapper = document.createElement('div');
+                codeWrapper.style.cssText = 'background: #1e1e1e; border-radius: 4px; overflow-x: auto;';
+                codeWrapper.innerHTML = result.html;
+                wrapper.appendChild(codeWrapper);
+
+                pdfContainer.appendChild(wrapper);
+
+                // Restore saved location
+                const lastLocation = recentFilesManager.getLastLocation(filePath);
+                if (lastLocation && lastLocation.scrollTop) {
+                    setTimeout(() => {
+                        wrapper.scrollTop = lastLocation.scrollTop;
+                    }, 100);
+                }
+
+                if (closePdfBtn) closePdfBtn.disabled = false;
+                if (exportBtn) exportBtn.disabled = false;
+
+                notesManager.loadNotesForFile(filePath);
+
+                // Add tab
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, ext);
+                }
+
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+
+                hideLoading();
+                setStatus(`Loaded: ${currentFileName} (${codeReader.getLanguageDisplayName(result.language)})`);
+
+                setTimeout(() => {
+                    performAnalysis();
+                }, 100);
+            } else {
+                hideLoading();
+                setStatus('⚠️ No text found in file');
+            }
+        } else {
+            hideLoading();
+            setStatus('Error: Could not load code file', 'error');
+            alert('Failed to load code file.');
+        }
+    } catch (error) {
+        console.error('Error loading code file from path:', error);
+        hideLoading();
+        setStatus('Error loading file', 'error');
+        alert(`Failed to open file: ${error.message}`);
+    }
+}
+
 // Update UI Labels based on file type
 function updateUILabels(fileType) {
     const viewerTitle = document.getElementById('viewerTitle');
@@ -1273,6 +1389,33 @@ function updateUILabels(fileType) {
             if(zoomOutBtn) zoomOutBtn.style.display = 'none';
             if(zoomInBtn) zoomInBtn.style.display = 'none';
             if(zoomLevel) zoomLevel.style.display = 'none';
+            break;
+            
+        case 'code':
+            typeLabel = 'Source Code';
+            icon = '💻';
+            // Hide all nav controls for scrolling Code
+            if(prevPageBtn) prevPageBtn.style.display = 'none';
+            if(nextPageBtn) nextPageBtn.style.display = 'none';
+            if(pageInfo) pageInfo.style.display = 'none';
+            if(zoomOutBtn) zoomOutBtn.style.display = 'none';
+            if(zoomInBtn) zoomInBtn.style.display = 'none';
+            if(zoomLevel) zoomLevel.style.display = 'none';
+            break;
+            
+        default:
+            // For code files with specific extensions
+            if (typeof codeReader !== 'undefined' && codeReader.isSupportedExtension(fileType)) {
+                typeLabel = 'Source Code';
+                icon = '💻';
+                // Hide all nav controls for scrolling Code
+                if(prevPageBtn) prevPageBtn.style.display = 'none';
+                if(nextPageBtn) nextPageBtn.style.display = 'none';
+                if(pageInfo) pageInfo.style.display = 'none';
+                if(zoomOutBtn) zoomOutBtn.style.display = 'none';
+                if(zoomInBtn) zoomInBtn.style.display = 'none';
+                if(zoomLevel) zoomLevel.style.display = 'none';
+            }
             break;
     }
     
@@ -1634,6 +1777,7 @@ async function closeCurrentFile() {
         const docxContent = pdfContainer.querySelector('.docx-content');
         const mdContent = pdfContainer.querySelector('.markdown-content');
         const txtContent = pdfContainer.querySelector('.txt-content');
+        const codeContent = pdfContainer.querySelector('.code-content');
         if (epubContent) epubContent.remove();
         if (docxContent) docxContent.remove();
         if (mdContent) mdContent.remove();
@@ -1740,6 +1884,8 @@ function showNewTabScreen() {
         if (mdContent) mdContent.style.display = 'none';
         const txtContent = pdfContainer.querySelector('.txt-content');
         if (txtContent) txtContent.style.display = 'none';
+        const codeContent = pdfContainer.querySelector('.code-content');
+        if (codeContent) codeContent.style.display = 'none';
     }
     
     // Reset UI controls
@@ -1843,6 +1989,8 @@ if (openFileBtn) {
                 await loadMarkdownFile(result.filePath);
             } else if (currentFileType === 'txt') {
                 await loadTxtFile(result.filePath);
+            } else if (typeof codeReader !== 'undefined' && codeReader.isSupportedExtension(currentFileType)) {
+                await loadCodeFile(result.filePath);
             } else {
                 throw new Error(`Unsupported file type: ${currentFileType}`);
             }
@@ -1890,9 +2038,12 @@ async function loadPDFFile(filePath, cachedState = null) {
             
             const mdContainer = pdfContainer.querySelector('.markdown-content');
             if (mdContainer) mdContainer.remove();
-            
+
             const txtContainer = pdfContainer.querySelector('.txt-content');
             if (txtContainer) txtContainer.remove();
+            
+            const codeContainer = pdfContainer.querySelector('.code-content');
+            if (codeContainer) codeContainer.remove();
         }
         
         // Show PDF canvas
@@ -2872,7 +3023,9 @@ async function loadMarkdownFile(filePath, cachedState = null) {
                                 if (oldMd) oldMd.remove();
                                 const oldTxt = container.querySelector('.txt-content');
                                 if (oldTxt) oldTxt.remove();
-                                
+                                const oldCode = container.querySelector('.code-content');
+                                if (oldCode) oldCode.remove();
+
                                 // Create new markdown container
                                 const mdContainer = document.createElement('div');
                                 mdContainer.className = 'markdown-content';
@@ -3020,8 +3173,10 @@ async function loadTxtFile(filePath, cachedState = null) {
             if (mdContainer) mdContainer.remove();
             const txtContainer = pdfContainer.querySelector('.txt-content');
             if (txtContainer) txtContainer.remove();
+            const codeContainer = pdfContainer.querySelector('.code-content');
+            if (codeContainer) codeContainer.remove();
         }
-        
+
         // 1. Try to restore from Persistent Cache (localStorage)
         if (typeof analysisCache !== 'undefined') {
             const persistentCache = analysisCache.loadAnalysis(filePath);
@@ -3125,7 +3280,9 @@ async function loadTxtFile(filePath, cachedState = null) {
                                 if (oldMd) oldMd.remove();
                                 const oldTxt = container.querySelector('.txt-content');
                                 if (oldTxt) oldTxt.remove();
-                                
+                                const oldCode = container.querySelector('.code-content');
+                                if (oldCode) oldCode.remove();
+
                                 // Create new text container
                                 const txtContainer = document.createElement('div');
                                 txtContainer.className = 'txt-content';
@@ -3237,6 +3394,267 @@ async function loadTxtFile(filePath, cachedState = null) {
         }
     } catch (error) {
         console.error('Error loading text file:', error);
+        setStatus('❌ Error: ' + error.message);
+        hideLoading();
+    }
+}
+
+// Load Source Code file
+async function loadCodeFile(filePath, cachedState = null) {
+    try {
+        const ext = filePath.split('.').pop().toLowerCase();
+        showLoading(`Loading ${ext.toUpperCase()} file...`);
+        resetPOSCounts();
+        statsPanel.reset();
+        currentFileType = ext;
+        currentPdfData = null;
+        updateUILabels('code');
+        resetTranslationState();
+
+        // Clear map view for new document
+        if (mapGrid) {
+            mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 Loading document...</p></div>';
+        }
+
+        // Hide PDF canvas and clean up ALL containers
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        if (pdfCanvas) pdfCanvas.style.display = 'none';
+
+        const pdfContainer = document.getElementById('pdfViewerContainer');
+        if (pdfContainer) {
+            // Remove all document type containers
+            const epubContainer = pdfContainer.querySelector('.epub-container');
+            if (epubContainer) epubContainer.remove();
+            const docxContainer = pdfContainer.querySelector('.docx-content');
+            if (docxContainer) docxContainer.remove();
+            const mdContainer = pdfContainer.querySelector('.markdown-content');
+            if (mdContainer) mdContainer.remove();
+            const txtContainer = pdfContainer.querySelector('.txt-content');
+            if (txtContainer) txtContainer.remove();
+            const codeContainer = pdfContainer.querySelector('.code-content');
+            if (codeContainer) codeContainer.remove();
+        }
+
+        // Try to restore from Persistent Cache (localStorage)
+        if (typeof analysisCache !== 'undefined') {
+            const persistentCache = analysisCache.loadAnalysis(filePath);
+            if (persistentCache && persistentCache.analysis) {
+                console.log('Restoring code file from persistent cache (localStorage)...');
+                currentAnalysis = persistentCache.analysis;
+
+                // Restore HTML Content & Stats IMMEDIATELY
+                if (persistentCache.rawTextHTML) document.getElementById('rawTextContent').innerHTML = persistentCache.rawTextHTML;
+                if (persistentCache.highlightedTextHTML) {
+                    const highlightedContent = document.getElementById('highlightedTextContent');
+                    highlightedContent.innerHTML = persistentCache.highlightedTextHTML;
+
+                    // Re-attach context menu for highlighting/note functionality
+                    if (typeof notesManager !== 'undefined') {
+                        notesManager.setupContextMenu(highlightedContent);
+                    }
+                }
+
+                if (currentAnalysis) {
+                    statsPanel.renderStats(currentAnalysis);
+                    updatePOSCounts(currentAnalysis);
+                }
+
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                }
+
+                if (exportBtn) exportBtn.disabled = false;
+
+                notesManager.loadNotesForFile(filePath);
+
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, ext);
+                }
+
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+
+                // Hide Figures button for code files
+                if (figuresBtn) {
+                    figuresBtn.style.display = 'none';
+                }
+
+                // Restore View Selection immediately
+                const lastLocation = recentFilesManager.getLastLocation(filePath);
+                if (lastLocation && lastLocation.view) {
+                    switchView(lastLocation.view);
+                }
+
+                // Load cached AI analysis if available
+                if (window.aiSemanticAnalyzer) {
+                    setTimeout(() => loadAndDisplayCachedAIResults(), 100);
+                }
+
+                setStatus(`✅ Restored: ${currentFileName}`);
+                hideLoading();
+
+                // Refresh map if it's the active view
+                const mapView = document.getElementById('mapView');
+                if (mapView && mapView.classList.contains('active')) {
+                    renderMap().catch(err => console.error('Error rendering map:', err));
+                }
+
+                // Refresh Mindmap if it's the active view
+                const mindmapView = document.getElementById('mindmapView');
+                if (mindmapView && mindmapView.classList.contains('active') && typeof mindmapManager !== 'undefined') {
+                    setTimeout(() => mindmapManager.refreshData(), 50);
+                }
+
+                // Show loading overlay
+                const pdfLoadingOverlay = document.getElementById('pdfLoadingOverlay');
+                if (pdfLoadingOverlay) {
+                    pdfLoadingOverlay.classList.remove('hidden');
+                }
+
+                // Load Code Viewer in background
+                (async () => {
+                    try {
+                        const fileData = await ipcRenderer.invoke('read-code-file', filePath);
+                        if (fileData.success) {
+                            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+                            const result = await codeReader.loadFromBuffer(arrayBuffer, ext);
+
+                            if (result && result.success && result.text) {
+                                const container = document.getElementById('pdfViewerContainer');
+                                if (!container) return;
+
+                                // Clean up any existing containers first
+                                const oldEpub = container.querySelector('.epub-container');
+                                if (oldEpub) oldEpub.remove();
+                                const oldDocx = container.querySelector('.docx-content');
+                                if (oldDocx) oldDocx.remove();
+                                const oldMd = container.querySelector('.markdown-content');
+                                if (oldMd) oldMd.remove();
+                                const oldTxt = container.querySelector('.txt-content');
+                                if (oldTxt) oldTxt.remove();
+                                const oldCode = container.querySelector('.code-content');
+                                if (oldCode) oldCode.remove();
+
+                                // Create code container
+                                const wrapper = document.createElement('div');
+                                wrapper.className = 'code-content';
+                                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #1e1e1e !important; color: #d4d4d4 !important; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.5; max-width: 100%; margin: 0 auto; font-size: 14px;';
+
+                                // Add language badge
+                                const languageBadge = document.createElement('div');
+                                languageBadge.style.cssText = 'background: #007acc; color: white; padding: 8px 16px; border-radius: 4px; display: inline-block; margin-bottom: 20px; font-weight: bold; font-size: 12px;';
+                                languageBadge.textContent = codeReader.getLanguageDisplayName(result.language);
+                                wrapper.appendChild(languageBadge);
+
+                                // Add code with syntax highlighting
+                                const codeWrapper = document.createElement('div');
+                                codeWrapper.style.cssText = 'background: #1e1e1e; border-radius: 4px; overflow-x: auto;';
+                                codeWrapper.innerHTML = result.html;
+                                wrapper.appendChild(codeWrapper);
+
+                                container.appendChild(wrapper);
+
+                                // Restore scroll position
+                                const savedLocation = recentFilesManager.getLastLocation(filePath);
+                                if (savedLocation && savedLocation.scrollTop) {
+                                    setTimeout(() => {
+                                        wrapper.scrollTop = savedLocation.scrollTop;
+                                    }, 100);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error loading code viewer:', err);
+                    } finally {
+                        // Hide loading overlay
+                        const pdfLoadingOverlay = document.getElementById('pdfLoadingOverlay');
+                        if (pdfLoadingOverlay) {
+                            pdfLoadingOverlay.classList.add('hidden');
+                        }
+                    }
+                })();
+
+                return;
+            }
+        }
+
+        // No cache - load from file
+        const fileData = await ipcRenderer.invoke('read-code-file', filePath);
+        if (fileData.success) {
+            const arrayBuffer = new Uint8Array(fileData.data).buffer;
+            const result = await codeReader.loadFromBuffer(arrayBuffer, ext);
+
+            if (result.success && result.text && result.text.trim().length > 0) {
+                // Show in Raw Text view
+                document.getElementById('rawTextContent').innerHTML =
+                    `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
+
+                // Disable snip button for code files
+                const snipBtn = document.getElementById('snipBtn');
+                if (snipBtn) {
+                    snipBtn.disabled = true;
+                    snipBtn.title = "Snip Tool is only available for PDF files";
+                    snipBtn.style.opacity = '0.5';
+                }
+
+                // Create code viewer
+                const wrapper = document.createElement('div');
+                wrapper.className = 'code-content';
+                wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: #1e1e1e !important; color: #d4d4d4 !important; font-family: "Consolas", "Monaco", "Courier New", monospace; line-height: 1.5; max-width: 100%; margin: 0 auto; font-size: 14px;';
+
+                // Add language badge
+                const languageBadge = document.createElement('div');
+                languageBadge.style.cssText = 'background: #007acc; color: white; padding: 8px 16px; border-radius: 4px; display: inline-block; margin-bottom: 20px; font-weight: bold; font-size: 12px;';
+                languageBadge.textContent = codeReader.getLanguageDisplayName(result.language);
+                wrapper.appendChild(languageBadge);
+
+                // Add code with syntax highlighting
+                const codeWrapper = document.createElement('div');
+                codeWrapper.style.cssText = 'background: #1e1e1e; border-radius: 4px; overflow-x: auto;';
+                codeWrapper.innerHTML = result.html;
+                wrapper.appendChild(codeWrapper);
+
+                pdfContainer.appendChild(wrapper);
+
+                if (closePdfBtn) closePdfBtn.disabled = false;
+                if (exportBtn) exportBtn.disabled = false;
+
+                notesManager.loadNotesForFile(filePath);
+
+                // Add tab
+                if (typeof tabManager !== 'undefined') {
+                    tabManager.addTab(filePath, currentFileName, ext);
+                }
+
+                if (typeof figuresManager !== 'undefined') {
+                    figuresManager.loadFiguresForFile(filePath);
+                }
+
+                // Hide Figures button for code files
+                if (figuresBtn) {
+                    figuresBtn.style.display = 'none';
+                }
+
+                hideLoading();
+                setStatus(`Loaded: ${currentFileName} (${codeReader.getLanguageDisplayName(result.language)})`);
+
+                setTimeout(() => {
+                    performAnalysis();
+                }, 100);
+            } else {
+                setStatus('❌ No text found in file');
+                hideLoading();
+            }
+        } else {
+            setStatus('❌ Error reading code file');
+            hideLoading();
+        }
+    } catch (error) {
+        console.error('Error loading code file:', error);
         setStatus('❌ Error: ' + error.message);
         hideLoading();
     }
@@ -5357,6 +5775,7 @@ window.openFileFromLibrary = async function(filePath) {
         else if (ext === 'docx' || ext === 'doc') fileType = 'docx';
         else if (ext === 'md') fileType = 'md';
         else if (ext === 'txt') fileType = 'txt';
+        else if (typeof codeReader !== 'undefined' && codeReader.isSupportedExtension(ext)) fileType = ext;
         
         currentFilePath = filePath;
         currentFileName = filePath.split(/[\\/]/).pop();
@@ -5379,6 +5798,8 @@ window.openFileFromLibrary = async function(filePath) {
             await loadMarkdownFile(filePath);
         } else if (fileType === 'txt') {
             await loadTxtFile(filePath);
+        } else if (typeof codeReader !== 'undefined' && codeReader.isSupportedExtension(fileType)) {
+            await loadCodeFile(filePath);
         }
     } catch (error) {
         console.error('Error opening file from library:', error);
@@ -5395,6 +5816,9 @@ window.openFileInNewTab = async function(filePath) {
         let fileType = 'pdf';
         if (ext === 'epub') fileType = 'epub';
         else if (ext === 'docx' || ext === 'doc') fileType = 'docx';
+        else if (ext === 'md') fileType = 'md';
+        else if (ext === 'txt') fileType = 'txt';
+        else if (typeof codeReader !== 'undefined' && codeReader.isSupportedExtension(ext)) fileType = ext;
         
         const fileName = filePath.split(/[\\/]/).pop();
         
@@ -5430,6 +5854,12 @@ window.openFileInNewTab = async function(filePath) {
             await loadEPUBFile(filePath);
         } else if (fileType === 'docx') {
             await loadDOCXFile(filePath);
+        } else if (fileType === 'md') {
+            await loadMarkdownFile(filePath);
+        } else if (fileType === 'txt') {
+            await loadTxtFile(filePath);
+        } else if (typeof codeReader !== 'undefined' && codeReader.isSupportedExtension(fileType)) {
+            await loadCodeFile(filePath);
         }
     } catch (error) {
         console.error('Error opening file in new tab:', error);
@@ -6210,7 +6640,7 @@ async function importFolderWithSubdirectories() {
                 }
             } else if (scanResult.success && scanResult.files.length === 0) {
                 hideLoading();
-                alert(`No supported files found in "${folderName}".\n\nSupported formats: PDF, EPUB, DOCX, Markdown`);
+                alert(`No supported files found in "${folderName}".\n\nSupported formats: PDF, EPUB, DOCX, Markdown, Text, and Source Code files (60+ languages)`);
                 setStatus('No files found');
             } else {
                 hideLoading();
@@ -7423,6 +7853,11 @@ function initializeAISemanticAnalysis() {
                     documentText,
                     (message, progress) => {
                         aiAnalysisProgress.textContent = `${message} (${progress}%)`;
+                    },
+                    {
+                        fileType: currentFileType,
+                        fileName: currentFileName,
+                        filePath: currentFilePath
                     }
                 );
                 
@@ -7443,7 +7878,23 @@ function initializeAISemanticAnalysis() {
                 
                 // Show success message
                 setTimeout(() => {
-                    alert(`✓ Analysis complete! Found ${results.similarGroups.length} pattern groups.\n\nResults are shown below. Click any sentence to navigate to it in the document.`);
+                    if (results.isCodeAnalysis) {
+                        const insights = results.codeInsights;
+                        let msg = `💻 Code Analysis Complete!\n\n`;
+                        if (insights?.architecture?.pattern) {
+                            msg += `Architecture: ${insights.architecture.pattern}\n`;
+                        }
+                        if (insights?.keyFunctions) {
+                            msg += `Key Functions: ${insights.keyFunctions.length}\n`;
+                        }
+                        if (results.patterns.length > 0) {
+                            msg += `Design Patterns: ${results.patterns.length}\n`;
+                        }
+                        msg += `\nView detailed insights in the AI Analysis tab below.`;
+                        alert(msg);
+                    } else {
+                        alert(`✓ Analysis complete! Found ${results.similarGroups.length} pattern groups.\n\nResults are shown below. Click any sentence to navigate to it in the document.`);
+                    }
                 }, 500);
                 
             } catch (error) {
@@ -7455,6 +7906,213 @@ function initializeAISemanticAnalysis() {
             }
         });
     
+    // Analyze Current Folder Button Handler
+    const analyzeFolderBtn = document.getElementById('analyzeFolderBtn');
+    
+    if (analyzeFolderBtn) {
+        analyzeFolderBtn.addEventListener('click', async () => {
+            try {
+                // Check if AI is configured
+                if (!window.aiSemanticAnalyzer.hasApiKey()) {
+                    alert('Please configure your AI provider first (OpenAI, Gemini, or Ollama)');
+                    return;
+                }
+
+                // Check if a file is open
+                if (!currentFilePath) {
+                    alert('Please open a file first.\n\nThe folder containing that file will be analyzed.');
+                    return;
+                }
+
+                // Get library manager
+                if (typeof libraryManager === 'undefined') {
+                    alert('Library manager not available.');
+                    return;
+                }
+
+                // Find the folder containing the current file
+                const folderId = libraryManager.getFolderForFile(currentFilePath);
+                if (!folderId) {
+                    alert('Current file is not in the library.\n\nImport the folder first: File → Open Folder...');
+                    return;
+                }
+
+                const folderName = libraryManager.getFolderName(folderId);
+                const codeFiles = libraryManager.getCodeFilesInFolder(folderId, true);
+
+                if (codeFiles.length === 0) {
+                    alert(`No code files found in folder "${folderName}".\n\nThis folder may only contain documents or other non-code files.`);
+                    return;
+                }
+
+                // Confirm folder analysis
+                const confirmed = confirm(
+                    `🤖 Folder Analysis\n\n` +
+                    `Folder: "${folderName}"\n` +
+                    `Files to analyze: ${codeFiles.length}\n\n` +
+                    `Estimated time: ${Math.ceil(codeFiles.length * 0.5)} minutes\n\n` +
+                    `This will analyze all code files in this folder and its subfolders.\n\n` +
+                    `Continue?`
+                );
+
+                if (!confirmed) return;
+
+                // Run batch analysis on this folder
+                await runBatchAnalysis(codeFiles, `Folder: ${folderName}`);
+
+            } catch (error) {
+                console.error('Folder analysis error:', error);
+                alert(`Folder analysis failed: ${error.message}`);
+                batchAnalysisStatus.style.display = 'none';
+            }
+        });
+    }
+
+    // Batch Analysis Button Handler (All Library)
+    const batchAnalyzeBtn = document.getElementById('batchAnalyzeBtn');
+    const batchAnalysisStatus = document.getElementById('batchAnalysisStatus');
+    const batchAnalysisProgress = document.getElementById('batchAnalysisProgress');
+    const batchAnalysisDetails = document.getElementById('batchAnalysisDetails');
+
+    if (batchAnalyzeBtn) {
+        batchAnalyzeBtn.addEventListener('click', async () => {
+            try {
+                // Check if AI is configured
+                if (!window.aiSemanticAnalyzer.hasApiKey()) {
+                    alert('Please configure your AI provider first (OpenAI, Gemini, or Ollama)');
+                    return;
+                }
+
+                // Get all code files from library
+                if (typeof libraryManager === 'undefined') {
+                    alert('Library manager not available.');
+                    return;
+                }
+
+                const codeFiles = libraryManager.getAllCodeFiles();
+                
+                if (codeFiles.length === 0) {
+                    alert('No code files found in library.\n\nImport a project folder first: File → Open Folder...');
+                    return;
+                }
+
+                // Confirm batch analysis
+                const confirmed = confirm(
+                    `🤖 Full Library Analysis\n\n` +
+                    `This will analyze ${codeFiles.length} code file(s) across your entire library.\n\n` +
+                    `Estimated time: ${Math.ceil(codeFiles.length * 0.5)} minutes\n\n` +
+                    `💡 Tip: To analyze just one project folder, use "📁 Analyze Current Folder" instead.\n\n` +
+                    `Continue?`
+                );
+
+                if (!confirmed) return;
+
+                // Run batch analysis on all files
+                await runBatchAnalysis(codeFiles, 'Full Library');
+
+            } catch (error) {
+                console.error('Batch analysis error:', error);
+                alert(`Batch analysis failed: ${error.message}`);
+                batchAnalysisStatus.style.display = 'none';
+            }
+        });
+    }
+
+    // Shared batch analysis function
+    async function runBatchAnalysis(codeFiles, scopeName = 'Analysis') {
+        try {
+            // Disable buttons and show progress
+            if (batchAnalyzeBtn) batchAnalyzeBtn.disabled = true;
+            if (analyzeFolderBtn) analyzeFolderBtn.disabled = true;
+            batchAnalysisStatus.style.display = 'block';
+            batchAnalysisProgress.textContent = `Starting ${scopeName}...`;
+            batchAnalysisDetails.textContent = '';
+
+            // Track progress
+            let completed = 0;
+            let failed = 0;
+            const results = [];
+
+            // Analyze each file
+            for (let i = 0; i < codeFiles.length; i++) {
+                const file = codeFiles[i];
+                
+                try {
+                    // Update progress
+                    batchAnalysisProgress.textContent = `Analyzing file ${i + 1} of ${codeFiles.length}...`;
+                    batchAnalysisDetails.textContent = `Current: ${file.name} | Completed: ${completed} | Failed: ${failed}`;
+
+                    // Read file content
+                    const fileData = await ipcRenderer.invoke('read-code-file', file.path);
+                    
+                    if (fileData.success) {
+                        const arrayBuffer = new Uint8Array(fileData.data).buffer;
+                        const decoder = new TextDecoder('utf-8');
+                        const fileContent = decoder.decode(arrayBuffer);
+
+                        // Analyze with AI
+                        const analysisResult = await window.aiSemanticAnalyzer.analyzeDocument(
+                            fileContent,
+                            null, // No progress callback for batch
+                            {
+                                fileType: file.ext,
+                                fileName: file.name,
+                                filePath: file.path
+                            }
+                        );
+
+                        // Store result
+                        results.push({
+                            file: file,
+                            result: analysisResult,
+                            success: true
+                        });
+
+                        // Cache individual result
+                        cacheAIAnalysisResults(file.path, analysisResult);
+
+                        completed++;
+                    } else {
+                        throw new Error('Failed to read file');
+                    }
+
+                    // Small delay to prevent API rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 200));
+
+                } catch (error) {
+                    console.error(`Error analyzing ${file.name}:`, error);
+                    results.push({
+                        file: file,
+                        error: error.message,
+                        success: false
+                    });
+                    failed++;
+                }
+            }
+
+            // Hide progress
+            batchAnalysisStatus.style.display = 'none';
+
+            // Display aggregated results
+            displayBatchAnalysisResults(results, completed, failed, scopeName);
+
+            // Show summary alert
+            alert(
+                `✅ ${scopeName} Complete!\n\n` +
+                `Successfully analyzed: ${completed} files\n` +
+                `Failed: ${failed} files\n\n` +
+                `View project-level insights in the AI Analysis tab.`
+            );
+
+        } catch (error) {
+            throw error;
+        } finally {
+            // Re-enable buttons
+            if (batchAnalyzeBtn) batchAnalyzeBtn.disabled = false;
+            if (analyzeFolderBtn) analyzeFolderBtn.disabled = false;
+        }
+    }
+
     // Ollama Setup Guide Modal handlers
     const openOllamaSetupGuideBtn = document.getElementById('openOllamaSetupGuide');
     const ollamaSetupDialog = document.getElementById('ollamaSetupDialog');
@@ -7584,13 +8242,511 @@ let currentAIResultsCached = false;
 function displayAIResultsInStatsPanel(results, isCached = false) {
     const aiTabContent = document.getElementById('aiAnalysisTabContent');
     if (!aiTabContent) return;
-    
+
     // Reset pagination for all patterns and store results
     patternSentencePages.clear();
     currentAIResults = results;
     currentAIResultsCached = isCached;
+
+    // Check if this is code analysis with insights
+    if (results.isCodeAnalysis && results.codeInsights) {
+        renderCodeAnalysisResults(results, isCached);
+    } else {
+        renderAIPatternPage(results, isCached);
+    }
+}
+
+function displayBatchAnalysisResults(results, completedCount, failedCount, scopeName = 'Project') {
+    const aiTabContent = document.getElementById('aiAnalysisTabContent');
+    if (!aiTabContent) return;
+
+    // Filter successful analyses
+    const successfulResults = results.filter(r => r.success && r.result.isCodeAnalysis);
     
-    renderAIPatternPage(results, isCached);
+    // Aggregate insights
+    const allPatterns = [];
+    const allArchitectures = {};
+    const allFunctions = [];
+    const complexityDistribution = { low: 0, medium: 0, high: 0 };
+    const maintainabilityDistribution = { good: 0, fair: 0, 'needs improvement': 0 };
+    
+    successfulResults.forEach(({ file, result }) => {
+        const insights = result.codeInsights;
+        
+        // Collect architecture patterns
+        if (insights?.architecture?.pattern) {
+            const pattern = insights.architecture.pattern;
+            if (!allArchitectures[pattern]) {
+                allArchitectures[pattern] = [];
+            }
+            allArchitectures[pattern].push(file.name);
+        }
+        
+        // Collect high-importance functions
+        if (insights?.keyFunctions) {
+            insights.keyFunctions.forEach(func => {
+                if (func.importance?.toLowerCase() === 'high') {
+                    allFunctions.push({
+                        ...func,
+                        file: file.name
+                    });
+                }
+            });
+        }
+        
+        // Track complexity and maintainability
+        if (insights?.codeQuality?.complexity) {
+            const complexity = insights.codeQuality.complexity.toLowerCase();
+            if (complexityDistribution[complexity] !== undefined) {
+                complexityDistribution[complexity]++;
+            }
+        }
+        
+        if (insights?.codeQuality?.maintainability) {
+            const maint = insights.codeQuality.maintainability.toLowerCase();
+            if (maintainabilityDistribution[maint] !== undefined) {
+                maintainabilityDistribution[maint]++;
+            }
+        }
+        
+        // Collect design patterns
+        if (result.patterns) {
+            result.patterns.forEach(pattern => {
+                allPatterns.push({
+                    ...pattern,
+                    file: file.name
+                });
+            });
+        }
+    });
+
+    // Render project summary
+    let html = `
+        <div style="padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h2 style="margin: 0; color: #667eea; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <span style="font-size: 32px;">📊</span> ${scopeName} Analysis
+                </h2>
+                <p style="color: #666; margin-top: 10px;">Analyzed ${completedCount} code file(s)</p>
+            </div>
+
+            <!-- Success/Failure Stats -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); color: white; border-radius: 10px;">
+                    <div style="font-size: 36px; font-weight: bold;">${completedCount}</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Analyzed Successfully</div>
+                </div>
+                ${failedCount > 0 ? `
+                    <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #f44336 0%, #e53935 100%); color: white; border-radius: 10px;">
+                        <div style="font-size: 36px; font-weight: bold;">${failedCount}</div>
+                        <div style="font-size: 14px; opacity: 0.9;">Failed</div>
+                    </div>
+                ` : ''}
+                <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%); color: white; border-radius: 10px;">
+                    <div style="font-size: 36px; font-weight: bold;">${Object.keys(allArchitectures).length}</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Architecture Patterns</div>
+                </div>
+                <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white; border-radius: 10px;">
+                    <div style="font-size: 36px; font-weight: bold;">${allFunctions.length}</div>
+                    <div style="font-size: 14px; opacity: 0.9;">Critical Functions</div>
+                </div>
+            </div>
+
+            <!-- Architecture Patterns -->
+            ${Object.keys(allArchitectures).length > 0 ? `
+                <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                        <span>🏗️</span> Architecture Patterns Found
+                    </h3>
+                    ${Object.entries(allArchitectures).map(([pattern, files]) => `
+                        <div style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 8px; font-size: 16px;">${pattern}</div>
+                            <div style="font-size: 12px; color: #666;">
+                                Found in: ${files.map(f => `<code style="background: white; padding: 2px 6px; border-radius: 3px; margin: 2px;">${f}</code>`).join(' ')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+
+            <!-- Code Quality Distribution -->
+            <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                    <span>⭐</span> Code Quality Distribution
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div>
+                        <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 10px;">COMPLEXITY</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #e8f5e9; border-radius: 4px;">
+                                <span style="font-size: 13px;">Low</span>
+                                <span style="font-weight: 600; color: #4caf50;">${complexityDistribution.low}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #fff3e0; border-radius: 4px;">
+                                <span style="font-size: 13px;">Medium</span>
+                                <span style="font-weight: 600; color: #ff9800;">${complexityDistribution.medium}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #ffebee; border-radius: 4px;">
+                                <span style="font-size: 13px;">High</span>
+                                <span style="font-weight: 600; color: #f44336;">${complexityDistribution.high}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 10px;">MAINTAINABILITY</div>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #e8f5e9; border-radius: 4px;">
+                                <span style="font-size: 13px;">Good</span>
+                                <span style="font-weight: 600; color: #4caf50;">${maintainabilityDistribution.good}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #fff3e0; border-radius: 4px;">
+                                <span style="font-size: 13px;">Fair</span>
+                                <span style="font-weight: 600; color: #ff9800;">${maintainabilityDistribution.fair}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: #ffebee; border-radius: 4px;">
+                                <span style="font-size: 13px;">Needs Improvement</span>
+                                <span style="font-weight: 600; color: #f44336;">${maintainabilityDistribution['needs improvement']}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Critical Functions -->
+            ${allFunctions.length > 0 ? `
+                <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                        <span>⚡</span> Critical Functions (High Importance)
+                    </h3>
+                    <div style="display: grid; gap: 10px;">
+                        ${allFunctions.slice(0, 10).map(func => `
+                            <div style="padding: 12px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #ff9800;">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
+                                    <code style="font-weight: 600; color: #333; font-size: 13px;">${func.name}</code>
+                                    <span style="font-size: 10px; color: #666; font-style: italic;">${func.file}</span>
+                                </div>
+                                <div style="font-size: 12px; color: #666;">${func.purpose}</div>
+                            </div>
+                        `).join('')}
+                        ${allFunctions.length > 10 ? `<div style="text-align: center; padding: 10px; color: #666; font-size: 12px;">... and ${allFunctions.length - 10} more</div>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Design Patterns -->
+            ${allPatterns.length > 0 ? `
+                <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                        <span>🎨</span> Design Patterns Detected
+                    </h3>
+                    <div style="display: grid; gap: 10px;">
+                        ${allPatterns.slice(0, 8).map(pattern => `
+                            <div style="padding: 12px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #667eea;">
+                                <div style="font-weight: 600; color: #333; margin-bottom: 4px;">${pattern.name || pattern.type}</div>
+                                <div style="font-size: 12px; color: #666; margin-bottom: 4px;">${pattern.description}</div>
+                                <div style="font-size: 10px; color: #999;">File: ${pattern.file}</div>
+                            </div>
+                        `).join('')}
+                        ${allPatterns.length > 8 ? `<div style="text-align: center; padding: 10px; color: #666; font-size: 12px;">... and ${allPatterns.length - 8} more</div>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- Individual File Results -->
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                    <span>📁</span> Individual File Results
+                </h3>
+                <div style="font-size: 13px; color: #666; line-height: 1.8;">
+                    ${successfulResults.map(({ file }) => `
+                        <div style="padding: 6px 0;">
+                            <span style="background: white; padding: 4px 8px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 12px;">${file.name}</span>
+                            <span style="color: #4caf50; margin-left: 8px;">✓ Analyzed</span>
+                        </div>
+                    `).join('')}
+                    ${results.filter(r => !r.success).map(({ file, error }) => `
+                        <div style="padding: 6px 0;">
+                            <span style="background: white; padding: 4px 8px; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 12px;">${file.name}</span>
+                            <span style="color: #f44336; margin-left: 8px;">✗ ${error}</span>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="margin-top: 15px; padding: 12px; background: #fff9c4; border-radius: 6px; font-size: 12px; color: #666;">
+                    💡 <strong>Tip:</strong> Open any individual file to see its detailed analysis. Results are cached for quick access.
+                </div>
+            </div>
+        </div>
+    `;
+
+    aiTabContent.innerHTML = html;
+    
+    // Switch to AI Analysis tab
+    const aiAnalysisTab = document.querySelector('[data-stats-tab="ai-analysis"]');
+    if (aiAnalysisTab) {
+        aiAnalysisTab.click();
+    }
+}
+
+function renderCodeAnalysisResults(results, isCached = false) {
+    const aiTabContent = document.getElementById('aiAnalysisTabContent');
+    if (!aiTabContent) return;
+
+    let providerName = 'Unknown';
+    if (results.provider === 'openai') providerName = 'OpenAI GPT-4';
+    else if (results.provider === 'gemini') providerName = 'Google Gemini';
+    else if (results.provider === 'ollama') providerName = `Ollama (${window.aiSemanticAnalyzer.getOllamaConfig().model})`;
+
+    const insights = results.codeInsights;
+    
+    let html = `
+        <div style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: #667eea; display: flex; align-items: center; gap: 10px;">
+                    💻 Code Analysis Results
+                    ${isCached ? '<span style="font-size: 12px; background: #e0e0e0; padding: 4px 8px; border-radius: 4px;">Cached</span>' : ''}
+                </h3>
+                <span style="font-size: 12px; color: #666;">Provider: ${providerName}</span>
+            </div>
+    `;
+
+    // Architecture Section
+    if (insights.architecture) {
+        html += `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; margin-bottom: 20px; color: white;">
+                <h4 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 24px;">🏗️</span> Architecture Pattern
+                </h4>
+                <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                    <div style="font-weight: 600; font-size: 18px; margin-bottom: 8px;">${insights.architecture.pattern || 'Not detected'}</div>
+                    <div style="font-size: 14px; line-height: 1.6; opacity: 0.95;">${insights.architecture.description || ''}</div>
+                </div>
+                ${insights.architecture.components && insights.architecture.components.length > 0 ? `
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;">
+                        ${insights.architecture.components.map(comp => 
+                            `<span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;">${comp}</span>`
+                        ).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // Main Purpose Section
+    if (insights.mainPurpose) {
+        html += `
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #333; font-size: 14px; font-weight: 600;">📝 Purpose</h4>
+                <p style="margin: 0; color: #555; line-height: 1.6;">${insights.mainPurpose}</p>
+            </div>
+        `;
+    }
+
+    // Key Functions Section
+    if (insights.keyFunctions && insights.keyFunctions.length > 0) {
+        html += `
+            <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                    <span>⚡</span> Key Functions
+                </h4>
+                <div style="display: grid; gap: 12px;">
+                    ${insights.keyFunctions.map((func, idx) => {
+                        const importanceColors = {
+                            'high': '#f44336',
+                            'medium': '#ff9800',
+                            'low': '#4caf50'
+                        };
+                        const color = importanceColors[func.importance?.toLowerCase()] || '#666';
+                        
+                        return `
+                            <div style="border-left: 3px solid ${color}; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                                    <code style="font-weight: 600; color: #333; font-size: 14px;">${func.name}</code>
+                                    <span style="font-size: 10px; text-transform: uppercase; padding: 3px 8px; border-radius: 12px; background: ${color}; color: white; font-weight: 600;">${func.importance || 'medium'}</span>
+                                </div>
+                                <div style="font-size: 13px; color: #666; line-height: 1.5;">${func.purpose}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Dependencies Section
+    if (insights.dependencies) {
+        const deps = insights.dependencies;
+        const hasAnyDeps = (deps.imports && deps.imports.length > 0) || 
+                          (deps.exports && deps.exports.length > 0) || 
+                          (deps.externalAPIs && deps.externalAPIs.length > 0);
+        
+        if (hasAnyDeps) {
+            html += `
+                <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                        <span>📦</span> Dependencies & Connections
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        ${deps.imports && deps.imports.length > 0 ? `
+                            <div>
+                                <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 8px;">↓ IMPORTS</div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    ${deps.imports.map(imp => 
+                                        `<code style="font-size: 11px; background: #e3f2fd; padding: 4px 8px; border-radius: 4px; color: #1976d2;">${imp}</code>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${deps.exports && deps.exports.length > 0 ? `
+                            <div>
+                                <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 8px;">↑ EXPORTS</div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    ${deps.exports.map(exp => 
+                                        `<code style="font-size: 11px; background: #e8f5e9; padding: 4px 8px; border-radius: 4px; color: #388e3c;">${exp}</code>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${deps.externalAPIs && deps.externalAPIs.length > 0 ? `
+                            <div>
+                                <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 8px;">🌐 EXTERNAL APIs</div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    ${deps.externalAPIs.map(api => 
+                                        `<code style="font-size: 11px; background: #fff3e0; padding: 4px 8px; border-radius: 4px; color: #f57c00;">${api}</code>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // Connections Section
+    if (insights.connections) {
+        const conn = insights.connections;
+        const hasAnyConn = (conn.relatesTo && conn.relatesTo.length > 0) || 
+                          (conn.usedBy && conn.usedBy.length > 0) || 
+                          (conn.extends && conn.extends.length > 0);
+        
+        if (hasAnyConn) {
+            html += `
+                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 10px; margin-bottom: 20px; color: white;">
+                    <h4 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px;">
+                        <span>🔗</span> Code Relationships
+                    </h4>
+                    <div style="display: grid; gap: 12px;">
+                        ${conn.relatesTo && conn.relatesTo.length > 0 ? `
+                            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 12px; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 6px; opacity: 0.9;">RELATES TO:</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                    ${conn.relatesTo.map(item => 
+                                        `<span style="background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 14px; font-size: 12px;">${item}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${conn.usedBy && conn.usedBy.length > 0 ? `
+                            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 12px; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 6px; opacity: 0.9;">USED BY:</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                    ${conn.usedBy.map(item => 
+                                        `<span style="background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 14px; font-size: 12px;">${item}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${conn.extends && conn.extends.length > 0 ? `
+                            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 12px; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 6px; opacity: 0.9;">EXTENDS:</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                    ${conn.extends.map(item => 
+                                        `<span style="background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 14px; font-size: 12px;">${item}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // Code Quality Section
+    if (insights.codeQuality) {
+        const quality = insights.codeQuality;
+        const complexityColors = {
+            'low': '#4caf50',
+            'medium': '#ff9800',
+            'high': '#f44336'
+        };
+        const maintColors = {
+            'good': '#4caf50',
+            'fair': '#ff9800',
+            'needs improvement': '#f44336'
+        };
+        
+        html += `
+            <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                    <span>⭐</span> Code Quality Assessment
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    ${quality.complexity ? `
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 6px;">Complexity</div>
+                            <div style="font-size: 20px; font-weight: 700; color: ${complexityColors[quality.complexity.toLowerCase()] || '#666'}; text-transform: uppercase;">
+                                ${quality.complexity}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${quality.maintainability ? `
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 6px;">Maintainability</div>
+                            <div style="font-size: 16px; font-weight: 700; color: ${maintColors[quality.maintainability.toLowerCase()] || '#666'}; text-transform: capitalize;">
+                                ${quality.maintainability}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+                ${quality.suggestions && quality.suggestions.length > 0 ? `
+                    <div style="background: #fff9c4; padding: 15px; border-radius: 8px; border-left: 4px solid #fbc02d;">
+                        <div style="font-weight: 600; color: #f57f17; margin-bottom: 10px; font-size: 13px;">💡 Suggestions for Improvement:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                            ${quality.suggestions.map(sug => `<li style="font-size: 13px;">${sug}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // Design Patterns Section
+    if (results.patterns && results.patterns.length > 0) {
+        html += `
+            <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                    <span>🎨</span> Design Patterns Detected
+                </h4>
+                <div style="display: grid; gap: 12px;">
+                    ${results.patterns.map((pattern, idx) => `
+                        <div style="border-left: 3px solid #667eea; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 4px;">${pattern.name || pattern.type}</div>
+                            <div style="font-size: 13px; color: #666; margin-bottom: 6px;">${pattern.description}</div>
+                            ${pattern.examples && pattern.examples.length > 0 ? `
+                                <div style="font-size: 11px; color: #999; margin-top: 8px;">
+                                    Examples: ${pattern.examples.join(', ')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    html += '</div>';
+    aiTabContent.innerHTML = html;
 }
 
 function renderAIPatternPage(results, isCached = false) {

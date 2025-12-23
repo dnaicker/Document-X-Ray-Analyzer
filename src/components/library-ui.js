@@ -450,7 +450,17 @@ class LibraryUI {
                     🗑️ Empty Trash (${fileCount} ${fileCount === 1 ? 'item' : 'items'})
                 </div>
             `;
-        } else {
+        } 
+        // Special menu for Unfiled folder
+        else if (folderId === 'unfiled') {
+            const fileCount = folder.files ? folder.files.length : 0;
+            menu.innerHTML = `
+                <div class="context-menu-item ${fileCount === 0 ? 'disabled' : ''}" data-action="movealltotrash">
+                    🗑️ Move All to Trash (${fileCount} ${fileCount === 1 ? 'item' : 'items'})
+                </div>
+            `;
+        } 
+        else {
             menu.innerHTML = `
                 <div class="context-menu-item" data-action="newfolder">
                     ➕ New Subfolder
@@ -500,6 +510,9 @@ class LibraryUI {
                 break;
             case 'emptytrash':
                 this.emptyTrash();
+                break;
+            case 'movealltotrash':
+                this.moveAllToTrash(folderId);
                 break;
         }
     }
@@ -649,6 +662,30 @@ class LibraryUI {
                 console.error('Errors emptying trash:', result.errors);
             } else {
                 console.log(`Successfully deleted ${result.deleted} files from trash`);
+            }
+        }
+    }
+    
+    moveAllToTrash(folderId) {
+        const folder = this.libraryManager.getFolder(folderId);
+        if (!folder) return;
+        
+        const fileCount = folder.files ? folder.files.length : 0;
+        
+        if (fileCount === 0) {
+            alert('This folder is already empty');
+            return;
+        }
+        
+        const folderName = folder.name;
+        if (confirm(`Move all ${fileCount} ${fileCount === 1 ? 'item' : 'items'} from "${folderName}" to trash?`)) {
+            const result = this.libraryManager.moveAllFilesToTrash(folderId);
+            
+            if (result.errors.length > 0) {
+                alert(`Moved ${result.moved} ${result.moved === 1 ? 'file' : 'files'} to trash. ${result.errors.length} ${result.errors.length === 1 ? 'error' : 'errors'} occurred.`);
+                console.error('Errors moving files to trash:', result.errors);
+            } else {
+                console.log(`Successfully moved ${result.moved} ${result.moved === 1 ? 'file' : 'files'} to trash`);
             }
         }
     }

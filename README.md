@@ -24,7 +24,9 @@
 - **PDF** - Full support with text extraction and OCR for scanned documents
 - **EPUB** - Read and analyze e-books
 - **DOCX** - Microsoft Word document analysis
+- **Markdown** - Formatted markdown files with preview
 - **Text Files** - Direct text analysis
+- **60+ Source Code Languages** - JavaScript, Python, Java, C/C++, C#, Go, Rust, PHP, Ruby, Swift, Kotlin, GDScript, and more with syntax highlighting
 
 ### 🎨 Advanced Parts of Speech Highlighting
 Visualize linguistic structure with intelligent highlighting:
@@ -64,6 +66,20 @@ Toggle any category on/off to focus on what matters to you.
 - **Unique insights** - rare words that reveal document themes
 - **Click any word** to navigate directly to its location in the text
 - **Cross-language statistics** for translations
+
+### 💻 AI-Powered Code Analysis (NEW!)
+Understand unfamiliar codebases in seconds:
+- **Architecture Detection** - Identifies patterns like MVC, MVVM, Observer, Factory, etc.
+- **Key Functions Analysis** - Highlights the most important functions with importance levels
+- **Dependency Mapping** - Shows imports, exports, and external API connections
+- **Code Relationships** - Visualizes how files connect and interact
+- **Design Patterns** - Detects specific patterns used in your code
+- **Quality Assessment** - Complexity metrics and improvement suggestions
+- **60+ Languages Supported** - Works with JavaScript, Python, Java, C++, GDScript, and more!
+
+**Powered by**: OpenAI GPT-4, Google Gemini, or Local Ollama (free & private)
+
+> **See [CODE_ANALYSIS_GUIDE.md](CODE_ANALYSIS_GUIDE.md) for detailed documentation**
 
 ### 🔍 Powerful Search & Navigation
 - **Instant search** across large documents

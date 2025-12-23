@@ -131,6 +131,16 @@ ipcMain.handle('open-file-dialog', async () => {
         { name: 'Word Documents', extensions: ['docx'] },
         { name: 'Markdown Files', extensions: ['md'] },
         { name: 'Text Files', extensions: ['txt'] },
+        { name: 'JavaScript/TypeScript', extensions: ['js', 'jsx', 'ts', 'tsx', 'mjs'] },
+        { name: 'Python', extensions: ['py', 'pyw'] },
+        { name: 'Java', extensions: ['java'] },
+        { name: 'C/C++', extensions: ['c', 'cpp', 'cc', 'cxx', 'h', 'hpp', 'hh', 'hxx'] },
+        { name: 'C#', extensions: ['cs'] },
+        { name: 'Web', extensions: ['html', 'htm', 'css', 'scss', 'sass', 'less'] },
+        { name: 'Data', extensions: ['json', 'xml', 'yaml', 'yml', 'toml'] },
+        { name: 'Shell Scripts', extensions: ['sh', 'bash', 'zsh', 'bat', 'cmd', 'ps1'] },
+        { name: 'Godot Engine', extensions: ['gd', 'gdscript', 'gdshader', 'tscn', 'tres'] },
+        { name: 'Other Languages', extensions: ['go', 'rs', 'php', 'rb', 'swift', 'kt', 'sql', 'r', 'scala', 'lua', 'perl', 'pl', 'dart', 'ex', 'exs', 'erl', 'clj', 'lisp'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     });
@@ -232,6 +242,22 @@ ipcMain.handle('read-txt-file', async (event, filePath) => {
   }
 });
 
+// Read Source Code file
+ipcMain.handle('read-code-file', async (event, filePath) => {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    return {
+      success: true,
+      data: Array.from(new Uint8Array(buffer))
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
 // Open folder dialog
 ipcMain.handle('open-folder-dialog', async () => {
   try {
@@ -257,28 +283,71 @@ ipcMain.handle('open-folder-dialog', async () => {
 // Scan folder for supported files
 ipcMain.handle('scan-folder', async (event, folderPath) => {
   try {
+    // Document formats
     const supportedExtensions = ['.pdf', '.epub', '.docx', '.md', '.txt'];
-    const files = [];
     
+    // Source code extensions
+    const codeExtensions = [
+      // JavaScript/TypeScript
+      '.js', '.jsx', '.ts', '.tsx', '.mjs',
+      // Python
+      '.py', '.pyw',
+      // Java
+      '.java',
+      // C/C++
+      '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hh', '.hxx',
+      // C#
+      '.cs',
+      // Web
+      '.html', '.htm', '.css', '.scss', '.sass', '.less',
+      // Data formats
+      '.json', '.xml', '.yaml', '.yml', '.toml',
+      // Shell scripts
+      '.sh', '.bash', '.zsh', '.bat', '.cmd', '.ps1',
+      // Godot Engine
+      '.gd', '.gdscript', '.gdshader', '.tscn', '.tres',
+      // Other languages
+      '.go', '.rs', '.php', '.rb', '.swift', '.kt', '.kts',
+      '.sql', '.r', '.scala', '.lua', '.perl', '.pl',
+      '.vim', '.gradle', '.groovy', '.dart', '.ex', '.exs',
+      '.erl', '.hrl', '.clj', '.cljs', '.lisp', '.scm'
+    ];
+    
+    const allExtensions = [...supportedExtensions, ...codeExtensions];
+    const files = [];
+
     function scanDirectory(dirPath, relativePath = '') {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-      
+
       for (const entry of entries) {
         const fullPath = path.join(dirPath, entry.name);
         const relPath = path.join(relativePath, entry.name);
-        
+
         if (entry.isDirectory()) {
+          // Skip common directories that shouldn't be scanned
+          const skipDirs = [
+            'node_modules', '.git', '.svn', '.hg', 'dist', 'build', 
+            '__pycache__', '.venv', 'venv', '.godot', '.import', 
+            'target', 'bin', 'obj', '.vs', '.idea'
+          ];
+          if (skipDirs.includes(entry.name)) {
+            continue;
+          }
           // Recursively scan subdirectories
           scanDirectory(fullPath, relPath);
         } else if (entry.isFile()) {
           const ext = path.extname(entry.name).toLowerCase();
-          if (supportedExtensions.includes(ext)) {
+          if (allExtensions.includes(ext)) {
             let fileType = 'pdf';
             if (ext === '.epub') fileType = 'epub';
             else if (ext === '.docx') fileType = 'docx';
             else if (ext === '.md') fileType = 'md';
             else if (ext === '.txt') fileType = 'txt';
-            
+            else if (codeExtensions.includes(ext)) {
+              // Use the extension without the dot as the file type for code files
+              fileType = ext.substring(1);
+            }
+
             files.push({
               fileName: entry.name,
               filePath: fullPath,
@@ -290,9 +359,9 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
         }
       }
     }
-    
+
     scanDirectory(folderPath);
-    
+
     return {
       success: true,
       files: files,

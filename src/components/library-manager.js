@@ -89,6 +89,113 @@ class LibraryManager {
         return { folders: {}, files: {}, folderOrder: [] };
     }
     
+    /**
+     * Get all code files from library (supports 60+ languages)
+     */
+    getAllCodeFiles() {
+        const codeExtensions = [
+            'js', 'jsx', 'ts', 'tsx', 'mjs',
+            'py', 'pyw',
+            'java',
+            'c', 'cpp', 'cc', 'cxx', 'h', 'hpp', 'hh', 'hxx',
+            'cs',
+            'go', 'rs', 'php', 'rb', 'swift', 'kt', 'kts',
+            'gd', 'gdscript', 'gdshader',
+            'html', 'htm', 'css', 'scss', 'sass', 'less',
+            'json', 'xml', 'yaml', 'yml', 'toml',
+            'sh', 'bash', 'zsh', 'bat', 'cmd', 'ps1',
+            'sql', 'r', 'scala', 'lua', 'perl', 'pl',
+            'dart', 'ex', 'exs', 'erl', 'hrl', 'clj', 'cljs', 'lisp', 'scm'
+        ];
+        
+        const codeFiles = [];
+        
+        Object.values(this.library.files).forEach(file => {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (codeExtensions.includes(ext)) {
+                codeFiles.push({
+                    path: file.path,
+                    name: file.name,
+                    folder: file.folder,
+                    ext: ext
+                });
+            }
+        });
+        
+        return codeFiles;
+    }
+    
+    /**
+     * Get files from a specific folder (including subfolders)
+     */
+    getFilesInFolder(folderId, includeSubfolders = true) {
+        const folder = this.library.folders[folderId];
+        if (!folder) return [];
+        
+        const files = [];
+        
+        // Add files from this folder
+        folder.files.forEach(filePath => {
+            if (this.library.files[filePath]) {
+                const file = this.library.files[filePath];
+                files.push({
+                    path: file.path,
+                    name: file.name,
+                    folder: file.folder,
+                    ext: file.name.split('.').pop().toLowerCase()
+                });
+            }
+        });
+        
+        // Recursively get files from subfolders
+        if (includeSubfolders) {
+            folder.children.forEach(childId => {
+                files.push(...this.getFilesInFolder(childId, true));
+            });
+        }
+        
+        return files;
+    }
+    
+    /**
+     * Get the folder ID for a given file path
+     */
+    getFolderForFile(filePath) {
+        const file = this.library.files[filePath];
+        return file ? file.folder : null;
+    }
+    
+    /**
+     * Get folder name by ID
+     */
+    getFolderName(folderId) {
+        const folder = this.library.folders[folderId];
+        return folder ? folder.name : null;
+    }
+    
+    /**
+     * Get code files from a specific folder (including subfolders)
+     */
+    getCodeFilesInFolder(folderId, includeSubfolders = true) {
+        const codeExtensions = [
+            'js', 'jsx', 'ts', 'tsx', 'mjs',
+            'py', 'pyw',
+            'java',
+            'c', 'cpp', 'cc', 'cxx', 'h', 'hpp', 'hh', 'hxx',
+            'cs',
+            'go', 'rs', 'php', 'rb', 'swift', 'kt', 'kts',
+            'gd', 'gdscript', 'gdshader',
+            'html', 'htm', 'css', 'scss', 'sass', 'less',
+            'json', 'xml', 'yaml', 'yml', 'toml',
+            'sh', 'bash', 'zsh', 'bat', 'cmd', 'ps1',
+            'sql', 'r', 'scala', 'lua', 'perl', 'pl',
+            'dart', 'ex', 'exs', 'erl', 'hrl', 'clj', 'cljs', 'lisp', 'scm'
+        ];
+        
+        const allFiles = this.getFilesInFolder(folderId, includeSubfolders);
+        return allFiles.filter(file => codeExtensions.includes(file.ext));
+    }
+    
     saveLibrary() {
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(this.library));
@@ -442,6 +549,28 @@ class LibraryManager {
         });
         
         return { deleted, errors };
+    }
+    
+    moveAllFilesToTrash(folderId) {
+        const folder = this.library.folders[folderId];
+        if (!folder) return { moved: 0, errors: [] };
+        
+        const filesToMove = [...folder.files]; // Copy array to avoid modification during iteration
+        let moved = 0;
+        const errors = [];
+        
+        filesToMove.forEach(filePath => {
+            try {
+                if (this.moveFileToFolder(filePath, 'trash')) {
+                    moved++;
+                }
+            } catch (error) {
+                console.error('Error moving file to trash:', filePath, error);
+                errors.push({ filePath, error: error.message });
+            }
+        });
+        
+        return { moved, errors };
     }
     
     moveFileToFolder(filePath, newFolderId) {
