@@ -8513,8 +8513,15 @@ function renderCodeAnalysisResults(results, isCached = false) {
     if (insights.architecture) {
         html += `
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; margin-bottom: 20px; color: white;">
-                <h4 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 24px;">🏗️</span> Architecture Pattern
+                <h4 style="margin: 0 0 15px 0; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 24px;">🏗️</span> Architecture Pattern
+                    </span>
+                    ${insights.architecture.confidence ? `
+                        <span style="font-size: 11px; text-transform: uppercase; padding: 4px 10px; border-radius: 12px; background: rgba(255,255,255,0.25); font-weight: 600;">
+                            ${insights.architecture.confidence} confidence
+                        </span>
+                    ` : ''}
                 </h4>
                 <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 15px; border-radius: 8px; margin-bottom: 10px;">
                     <div style="font-weight: 600; font-size: 18px; margin-bottom: 8px;">${insights.architecture.pattern || 'Not detected'}</div>
@@ -8555,14 +8562,26 @@ function renderCodeAnalysisResults(results, isCached = false) {
                             'medium': '#ff9800',
                             'low': '#4caf50'
                         };
-                        const color = importanceColors[func.importance?.toLowerCase()] || '#666';
+                        const complexityColors = {
+                            'low': '#4caf50',
+                            'medium': '#ff9800',
+                            'high': '#f44336',
+                            'very high': '#d32f2f'
+                        };
+                        const importanceColor = importanceColors[func.importance?.toLowerCase()] || '#666';
+                        const complexityColor = complexityColors[func.complexity?.toLowerCase()] || '#999';
                         
                         return `
-                            <div style="border-left: 3px solid ${color}; padding: 12px; background: #f8f9fa; border-radius: 4px;">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
-                                    <code style="font-weight: 600; color: #333; font-size: 14px;">${func.name}</code>
-                                    <span style="font-size: 10px; text-transform: uppercase; padding: 3px 8px; border-radius: 12px; background: ${color}; color: white; font-weight: 600;">${func.importance || 'medium'}</span>
+                            <div style="border-left: 3px solid ${importanceColor}; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px; gap: 8px;">
+                                    <code style="font-weight: 600; color: #333; font-size: 14px; flex: 1;">${func.name}</code>
+                                    <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                                        <span style="font-size: 10px; text-transform: uppercase; padding: 3px 8px; border-radius: 12px; background: ${importanceColor}; color: white; font-weight: 600;">${func.importance || 'medium'}</span>
+                                        ${func.complexity ? `<span style="font-size: 10px; text-transform: uppercase; padding: 3px 8px; border-radius: 12px; background: ${complexityColor}; color: white; font-weight: 600;" title="Complexity">${func.complexity}</span>` : ''}
+                                    </div>
                                 </div>
+                                ${func.lineNumber ? `<div style="font-size: 11px; color: #999; margin-bottom: 6px;">Line: ${func.lineNumber}</div>` : ''}
+                                ${func.parameters ? `<div style="font-size: 11px; color: #666; margin-bottom: 6px; font-style: italic;">Parameters: ${func.parameters}</div>` : ''}
                                 <div style="font-size: 13px; color: #666; line-height: 1.5;">${func.purpose}</div>
                             </div>
                         `;
@@ -8577,7 +8596,9 @@ function renderCodeAnalysisResults(results, isCached = false) {
         const deps = insights.dependencies;
         const hasAnyDeps = (deps.imports && deps.imports.length > 0) || 
                           (deps.exports && deps.exports.length > 0) || 
-                          (deps.externalAPIs && deps.externalAPIs.length > 0);
+                          (deps.externalAPIs && deps.externalAPIs.length > 0) ||
+                          (deps.internalDependencies && deps.internalDependencies.length > 0) ||
+                          (deps.thirdPartyLibraries && deps.thirdPartyLibraries.length > 0);
         
         if (hasAnyDeps) {
             html += `
@@ -8591,7 +8612,7 @@ function renderCodeAnalysisResults(results, isCached = false) {
                                 <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 8px;">↓ IMPORTS</div>
                                 <div style="display: flex; flex-direction: column; gap: 4px;">
                                     ${deps.imports.map(imp => 
-                                        `<code style="font-size: 11px; background: #e3f2fd; padding: 4px 8px; border-radius: 4px; color: #1976d2;">${imp}</code>`
+                                        `<code style="font-size: 11px; background: #e3f2fd; padding: 4px 8px; border-radius: 4px; color: #1976d2; word-break: break-all;">${imp}</code>`
                                     ).join('')}
                                 </div>
                             </div>
@@ -8601,7 +8622,7 @@ function renderCodeAnalysisResults(results, isCached = false) {
                                 <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 8px;">↑ EXPORTS</div>
                                 <div style="display: flex; flex-direction: column; gap: 4px;">
                                     ${deps.exports.map(exp => 
-                                        `<code style="font-size: 11px; background: #e8f5e9; padding: 4px 8px; border-radius: 4px; color: #388e3c;">${exp}</code>`
+                                        `<code style="font-size: 11px; background: #e8f5e9; padding: 4px 8px; border-radius: 4px; color: #388e3c; word-break: break-all;">${exp}</code>`
                                     ).join('')}
                                 </div>
                             </div>
@@ -8611,7 +8632,27 @@ function renderCodeAnalysisResults(results, isCached = false) {
                                 <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 8px;">🌐 EXTERNAL APIs</div>
                                 <div style="display: flex; flex-direction: column; gap: 4px;">
                                     ${deps.externalAPIs.map(api => 
-                                        `<code style="font-size: 11px; background: #fff3e0; padding: 4px 8px; border-radius: 4px; color: #f57c00;">${api}</code>`
+                                        `<code style="font-size: 11px; background: #fff3e0; padding: 4px 8px; border-radius: 4px; color: #f57c00; word-break: break-all;">${api}</code>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${deps.internalDependencies && deps.internalDependencies.length > 0 ? `
+                            <div>
+                                <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 8px;">🔗 INTERNAL</div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    ${deps.internalDependencies.map(dep => 
+                                        `<code style="font-size: 11px; background: #f3e5f5; padding: 4px 8px; border-radius: 4px; color: #7b1fa2; word-break: break-all;">${dep}</code>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${deps.thirdPartyLibraries && deps.thirdPartyLibraries.length > 0 ? `
+                            <div>
+                                <div style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 8px;">📚 LIBRARIES</div>
+                                <div style="display: flex; flex-direction: column; gap: 4px;">
+                                    ${deps.thirdPartyLibraries.map(lib => 
+                                        `<code style="font-size: 11px; background: #fce4ec; padding: 4px 8px; border-radius: 4px; color: #c2185b; word-break: break-all;">${lib}</code>`
                                     ).join('')}
                                 </div>
                             </div>
@@ -8627,7 +8668,9 @@ function renderCodeAnalysisResults(results, isCached = false) {
         const conn = insights.connections;
         const hasAnyConn = (conn.relatesTo && conn.relatesTo.length > 0) || 
                           (conn.usedBy && conn.usedBy.length > 0) || 
-                          (conn.extends && conn.extends.length > 0);
+                          (conn.extends && conn.extends.length > 0) ||
+                          (conn.implements && conn.implements.length > 0) ||
+                          (conn.composedOf && conn.composedOf.length > 0);
         
         if (hasAnyConn) {
             html += `
@@ -8666,6 +8709,26 @@ function renderCodeAnalysisResults(results, isCached = false) {
                                 </div>
                             </div>
                         ` : ''}
+                        ${conn.implements && conn.implements.length > 0 ? `
+                            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 12px; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 6px; opacity: 0.9;">IMPLEMENTS:</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                    ${conn.implements.map(item => 
+                                        `<span style="background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 14px; font-size: 12px;">${item}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${conn.composedOf && conn.composedOf.length > 0 ? `
+                            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 12px; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; margin-bottom: 6px; opacity: 0.9;">COMPOSED OF:</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                    ${conn.composedOf.map(item => 
+                                        `<span style="background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 14px; font-size: 12px;">${item}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -8678,10 +8741,12 @@ function renderCodeAnalysisResults(results, isCached = false) {
         const complexityColors = {
             'low': '#4caf50',
             'medium': '#ff9800',
-            'high': '#f44336'
+            'high': '#f44336',
+            'very high': '#d32f2f'
         };
         const maintColors = {
-            'good': '#4caf50',
+            'excellent': '#4caf50',
+            'good': '#8bc34a',
             'fair': '#ff9800',
             'needs improvement': '#f44336'
         };
@@ -8698,6 +8763,7 @@ function renderCodeAnalysisResults(results, isCached = false) {
                             <div style="font-size: 20px; font-weight: 700; color: ${complexityColors[quality.complexity.toLowerCase()] || '#666'}; text-transform: uppercase;">
                                 ${quality.complexity}
                             </div>
+                            ${quality.cyclomaticComplexity ? `<div style="font-size: 11px; color: #999; margin-top: 4px;">Cyclomatic: ${quality.cyclomaticComplexity}</div>` : ''}
                         </div>
                     ` : ''}
                     ${quality.maintainability ? `
@@ -8709,6 +8775,41 @@ function renderCodeAnalysisResults(results, isCached = false) {
                         </div>
                     ` : ''}
                 </div>
+                
+                ${quality.complexityDetails ? `
+                    <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 12px;">
+                        <div style="font-weight: 600; font-size: 12px; color: #666; margin-bottom: 4px;">Complexity Details:</div>
+                        <div style="font-size: 13px; color: #555;">${quality.complexityDetails}</div>
+                    </div>
+                ` : ''}
+                
+                ${quality.maintainabilityReasons && quality.maintainabilityReasons.length > 0 ? `
+                    <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 12px;">
+                        <div style="font-weight: 600; font-size: 12px; color: #666; margin-bottom: 6px;">Maintainability Factors:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #555; line-height: 1.6;">
+                            ${quality.maintainabilityReasons.map(reason => `<li style="font-size: 12px;">${reason}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+                
+                ${quality.strengths && quality.strengths.length > 0 ? `
+                    <div style="background: #e8f5e9; padding: 12px; border-radius: 6px; border-left: 4px solid #4caf50; margin-bottom: 12px;">
+                        <div style="font-weight: 600; color: #2e7d32; margin-bottom: 6px; font-size: 13px;">✓ Strengths:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #555; line-height: 1.6;">
+                            ${quality.strengths.map(strength => `<li style="font-size: 12px;">${strength}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+                
+                ${quality.codeSmells && quality.codeSmells.length > 0 ? `
+                    <div style="background: #ffebee; padding: 12px; border-radius: 6px; border-left: 4px solid #f44336; margin-bottom: 12px;">
+                        <div style="font-weight: 600; color: #c62828; margin-bottom: 6px; font-size: 13px;">⚠️ Code Smells Detected:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #555; line-height: 1.6;">
+                            ${quality.codeSmells.map(smell => `<li style="font-size: 12px;">${smell}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+                
                 ${quality.suggestions && quality.suggestions.length > 0 ? `
                     <div style="background: #fff9c4; padding: 15px; border-radius: 8px; border-left: 4px solid #fbc02d;">
                         <div style="font-weight: 600; color: #f57f17; margin-bottom: 10px; font-size: 13px;">💡 Suggestions for Improvement:</div>
@@ -8729,20 +8830,255 @@ function renderCodeAnalysisResults(results, isCached = false) {
                     <span>🎨</span> Design Patterns Detected
                 </h4>
                 <div style="display: grid; gap: 12px;">
-                    ${results.patterns.map((pattern, idx) => `
-                        <div style="border-left: 3px solid #667eea; padding: 12px; background: #f8f9fa; border-radius: 4px;">
-                            <div style="font-weight: 600; color: #333; margin-bottom: 4px;">${pattern.name || pattern.type}</div>
+                    ${results.patterns.map((pattern, idx) => {
+                        const strengthColors = {
+                            'excellent': '#4caf50',
+                            'good': '#8bc34a',
+                            'weak': '#ff9800'
+                        };
+                        const strengthColor = strengthColors[pattern.strength?.toLowerCase()] || '#667eea';
+                        
+                        return `
+                        <div style="border-left: 3px solid ${strengthColor}; padding: 12px; background: #f8f9fa; border-radius: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                                <div style="font-weight: 600; color: #333;">${pattern.name || pattern.type}</div>
+                                ${pattern.strength ? `<span style="font-size: 10px; text-transform: uppercase; padding: 3px 8px; border-radius: 12px; background: ${strengthColor}; color: white; font-weight: 600;">${pattern.strength}</span>` : ''}
+                            </div>
                             <div style="font-size: 13px; color: #666; margin-bottom: 6px;">${pattern.description}</div>
+                            ${pattern.benefits ? `
+                                <div style="font-size: 12px; color: #4caf50; margin-top: 6px;">
+                                    ✓ ${pattern.benefits}
+                                </div>
+                            ` : ''}
+                            ${pattern.concerns ? `
+                                <div style="font-size: 12px; color: #ff9800; margin-top: 6px;">
+                                    ⚠ ${pattern.concerns}
+                                </div>
+                            ` : ''}
                             ${pattern.examples && pattern.examples.length > 0 ? `
                                 <div style="font-size: 11px; color: #999; margin-top: 8px;">
                                     Examples: ${pattern.examples.join(', ')}
                                 </div>
                             ` : ''}
                         </div>
-                    `).join('')}
+                    `;
+                    }).join('')}
                 </div>
             </div>
         `;
+    }
+
+    // SOLID Principles Section
+    if (insights.designPrinciples && insights.designPrinciples.solid) {
+        const solid = insights.designPrinciples.solid;
+        const hasContent = solid.singleResponsibility || solid.openClosed || solid.liskovSubstitution || 
+                          solid.interfaceSegregation || solid.dependencyInversion;
+        
+        if (hasContent) {
+            html += `
+                <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                        <span>🎯</span> SOLID Principles Compliance
+                    </h4>
+                    <div style="display: grid; gap: 10px;">
+                        ${solid.singleResponsibility ? `
+                            <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; color: #666; margin-bottom: 4px;">Single Responsibility Principle</div>
+                                <div style="font-size: 13px; color: #555;">${solid.singleResponsibility}</div>
+                            </div>
+                        ` : ''}
+                        ${solid.openClosed ? `
+                            <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; color: #666; margin-bottom: 4px;">Open/Closed Principle</div>
+                                <div style="font-size: 13px; color: #555;">${solid.openClosed}</div>
+                            </div>
+                        ` : ''}
+                        ${solid.liskovSubstitution ? `
+                            <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; color: #666; margin-bottom: 4px;">Liskov Substitution Principle</div>
+                                <div style="font-size: 13px; color: #555;">${solid.liskovSubstitution}</div>
+                            </div>
+                        ` : ''}
+                        ${solid.interfaceSegregation ? `
+                            <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; color: #666; margin-bottom: 4px;">Interface Segregation Principle</div>
+                                <div style="font-size: 13px; color: #555;">${solid.interfaceSegregation}</div>
+                            </div>
+                        ` : ''}
+                        ${solid.dependencyInversion ? `
+                            <div style="padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                                <div style="font-weight: 600; font-size: 12px; color: #666; margin-bottom: 4px;">Dependency Inversion Principle</div>
+                                <div style="font-size: 13px; color: #555;">${solid.dependencyInversion}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // Security Analysis Section
+    if (insights.security && (insights.security.concerns?.length > 0 || insights.security.recommendations?.length > 0)) {
+        html += `
+            <div style="background: #fff3e0; padding: 20px; border-radius: 10px; border-left: 4px solid #ff9800; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 15px 0; color: #e65100; display: flex; align-items: center; gap: 8px;">
+                    <span>🔒</span> Security Analysis
+                </h4>
+                ${insights.security.concerns && insights.security.concerns.length > 0 ? `
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-weight: 600; color: #f57c00; font-size: 13px; margin-bottom: 8px;">⚠️ Potential Concerns:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                            ${insights.security.concerns.map(concern => `<li style="font-size: 13px;">${concern}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+                ${insights.security.recommendations && insights.security.recommendations.length > 0 ? `
+                    <div>
+                        <div style="font-weight: 600; color: #4caf50; font-size: 13px; margin-bottom: 8px;">✓ Recommendations:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                            ${insights.security.recommendations.map(rec => `<li style="font-size: 13px;">${rec}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // Performance Analysis Section
+    if (insights.performance && (insights.performance.concerns?.length > 0 || insights.performance.optimizations?.length > 0)) {
+        html += `
+            <div style="background: #e8f5e9; padding: 20px; border-radius: 10px; border-left: 4px solid #4caf50; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 15px 0; color: #2e7d32; display: flex; align-items: center; gap: 8px;">
+                    <span>⚡</span> Performance Analysis
+                </h4>
+                ${insights.performance.concerns && insights.performance.concerns.length > 0 ? `
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-weight: 600; color: #f57c00; font-size: 13px; margin-bottom: 8px;">⚠️ Potential Bottlenecks:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                            ${insights.performance.concerns.map(concern => `<li style="font-size: 13px;">${concern}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+                ${insights.performance.optimizations && insights.performance.optimizations.length > 0 ? `
+                    <div>
+                        <div style="font-weight: 600; color: #4caf50; font-size: 13px; margin-bottom: 8px;">🚀 Suggested Optimizations:</div>
+                        <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                            ${insights.performance.optimizations.map(opt => `<li style="font-size: 13px;">${opt}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // Testing Recommendations Section
+    if (insights.testing) {
+        const test = insights.testing;
+        if (test.testability || test.testingChallenges?.length > 0 || test.suggestedTests?.length > 0) {
+            html += `
+                <div style="background: #f3e5f5; padding: 20px; border-radius: 10px; border-left: 4px solid #9c27b0; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 15px 0; color: #6a1b9a; display: flex; align-items: center; gap: 8px;">
+                        <span>🧪</span> Testing Recommendations
+                    </h4>
+                    ${test.testability ? `
+                        <div style="padding: 10px; background: white; border-radius: 6px; margin-bottom: 12px;">
+                            <span style="font-weight: 600; font-size: 12px; color: #666;">Testability: </span>
+                            <span style="font-size: 13px; color: #555; text-transform: uppercase; font-weight: 600;">${test.testability}</span>
+                        </div>
+                    ` : ''}
+                    ${test.testingChallenges && test.testingChallenges.length > 0 ? `
+                        <div style="margin-bottom: 12px;">
+                            <div style="font-weight: 600; color: #f57c00; font-size: 13px; margin-bottom: 8px;">⚠️ Testing Challenges:</div>
+                            <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                                ${test.testingChallenges.map(challenge => `<li style="font-size: 13px;">${challenge}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    ${test.suggestedTests && test.suggestedTests.length > 0 ? `
+                        <div>
+                            <div style="font-weight: 600; color: #9c27b0; font-size: 13px; margin-bottom: 8px;">✓ Suggested Tests:</div>
+                            <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                                ${test.suggestedTests.map(test => `<li style="font-size: 13px;">${test}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+    }
+
+    // Algorithmic Insights Section
+    if (insights.algorithmicInsights) {
+        const alg = insights.algorithmicInsights;
+        if (alg.algorithms?.length > 0 || alg.dataStructures?.length > 0) {
+            html += `
+                <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                        <span>🧮</span> Algorithmic Insights
+                    </h4>
+                    ${alg.algorithms && alg.algorithms.length > 0 ? `
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-weight: 600; color: #666; font-size: 13px; margin-bottom: 10px;">Algorithms Detected:</div>
+                            <div style="display: grid; gap: 10px;">
+                                ${alg.algorithms.map(algo => `
+                                    <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #2196f3;">
+                                        <div style="font-weight: 600; color: #333; font-size: 13px; margin-bottom: 4px;">${algo.name}</div>
+                                        ${algo.location ? `<div style="font-size: 11px; color: #999; margin-bottom: 4px;">Location: ${algo.location}</div>` : ''}
+                                        ${algo.complexity ? `<div style="font-size: 11px; color: #f57c00; margin-bottom: 4px;">Complexity: ${algo.complexity}</div>` : ''}
+                                        ${algo.purpose ? `<div style="font-size: 12px; color: #666;">${algo.purpose}</div>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${alg.dataStructures && alg.dataStructures.length > 0 ? `
+                        <div>
+                            <div style="font-weight: 600; color: #666; font-size: 13px; margin-bottom: 8px;">Data Structures Used:</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                ${alg.dataStructures.map(ds => 
+                                    `<span style="background: #e3f2fd; color: #1976d2; padding: 6px 12px; border-radius: 14px; font-size: 12px; font-weight: 500;">${ds}</span>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+    }
+
+    // Documentation Quality Section
+    if (insights.documentation) {
+        const doc = insights.documentation;
+        if (doc.quality || doc.missingDocs?.length > 0) {
+            const qualityColors = {
+                'excellent': '#4caf50',
+                'good': '#8bc34a',
+                'minimal': '#ff9800',
+                'none': '#f44336'
+            };
+            const qualityColor = qualityColors[doc.quality?.toLowerCase()] || '#666';
+            
+            html += `
+                <div style="background: white; padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 15px 0; color: #333; display: flex; align-items: center; gap: 8px;">
+                        <span>📚</span> Documentation Quality
+                    </h4>
+                    ${doc.quality ? `
+                        <div style="padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 12px; text-align: center;">
+                            <span style="font-size: 14px; font-weight: 700; color: ${qualityColor}; text-transform: uppercase;">${doc.quality}</span>
+                        </div>
+                    ` : ''}
+                    ${doc.missingDocs && doc.missingDocs.length > 0 ? `
+                        <div style="background: #fff9c4; padding: 12px; border-radius: 6px;">
+                            <div style="font-weight: 600; color: #f57f17; font-size: 13px; margin-bottom: 8px;">📝 Needs Documentation:</div>
+                            <ul style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                                ${doc.missingDocs.map(item => `<li style="font-size: 13px;">${item}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
     }
 
     html += '</div>';

@@ -197,7 +197,7 @@ class AISemanticAnalyzer {
         const maxChars = 8000;
         const analyzedCode = code.length > maxChars ? code.substring(0, maxChars) + '\n... (truncated)' : code;
         
-        return `Analyze this ${fileType} source code file and provide architectural insights.
+        return `You are an expert code analyst. Analyze this ${fileType} source code file and provide comprehensive architectural insights.
 
 FILE: ${fileName}
 LANGUAGE: ${fileType}
@@ -207,63 +207,151 @@ CODE:
 ${analyzedCode}
 \`\`\`
 
-Provide analysis in this EXACT JSON format (no markdown, no explanation):
+Provide DETAILED analysis in this EXACT JSON format (no markdown, no explanation):
 {
   "codeInsights": {
     "architecture": {
-      "pattern": "detected pattern (e.g., MVC, Observer, Factory, etc.)",
-      "description": "brief description of the architecture",
-      "components": ["component1", "component2"]
+      "pattern": "primary architectural pattern (e.g., MVC, MVVM, Observer, Event-driven, Singleton, Factory, Strategy, Repository, etc.)",
+      "description": "detailed description of how the architecture is implemented in this file",
+      "components": ["list all major components, classes, or modules in this file"],
+      "confidence": "high/medium/low"
     },
-    "mainPurpose": "what this file does in 1-2 sentences",
+    "mainPurpose": "clear 2-3 sentence explanation of what this file does and its role in the larger system",
     "keyFunctions": [
       {
-        "name": "function name",
-        "purpose": "what it does",
-        "importance": "high/medium/low"
+        "name": "exact function/method name",
+        "purpose": "detailed explanation of what it does",
+        "importance": "high/medium/low",
+        "complexity": "low/medium/high",
+        "parameters": "brief parameter description if any",
+        "lineNumber": "approximate line number if visible"
       }
     ],
     "dependencies": {
-      "imports": ["dependency1", "dependency2"],
-      "exports": ["export1", "export2"],
-      "externalAPIs": ["API1", "API2"]
+      "imports": ["list all imported modules/libraries/files"],
+      "exports": ["list all exported functions/classes/modules"],
+      "externalAPIs": ["list any external APIs or services called"],
+      "internalDependencies": ["list dependencies on other project files"],
+      "thirdPartyLibraries": ["list third-party libraries used"]
     },
     "connections": {
-      "relatesTo": ["file or module it connects to"],
-      "usedBy": ["potential users of this code"],
-      "extends": ["parent classes or base modules"]
+      "relatesTo": ["specific files or modules this code connects to"],
+      "usedBy": ["likely consumers of this code based on exports"],
+      "extends": ["parent classes, base modules, or inherited code"],
+      "implements": ["interfaces or contracts implemented"],
+      "composedOf": ["components this code contains or manages"]
     },
     "codeQuality": {
-      "complexity": "low/medium/high",
-      "maintainability": "good/fair/needs improvement",
-      "suggestions": ["suggestion 1", "suggestion 2"]
+      "complexity": "low/medium/high/very high",
+      "complexityDetails": "explanation of what makes it complex or simple",
+      "maintainability": "excellent/good/fair/needs improvement",
+      "maintainabilityReasons": ["specific reasons for the rating"],
+      "cyclomaticComplexity": "estimated 1-20+ based on conditional branches",
+      "codeSmells": ["any code smells detected: long methods, god objects, tight coupling, etc."],
+      "strengths": ["things done well"],
+      "suggestions": ["specific, actionable improvement suggestions with reasons"]
+    },
+    "designPrinciples": {
+      "solid": {
+        "singleResponsibility": "yes/no/partial - explanation",
+        "openClosed": "yes/no/partial - explanation",
+        "liskovSubstitution": "yes/no/partial/not-applicable - explanation",
+        "interfaceSegregation": "yes/no/partial/not-applicable - explanation",
+        "dependencyInversion": "yes/no/partial - explanation"
+      },
+      "patterns": ["list design patterns used: Singleton, Factory, Observer, Strategy, etc."],
+      "antiPatterns": ["list any anti-patterns detected"]
+    },
+    "security": {
+      "concerns": ["any potential security issues found"],
+      "recommendations": ["security improvement suggestions"]
+    },
+    "performance": {
+      "concerns": ["potential performance bottlenecks"],
+      "optimizations": ["suggested performance improvements"]
+    },
+    "testing": {
+      "testability": "high/medium/low",
+      "testingChallenges": ["what makes this code hard to test"],
+      "suggestedTests": ["types of tests that should be written"]
+    },
+    "documentation": {
+      "quality": "excellent/good/minimal/none",
+      "missingDocs": ["what needs documentation"]
     }
   },
   "patterns": [
     {
       "type": "design_pattern",
-      "name": "pattern name",
-      "description": "where and how it's used",
-      "examples": ["code snippet reference"]
+      "name": "specific pattern name (e.g., Observer, Singleton, Factory, Strategy, etc.)",
+      "description": "detailed explanation of WHERE and HOW the pattern is used in this code",
+      "examples": ["specific code elements that demonstrate this pattern"],
+      "strength": "excellent/good/weak",
+      "benefits": "why this pattern is beneficial here",
+      "concerns": "any issues with the implementation"
     }
   ],
+  "algorithmicInsights": {
+    "algorithms": [
+      {
+        "name": "algorithm or approach used",
+        "location": "where in the code",
+        "complexity": "time/space complexity if applicable",
+        "purpose": "what problem it solves"
+      }
+    ],
+    "dataStructures": ["data structures used: arrays, maps, sets, trees, etc."]
+  },
   "similarGroups": [
     {
       "theme": "related functionality theme",
       "sentences": ["function/method description 1", "function/method description 2"],
-      "significance": "high"
+      "significance": "high/medium/low"
     }
   ]
 }
 
-Focus on:
-1. Architecture patterns and design principles
-2. How this code connects to other parts of a project
-3. Main responsibilities and purpose
-4. Code organization and structure
-5. Potential improvements
+ANALYSIS FOCUS:
+1. **Design Patterns**: Identify ALL design patterns (Creational, Structural, Behavioral)
+   - Singleton, Factory, Abstract Factory, Builder, Prototype
+   - Adapter, Bridge, Composite, Decorator, Facade, Proxy
+   - Observer, Strategy, Command, State, Template Method, etc.
 
-Return empty arrays if no patterns found.`;
+2. **Architecture**: Recognize architectural patterns
+   - MVC, MVVM, MVP
+   - Event-driven, Message-driven
+   - Layered, Microservices concepts
+   - Repository, Service Layer
+
+3. **Code Quality Metrics**:
+   - Estimate cyclomatic complexity from conditional statements
+   - Identify code smells (long methods, god classes, duplication)
+   - Check SOLID principles compliance
+   - Look for coupling and cohesion issues
+
+4. **Relationships**: Map detailed connections
+   - Direct dependencies (imports/requires)
+   - Indirect dependencies (function calls to other modules)
+   - Event-based connections (event listeners, emitters)
+   - Data flow between components
+
+5. **Security & Performance**:
+   - Input validation issues
+   - Potential injection vulnerabilities
+   - Resource leaks or inefficiencies
+   - Async/await vs callback patterns
+
+6. **Best Practices**:
+   - Error handling patterns
+   - Naming conventions
+   - Code organization
+   - DRY principle compliance
+
+BE SPECIFIC: Reference actual code elements, function names, class names, and patterns you see.
+BE DETAILED: Provide thorough explanations, not just labels.
+BE PRACTICAL: Give actionable suggestions with reasoning.
+
+Return empty arrays only if truly no patterns exist.`;
     }
     
     /**

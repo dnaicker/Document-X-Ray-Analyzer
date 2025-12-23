@@ -9,6 +9,9 @@ class LibraryManager {
         // Initialize default structure if empty
         if (!this.library.folders || Object.keys(this.library.folders).length === 0) {
             this.initializeDefaultStructure();
+        } else {
+            // Ensure all required special folders exist (fix for missing unfiled/trash)
+            this.ensureSpecialFolders();
         }
     }
     
@@ -75,6 +78,88 @@ class LibraryManager {
             folderOrder: ['root', 'my-publications', 'duplicate-items', 'unfiled', 'trash']
         };
         this.saveLibrary();
+    }
+    
+    ensureSpecialFolders() {
+        // Ensure all required special folders exist (fix for corrupted libraries)
+        let needsSave = false;
+        
+        const specialFolders = [
+            {
+                id: 'root',
+                name: 'My Library',
+                type: 'library',
+                icon: '🏛️',
+                parent: null
+            },
+            {
+                id: 'my-publications',
+                name: 'My Publications',
+                type: 'special',
+                icon: '📄',
+                parent: null
+            },
+            {
+                id: 'duplicate-items',
+                name: 'Duplicate Items',
+                type: 'special',
+                icon: '📋',
+                parent: null
+            },
+            {
+                id: 'unfiled',
+                name: 'Unfiled Items',
+                type: 'special',
+                icon: '📂',
+                parent: null
+            },
+            {
+                id: 'trash',
+                name: 'Trash',
+                type: 'special',
+                icon: '🗑️',
+                parent: null
+            }
+        ];
+        
+        specialFolders.forEach(folderDef => {
+            if (!this.library.folders[folderDef.id]) {
+                console.warn(`Missing special folder "${folderDef.name}" - recreating`);
+                this.library.folders[folderDef.id] = {
+                    id: folderDef.id,
+                    name: folderDef.name,
+                    type: folderDef.type,
+                    icon: folderDef.icon,
+                    parent: folderDef.parent,
+                    children: [],
+                    tags: [],
+                    expanded: folderDef.id === 'root',
+                    files: []
+                };
+                needsSave = true;
+            }
+        });
+        
+        // Ensure folderOrder includes all special folders
+        if (!this.library.folderOrder || this.library.folderOrder.length === 0) {
+            this.library.folderOrder = ['root', 'my-publications', 'duplicate-items', 'unfiled', 'trash'];
+            needsSave = true;
+        } else {
+            // Add any missing special folders to folderOrder
+            const requiredFolders = ['root', 'my-publications', 'duplicate-items', 'unfiled', 'trash'];
+            requiredFolders.forEach(id => {
+                if (!this.library.folderOrder.includes(id)) {
+                    console.warn(`Adding missing folder "${id}" to folderOrder`);
+                    this.library.folderOrder.push(id);
+                    needsSave = true;
+                }
+            });
+        }
+        
+        if (needsSave) {
+            console.log('Special folders repaired - saving library');
+            this.saveLibrary();
+        }
     }
     
     loadLibrary() {
@@ -363,7 +448,18 @@ class LibraryManager {
     
     deleteFolder(folderId) {
         const folder = this.library.folders[folderId];
-        if (!folder || folder.type === 'library' || folder.type === 'special') return false;
+        
+        if (!folder) {
+            console.error(`deleteFolder: Folder ${folderId} not found`);
+            return false;
+        }
+        
+        if (folder.type === 'library' || folder.type === 'special') {
+            console.warn(`deleteFolder: Cannot delete ${folder.type} folder "${folder.name}"`);
+            return false;
+        }
+        
+        console.log(`deleteFolder: Deleting folder "${folder.name}" (${folderId}) from parent ${folder.parent}`);
         
         // Three-stage deletion process:
         // 1. Regular folder → Move to Unfiled Items
@@ -372,12 +468,15 @@ class LibraryManager {
         
         if (folder.parent === 'trash') {
             // Stage 3: Permanently delete
+            console.log(`deleteFolder: Stage 3 - Permanently deleting from trash`);
             return this.permanentlyDeleteFolder(folderId);
         } else if (folder.parent === 'unfiled') {
             // Stage 2: Move to trash
+            console.log(`deleteFolder: Stage 2 - Moving from unfiled to trash`);
             return this.moveFolder(folderId, 'trash');
         } else {
             // Stage 1: Move to unfiled
+            console.log(`deleteFolder: Stage 1 - Moving to unfiled`);
             return this.moveFolder(folderId, 'unfiled');
         }
     }
@@ -461,22 +560,49 @@ class LibraryManager {
     
     moveFolder(folderId, newParentId) {
         const folder = this.library.folders[folderId];
-        if (!folder || folder.type === 'library') return false;
+        
+        // Enhanced validation with logging
+        if (!folder) {
+            console.error(`moveFolder: Folder ${folderId} not found`);
+            return false;
+        }
+        
+        if (folder.type === 'library') {
+            console.warn(`moveFolder: Cannot move library folder ${folderId}`);
+            return false;
+        }
+        
+        // Prevent moving special folders (except via delete operation)
+        if (folder.type === 'special') {
+            console.warn(`moveFolder: Cannot move special folder ${folderId}`);
+            return false;
+        }
+        
+        const newParent = this.library.folders[newParentId];
+        if (!newParent) {
+            console.error(`moveFolder: New parent ${newParentId} not found`);
+            return false;
+        }
         
         // Prevent moving to own descendant
-        if (this.isDescendant(newParentId, folderId)) return false;
+        if (this.isDescendant(newParentId, folderId)) {
+            console.warn(`moveFolder: Cannot move folder ${folderId} to its own descendant ${newParentId}`);
+            return false;
+        }
+        
+        console.log(`moveFolder: Moving folder "${folder.name}" (${folderId}) from ${folder.parent} to ${newParentId}`);
         
         // Remove from old parent
         if (folder.parent && this.library.folders[folder.parent]) {
             const oldParent = this.library.folders[folder.parent];
             oldParent.children = oldParent.children.filter(id => id !== folderId);
+            console.log(`moveFolder: Removed from old parent "${oldParent.name}"`);
         }
         
         // Add to new parent
-        if (this.library.folders[newParentId]) {
-            this.library.folders[newParentId].children.push(folderId);
-            folder.parent = newParentId;
-        }
+        newParent.children.push(folderId);
+        folder.parent = newParentId;
+        console.log(`moveFolder: Added to new parent "${newParent.name}"`);
         
         this.saveLibrary();
         return true;
