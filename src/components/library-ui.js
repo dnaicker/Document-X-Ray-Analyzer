@@ -57,6 +57,9 @@ class LibraryUI {
                             <button class="btn-library" onclick="libraryUI.showImportDialog()" title="Import Files">
                                 📥 Import
                             </button>
+                            <button class="btn-library" onclick="libraryUI.repairLibrary()" title="Repair Library Structure" style="background: #ff9800;">
+                                🔧 Repair
+                            </button>
                         </div>
                     </div>
                     
@@ -106,7 +109,14 @@ class LibraryUI {
         }
     }
     
-    folderMatchesSearch(folder, query) {
+    folderMatchesSearch(folder, query, visited = new Set()) {
+        // Prevent circular references
+        if (visited.has(folder.id)) {
+            return false;
+        }
+        
+        visited.add(folder.id);
+        
         const library = this.libraryManager.library;
         
         // Check folder itself
@@ -130,8 +140,12 @@ class LibraryUI {
         
         // Check children recursively
         const hasMatchingChildren = folder.children && folder.children.some(childId => {
+            // Skip self-references and already visited folders
+            if (childId === folder.id || visited.has(childId)) {
+                return false;
+            }
             const child = library.folders[childId];
-            return child ? this.folderMatchesSearch(child, query) : false;
+            return child ? this.folderMatchesSearch(child, query, visited) : false;
         });
         
         return matchesFolderName || matchesFolderTags || hasMatchingFiles || hasMatchingChildren;
@@ -139,6 +153,9 @@ class LibraryUI {
     
     renderFolderTree() {
         const library = this.libraryManager.library;
+        
+        // Create visited tracking to prevent circular references
+        const visited = new Set();
         
         // Render in order
         return library.folderOrder.map(folderId => {
@@ -157,11 +174,20 @@ class LibraryUI {
                 if (!matches) return '';
             }
             
-            return this.renderFolder(folder, 0);
+            return this.renderFolder(folder, 0, visited);
         }).join('');
     }
     
-    renderFolder(folder, depth) {
+    renderFolder(folder, depth, visited = new Set()) {
+        // Prevent circular references and infinite recursion
+        if (visited.has(folder.id)) {
+            console.warn(`Circular reference detected: folder ${folder.id} (${folder.name}) already being rendered`);
+            return '';
+        }
+        
+        // Add this folder to visited set
+        visited.add(folder.id);
+        
         const library = this.libraryManager.library;
         const indent = depth * 20;
         const hasChildren = folder.children && folder.children.length > 0;
@@ -221,6 +247,12 @@ class LibraryUI {
                             const child = library.folders[childId];
                             if (!child) return '';
                             
+                            // Skip if child references itself or has already been visited
+                            if (childId === folder.id || visited.has(childId)) {
+                                console.warn(`Skipping circular reference: ${childId} in folder ${folder.id}`);
+                                return '';
+                            }
+                            
                             // When searching, only show children that match
                             if (this.searchQuery && this.searchQuery.trim()) {
                                 const query = this.searchQuery.toLowerCase().trim();
@@ -229,7 +261,7 @@ class LibraryUI {
                                 }
                             }
                             
-                            return this.renderFolder(child, depth + 1);
+                            return this.renderFolder(child, depth + 1, visited);
                         }).join('') : ''}
                     </div>
                 ` : ''}
@@ -456,9 +488,11 @@ class LibraryUI {
         // Special menu for Unfiled folder
         else if (folderId === 'unfiled') {
             const fileCount = folder.files ? folder.files.length : 0;
+            const folderCount = folder.children ? folder.children.length : 0;
+            const totalCount = fileCount + folderCount;
             menu.innerHTML = `
-                <div class="context-menu-item ${fileCount === 0 ? 'disabled' : ''}" data-action="movealltotrash">
-                    🗑️ Move All to Trash (${fileCount} ${fileCount === 1 ? 'item' : 'items'})
+                <div class="context-menu-item ${totalCount === 0 ? 'disabled' : ''}" data-action="movealltotrash">
+                    🗑️ Move All to Trash (${totalCount} ${totalCount === 1 ? 'item' : 'items'})
                 </div>
             `;
         } 
@@ -695,22 +729,36 @@ class LibraryUI {
         if (!folder) return;
         
         const fileCount = folder.files ? folder.files.length : 0;
+        const folderCount = folder.children ? folder.children.length : 0;
+        const totalCount = fileCount + folderCount;
         
-        if (fileCount === 0) {
+        if (totalCount === 0) {
             alert('This folder is already empty');
             return;
         }
         
         const folderName = folder.name;
-        if (confirm(`Move all ${fileCount} ${fileCount === 1 ? 'item' : 'items'} from "${folderName}" to trash?`)) {
+        const itemsText = [];
+        if (fileCount > 0) itemsText.push(`${fileCount} ${fileCount === 1 ? 'file' : 'files'}`);
+        if (folderCount > 0) itemsText.push(`${folderCount} ${folderCount === 1 ? 'folder' : 'folders'}`);
+        
+        if (confirm(`Move all ${itemsText.join(' and ')} from "${folderName}" to trash?`)) {
             const result = this.libraryManager.moveAllFilesToTrash(folderId);
             
             if (result.errors.length > 0) {
-                alert(`Moved ${result.moved} ${result.moved === 1 ? 'file' : 'files'} to trash. ${result.errors.length} ${result.errors.length === 1 ? 'error' : 'errors'} occurred.`);
-                console.error('Errors moving files to trash:', result.errors);
+                const movedText = [];
+                if (result.moved > 0) movedText.push(`${result.moved} ${result.moved === 1 ? 'file' : 'files'}`);
+                if (result.folders > 0) movedText.push(`${result.folders} ${result.folders === 1 ? 'folder' : 'folders'}`);
+                alert(`Moved ${movedText.join(' and ')} to trash. ${result.errors.length} ${result.errors.length === 1 ? 'error' : 'errors'} occurred.`);
+                console.error('Errors moving items to trash:', result.errors);
             } else {
-                console.log(`Successfully moved ${result.moved} ${result.moved === 1 ? 'file' : 'files'} to trash`);
+                const movedText = [];
+                if (result.moved > 0) movedText.push(`${result.moved} ${result.moved === 1 ? 'file' : 'files'}`);
+                if (result.folders > 0) movedText.push(`${result.folders} ${result.folders === 1 ? 'folder' : 'folders'}`);
+                console.log(`Successfully moved ${movedText.join(' and ')} to trash`);
             }
+            
+            this.render(); // Refresh the library view
         }
     }
     
@@ -1337,6 +1385,24 @@ class LibraryUI {
                 expandBtn.classList.remove('hidden');
                 expandBtn.style.left = '0px';
             });
+        }
+    }
+    
+    repairLibrary() {
+        if (confirm('This will attempt to fix circular references and corrupted folder structures in your library. Continue?')) {
+            try {
+                const result = this.libraryManager.manualCleanup();
+                if (result.success) {
+                    alert(`✅ Library repaired successfully!\n\n${result.message}`);
+                    // Refresh the UI
+                    this.render();
+                } else {
+                    alert('❌ Repair failed. Please check the console for details.');
+                }
+            } catch (error) {
+                console.error('Error during library repair:', error);
+                alert(`❌ Repair failed with error: ${error.message}`);
+            }
         }
     }
 }

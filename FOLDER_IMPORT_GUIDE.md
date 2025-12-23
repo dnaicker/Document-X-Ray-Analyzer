@@ -104,10 +104,17 @@ After importing, you'll see a summary showing:
 ## Tips
 
 1. **Large Folders**: Importing large folders may take a few moments. Be patient!
-2. **Project Directories**: When importing source code projects, common directories like `node_modules`, `.git`, `dist`, `build`, `__pycache__`, and `venv` are automatically skipped.
-3. **Unsupported Files**: Binary files, images, and other non-text formats are skipped.
-4. **Nested Folders**: The feature supports deeply nested folder structures.
-5. **Duplicate Files**: If a file already exists in your library, it won't be duplicated.
+2. **Project Directories**: When importing source code projects, common directories are automatically skipped:
+   - Development: `node_modules`, `.git`, `.svn`, `.hg`, `.vscode`, `.cursor`, `.idea`, `.vs`
+   - Build outputs: `dist`, `build`, `out`, `target`, `bin`, `obj`, `Debug`, `Release`
+   - Virtual environments: `__pycache__`, `.venv`, `venv`
+   - Engine folders: `.godot`, `.import`
+3. **Symbolic Links**: Symlinks are automatically skipped to prevent circular references
+4. **Circular Reference Protection**: The scanner tracks visited paths to prevent infinite loops
+5. **Unsupported Files**: Binary files, images, and other non-text formats are skipped
+6. **Nested Folders**: The feature supports deeply nested folder structures
+7. **Duplicate Files**: If a file already exists in your library, it won't be duplicated
+8. **Library Repair**: If you encounter issues after import, use the 🔧 Repair button in the library header
 
 ## Keyboard Shortcuts
 

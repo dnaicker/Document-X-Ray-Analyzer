@@ -316,7 +316,15 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
     const allExtensions = [...supportedExtensions, ...codeExtensions];
     const files = [];
 
-    function scanDirectory(dirPath, relativePath = '') {
+    function scanDirectory(dirPath, relativePath = '', visitedPaths = new Set()) {
+      // Prevent circular references by tracking visited paths
+      const realPath = fs.realpathSync(dirPath);
+      if (visitedPaths.has(realPath)) {
+        console.warn(`Skipping already visited directory (circular reference): ${dirPath}`);
+        return;
+      }
+      visitedPaths.add(realPath);
+      
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
 
       for (const entry of entries) {
@@ -328,13 +336,27 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
           const skipDirs = [
             'node_modules', '.git', '.svn', '.hg', 'dist', 'build', 
             '__pycache__', '.venv', 'venv', '.godot', '.import', 
-            'target', 'bin', 'obj', '.vs', '.idea'
+            'target', 'bin', 'obj', '.vs', '.idea', '.vscode',
+            '.cursor', 'out', 'Debug', 'Release', 'x64', 'x86'
           ];
           if (skipDirs.includes(entry.name)) {
             continue;
           }
-          // Recursively scan subdirectories
-          scanDirectory(fullPath, relPath);
+          
+          // Skip symbolic links to prevent circular references
+          try {
+            const stats = fs.lstatSync(fullPath);
+            if (stats.isSymbolicLink()) {
+              console.warn(`Skipping symbolic link: ${fullPath}`);
+              continue;
+            }
+          } catch (error) {
+            console.warn(`Error checking path ${fullPath}:`, error.message);
+            continue;
+          }
+          
+          // Recursively scan subdirectories with visited paths tracking
+          scanDirectory(fullPath, relPath, visitedPaths);
         } else if (entry.isFile()) {
           const ext = path.extname(entry.name).toLowerCase();
           if (allExtensions.includes(ext)) {
@@ -348,11 +370,16 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
               fileType = ext.substring(1);
             }
 
+            // Get the folder path (directory containing the file)
+            let folderPath = path.dirname(relPath);
+            // Handle root-level files (path.dirname returns '.' for root files)
+            if (folderPath === '.') folderPath = '';
+            
             files.push({
               fileName: entry.name,
               filePath: fullPath,
               relativePath: relPath,
-              folderPath: relativePath,
+              folderPath: folderPath,
               fileType: fileType
             });
           }

@@ -101,35 +101,105 @@ class LibraryManager {
         const folders = library.folders;
         let cleanupCount = 0;
         
+        // Helper to detect circular references using depth-first search
+        const hasCircularRef = (folderId, visited = new Set(), path = []) => {
+            if (visited.has(folderId)) {
+                console.warn(`Circular reference detected in path: ${path.join(' -> ')} -> ${folderId}`);
+                return true;
+            }
+            
+            visited.add(folderId);
+            path.push(folderId);
+            
+            const folder = folders[folderId];
+            if (!folder || !folder.children) return false;
+            
+            for (const childId of folder.children) {
+                if (hasCircularRef(childId, new Set(visited), [...path])) {
+                    return true;
+                }
+            }
+            
+            return false;
+        };
+        
         // Remove circular references and invalid children
         Object.keys(folders).forEach(folderId => {
             const folder = folders[folderId];
             if (!folder || !folder.children) return;
             
             const originalLength = folder.children.length;
-            // Filter out self-references and non-existent folders
+            // Filter out self-references, non-existent folders, and circular references
             folder.children = folder.children.filter(childId => {
+                // Check self-reference
                 if (childId === folderId) {
-                    console.warn(`Removing self-reference in folder ${folderId}`);
+                    console.warn(`Removing self-reference in folder ${folderId} (${folder.name})`);
                     cleanupCount++;
                     return false;
                 }
+                
+                // Check if child exists
                 if (!folders[childId]) {
                     console.warn(`Removing invalid child reference ${childId} from folder ${folderId}`);
                     cleanupCount++;
                     return false;
                 }
+                
+                // Check for circular reference
+                const child = folders[childId];
+                if (child && child.children && child.children.includes(folderId)) {
+                    console.warn(`Removing circular reference: ${folderId} <-> ${childId}`);
+                    cleanupCount++;
+                    return false;
+                }
+                
                 return true;
             });
             
+            // Remove duplicate children
+            const uniqueChildren = [...new Set(folder.children)];
+            if (uniqueChildren.length !== folder.children.length) {
+                console.warn(`Removing duplicate children from folder ${folderId}`);
+                cleanupCount += folder.children.length - uniqueChildren.length;
+                folder.children = uniqueChildren;
+            }
+            
             if (folder.children.length !== originalLength) {
-                console.log(`Cleaned up folder ${folderId}: removed ${originalLength - folder.children.length} invalid references`);
+                console.log(`Cleaned up folder ${folderId} (${folder.name}): removed ${originalLength - folder.children.length} invalid references`);
             }
         });
         
         if (cleanupCount > 0) {
             console.log(`Total cleanup: removed ${cleanupCount} corrupted references`);
+            // Save the cleaned library
+            try {
+                localStorage.setItem(this.storageKey, JSON.stringify(library));
+            } catch (e) {
+                console.error('Error saving cleaned library:', e);
+            }
         }
+    }
+    
+    /**
+     * Manually trigger cleanup of corrupted library structure
+     * @returns {Object} Cleanup results
+     */
+    manualCleanup() {
+        console.log('Starting manual library cleanup...');
+        const beforeCount = JSON.stringify(this.library).length;
+        
+        this.cleanupFolderStructure(this.library);
+        
+        const afterCount = JSON.stringify(this.library).length;
+        const saved = beforeCount - afterCount;
+        
+        this.saveLibrary();
+        
+        return {
+            success: true,
+            bytesReclaimed: saved,
+            message: `Cleanup complete. Reclaimed ${saved} bytes.`
+        };
     }
     
     /**
@@ -682,12 +752,15 @@ class LibraryManager {
     
     moveAllFilesToTrash(folderId) {
         const folder = this.library.folders[folderId];
-        if (!folder) return { moved: 0, errors: [] };
+        if (!folder) return { moved: 0, folders: 0, errors: [] };
         
         const filesToMove = [...folder.files]; // Copy array to avoid modification during iteration
+        const foldersToMove = [...folder.children]; // Copy array to avoid modification during iteration
         let moved = 0;
+        let foldersMoved = 0;
         const errors = [];
         
+        // Move all files to trash
         filesToMove.forEach(filePath => {
             try {
                 if (this.moveFileToFolder(filePath, 'trash')) {
@@ -699,7 +772,19 @@ class LibraryManager {
             }
         });
         
-        return { moved, errors };
+        // Move all subfolders to trash
+        foldersToMove.forEach(childFolderId => {
+            try {
+                if (this.moveFolder(childFolderId, 'trash')) {
+                    foldersMoved++;
+                }
+            } catch (error) {
+                console.error('Error moving folder to trash:', childFolderId, error);
+                errors.push({ folderId: childFolderId, error: error.message });
+            }
+        });
+        
+        return { moved, folders: foldersMoved, errors };
     }
     
     moveFileToFolder(filePath, newFolderId) {
