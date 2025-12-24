@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+const http = require('http');
 
 let mainWindow;
 
@@ -529,6 +531,172 @@ ipcMain.handle('google-oauth-start', async (event, authUrl) => {
     });
   });
 });
+
+// Fetch URL Content Handler
+ipcMain.handle('fetch-url-content', async (event, url) => {
+  return new Promise((resolve) => {
+    try {
+      const urlObj = new URL(url);
+      const protocol = urlObj.protocol === 'https:' ? https : http;
+      
+      const options = {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      };
+      
+      const request = protocol.get(url, options, (response) => {
+        // Handle redirects
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          const redirectUrl = new URL(response.headers.location, url).toString();
+          console.log('Following redirect to:', redirectUrl);
+          
+          // Recursively handle redirect
+          ipcMain.handle('fetch-url-content', async (event, url) => {
+            return fetchUrlContent(url);
+          });
+          
+          return resolve(fetchUrlContent(redirectUrl));
+        }
+        
+        if (response.statusCode !== 200) {
+          return resolve({
+            success: false,
+            error: `HTTP ${response.statusCode}: ${response.statusMessage}`
+          });
+        }
+        
+        let data = '';
+        response.setEncoding('utf8');
+        
+        response.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        response.on('end', () => {
+          try {
+            // Extract title from HTML
+            const titleMatch = data.match(/<title[^>]*>([^<]+)<\/title>/i);
+            const title = titleMatch ? titleMatch[1].trim() : 'Web Page';
+            
+            resolve({
+              success: true,
+              content: data,
+              title: title,
+              url: url
+            });
+          } catch (error) {
+            resolve({
+              success: false,
+              error: 'Failed to parse response: ' + error.message
+            });
+          }
+        });
+      });
+      
+      request.on('error', (error) => {
+        resolve({
+          success: false,
+          error: error.message
+        });
+      });
+      
+      request.setTimeout(30000, () => {
+        request.destroy();
+        resolve({
+          success: false,
+          error: 'Request timeout'
+        });
+      });
+      
+    } catch (error) {
+      resolve({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+});
+
+// Helper function for recursive redirect handling
+function fetchUrlContent(url) {
+  return new Promise((resolve) => {
+    try {
+      const urlObj = new URL(url);
+      const protocol = urlObj.protocol === 'https:' ? https : http;
+      
+      const options = {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+      };
+      
+      const request = protocol.get(url, options, (response) => {
+        // Handle redirects
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          const redirectUrl = new URL(response.headers.location, url).toString();
+          console.log('Following redirect to:', redirectUrl);
+          return resolve(fetchUrlContent(redirectUrl));
+        }
+        
+        if (response.statusCode !== 200) {
+          return resolve({
+            success: false,
+            error: `HTTP ${response.statusCode}: ${response.statusMessage}`
+          });
+        }
+        
+        let data = '';
+        response.setEncoding('utf8');
+        
+        response.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        response.on('end', () => {
+          try {
+            // Extract title from HTML
+            const titleMatch = data.match(/<title[^>]*>([^<]+)<\/title>/i);
+            const title = titleMatch ? titleMatch[1].trim() : 'Web Page';
+            
+            resolve({
+              success: true,
+              content: data,
+              title: title,
+              url: url
+            });
+          } catch (error) {
+            resolve({
+              success: false,
+              error: 'Failed to parse response: ' + error.message
+            });
+          }
+        });
+      });
+      
+      request.on('error', (error) => {
+        resolve({
+          success: false,
+          error: error.message
+        });
+      });
+      
+      request.setTimeout(30000, () => {
+        request.destroy();
+        resolve({
+          success: false,
+          error: 'Request timeout'
+        });
+      });
+      
+    } catch (error) {
+      resolve({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+}
 
 console.log('Grammar Highlighter Desktop started');
 

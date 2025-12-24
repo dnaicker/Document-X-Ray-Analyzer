@@ -85,6 +85,28 @@ class TranslationCache {
         }
     }
     
+    clearTranslationsForFile(filePath) {
+        try {
+            const cache = this.loadAllTranslations();
+            let removed = 0;
+            
+            // Remove all translations for this file
+            for (const [key, value] of Object.entries(cache)) {
+                if (value.filePath === filePath) {
+                    delete cache[key];
+                    removed++;
+                }
+            }
+            
+            if (removed > 0) {
+                localStorage.setItem(this.storageKey, JSON.stringify(cache));
+                console.log(`Cleared ${removed} cached translation(s) for: ${filePath}`);
+            }
+        } catch (e) {
+            console.error('Error clearing translations for file:', e);
+        }
+    }
+    
     clearAllTranslations() {
         try {
             localStorage.removeItem(this.storageKey);

@@ -1172,6 +1172,18 @@ class LibraryUI {
                     " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
                         📁 Import Folder (with subdirectories)
                     </button>
+                    <button class="btn-primary" onclick="libraryUI.importFromUrl(); this.closest('.modal-overlay').remove();" style="
+                        padding: 14px 20px;
+                        font-size: 15px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                        🌐 Import from URL
+                    </button>
                 </div>
                 <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();" style="
                     margin-top: 16px;
@@ -1215,6 +1227,158 @@ class LibraryUI {
             console.error('triggerFolderImport function not available');
             alert('Folder import is not available. Please restart the application.');
         }
+    }
+    
+    async importFromUrl() {
+        // Show URL input dialog
+        const urlDialog = document.createElement('div');
+        urlDialog.className = 'modal-overlay';
+        urlDialog.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+            backdrop-filter: blur(2px);
+        `;
+        
+        urlDialog.innerHTML = `
+            <div class="modal-content" style="
+                max-width: 500px;
+                background: white;
+                border-radius: 12px;
+                padding: 24px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                animation: modalFadeIn 0.2s ease-out;
+            ">
+                <h3 style="margin: 0 0 8px 0; font-size: 20px; color: #333;">🌐 Import from URL</h3>
+                <p style="margin: 0 0 16px 0; color: #666; font-size: 14px;">Enter the URL of the web page to import:</p>
+                <input type="text" id="urlInput" placeholder="https://example.com/article" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 8px;
+                    font-size: 15px;
+                    margin-bottom: 16px;
+                    box-sizing: border-box;
+                    transition: border-color 0.2s;
+                " onfocus="this.style.borderColor='#667eea';" onblur="this.style.borderColor='#e0e0e0';">
+                <div style="display: flex; gap: 12px;">
+                    <button id="importUrlBtn" class="btn-primary" style="
+                        flex: 1;
+                        padding: 12px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 15px;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+                        Import
+                    </button>
+                    <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();" style="
+                        flex: 1;
+                        padding: 12px;
+                        background: #f5f5f5;
+                        color: #666;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 15px;
+                        transition: background 0.2s;
+                    " onmouseover="this.style.background='#e0e0e0';" onmouseout="this.style.background='#f5f5f5';">
+                        Cancel
+                    </button>
+                </div>
+                <div id="urlImportStatus" style="margin-top: 12px; color: #666; font-size: 13px; min-height: 20px;"></div>
+            </div>
+        `;
+        
+        document.body.appendChild(urlDialog);
+        
+        const urlInput = document.getElementById('urlInput');
+        const importBtn = document.getElementById('importUrlBtn');
+        const statusDiv = document.getElementById('urlImportStatus');
+        
+        // Focus input
+        urlInput.focus();
+        
+        // Handle import
+        const handleImport = async () => {
+            const url = urlInput.value.trim();
+            if (!url) {
+                statusDiv.textContent = '⚠️ Please enter a URL';
+                statusDiv.style.color = '#f44336';
+                return;
+            }
+            
+            // Basic URL validation
+            try {
+                new URL(url);
+            } catch (e) {
+                statusDiv.textContent = '⚠️ Invalid URL format';
+                statusDiv.style.color = '#f44336';
+                return;
+            }
+            
+            // Show loading
+            importBtn.disabled = true;
+            importBtn.textContent = 'Fetching...';
+            statusDiv.textContent = '⏳ Downloading content...';
+            statusDiv.style.color = '#667eea';
+            
+            try {
+                // Fetch URL content via IPC
+                const { ipcRenderer } = require('electron');
+                const result = await ipcRenderer.invoke('fetch-url-content', url);
+                
+                if (result.success) {
+                    statusDiv.textContent = '✅ Processing content...';
+                    
+                    // Create a temporary file from the content
+                    if (typeof window.processUrlContent === 'function') {
+                        await window.processUrlContent(result.content, result.title, url);
+                        statusDiv.textContent = '✅ Imported successfully!';
+                        statusDiv.style.color = '#4caf50';
+                        
+                        // Close dialog after delay
+                        setTimeout(() => {
+                            urlDialog.remove();
+                        }, 1000);
+                    } else {
+                        throw new Error('URL processing function not available');
+                    }
+                } else {
+                    throw new Error(result.error || 'Failed to fetch URL');
+                }
+            } catch (error) {
+                console.error('URL import error:', error);
+                statusDiv.textContent = `❌ Error: ${error.message}`;
+                statusDiv.style.color = '#f44336';
+                importBtn.disabled = false;
+                importBtn.textContent = 'Import';
+            }
+        };
+        
+        importBtn.addEventListener('click', handleImport);
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleImport();
+            }
+        });
+        
+        // Close on overlay click
+        urlDialog.addEventListener('click', (e) => {
+            if (e.target === urlDialog) {
+                urlDialog.remove();
+            }
+        });
     }
     
     handleFileClick(event) {

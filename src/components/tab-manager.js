@@ -346,7 +346,9 @@ class TabManager {
             else if (tab.fileType === 'docx') icon = '📝';
             else if (tab.fileType === 'markdown' || tab.fileType === 'md') icon = '📝';
             else if (tab.fileType === 'txt') icon = '📄';
+            else if (tab.fileType === 'url') icon = '🌐';
             else if (tab.fileType === 'new') icon = '✨';
+            else if (['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'cs', 'go', 'rs', 'php', 'rb', 'swift', 'kt', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'sh', 'bash', 'sql', 'gd'].includes(tab.fileType)) icon = '💻';
 
             // Handle backslashes for JS string escaping
             const safePath = tab.filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");

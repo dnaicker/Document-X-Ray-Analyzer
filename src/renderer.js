@@ -3690,12 +3690,178 @@ async function loadCodeFile(filePath, cachedState = null) {
 //     }
 // });
 
+// Process URL Content - converts HTML from URL to text and loads it
+window.processUrlContent = async function(htmlContent, title, sourceUrl) {
+    try {
+        showLoading('Processing web page content...');
+        
+        // Extract text content using the URL reader
+        if (typeof urlReader === 'undefined') {
+            throw new Error('URL Reader component not loaded');
+        }
+        
+        const result = await urlReader.extractContent(htmlContent, title, sourceUrl);
+        
+        if (!result.success) {
+            throw new Error(result.error || 'Failed to extract content');
+        }
+        
+        // Create a virtual file path for this URL content
+        const fileName = `${title.replace(/[^a-z0-9]/gi, '_').substring(0, 50)}.txt`;
+        const virtualPath = `url://${sourceUrl}`;
+        
+        // Set current file info
+        currentFileName = fileName;
+        currentFilePath = virtualPath;
+        currentFileType = 'txt';
+        fileNameDisplay.textContent = `🌐 ${title}`;
+        
+        // Clear any cached translations for this URL path (content may have changed)
+        if (typeof translationCache !== 'undefined') {
+            translationCache.clearTranslationsForFile(virtualPath);
+        }
+        
+        // Add to library
+        if (typeof libraryManager !== 'undefined') {
+            libraryManager.addFile(virtualPath, fileName, 'root');
+            // Store the extracted text in library metadata
+            const file = libraryManager.library.files[virtualPath];
+            if (file) {
+                file.metadata = {
+                    ...file.metadata,
+                    sourceUrl: sourceUrl,
+                    extractedText: result.text,
+                    importDate: new Date().toISOString(),
+                    wordCount: result.wordCount
+                };
+                libraryManager.saveLibrary();
+            }
+        }
+        
+        // Reset state
+        resetPOSCounts();
+        statsPanel.reset();
+        currentPdfData = null;
+        updateUILabels('txt');
+        resetTranslationState();
+        
+        // Clear map view
+        if (mapGrid) {
+            mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 Loading content...</p></div>';
+        }
+        
+        // Hide PDF canvas and clean up containers
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        if (pdfCanvas) pdfCanvas.style.display = 'none';
+        
+        const pdfContainer = document.getElementById('pdfViewerContainer');
+        if (pdfContainer) {
+            // Remove all document type containers
+            const existingContainers = ['.epub-container', '.docx-content', '.markdown-content', '.txt-content', '.code-content'];
+            existingContainers.forEach(selector => {
+                const container = pdfContainer.querySelector(selector);
+                if (container) container.remove();
+            });
+        }
+        
+        // Create text viewer
+        const wrapper = document.createElement('div');
+        wrapper.className = 'txt-content';
+        wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: white; font-size: 16px; line-height: 1.8; max-width: 900px; margin: 0 auto;';
+        
+        // Add source info badge
+        const sourceBadge = document.createElement('div');
+        sourceBadge.style.cssText = 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 20px; border-radius: 8px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+        sourceBadge.innerHTML = `
+            <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px;">🌐 ${escapeHtml(title)}</div>
+            <div style="font-size: 13px; opacity: 0.9;">Source: <a href="${escapeHtml(sourceUrl)}" target="_blank" style="color: white; text-decoration: underline;">${escapeHtml(sourceUrl)}</a></div>
+            <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">Imported: ${new Date().toLocaleString()} • ${result.wordCount.toLocaleString()} words</div>
+        `;
+        wrapper.appendChild(sourceBadge);
+        
+        // Add content
+        const content = document.createElement('div');
+        content.style.cssText = 'white-space: pre-wrap; word-wrap: break-word; color: #333;';
+        content.textContent = result.text;
+        wrapper.appendChild(content);
+        
+        pdfContainer.appendChild(wrapper);
+        
+        // IMPORTANT: Populate rawTextContent for analysis system
+        document.getElementById('rawTextContent').innerHTML = 
+            `<div style="white-space: pre-wrap;">${escapeHtml(result.text)}</div>`;
+        
+        // Clear highlighted text content (will be populated by performAnalysis)
+        document.getElementById('highlightedTextContent').innerHTML = '';
+        
+        // Enable buttons
+        if (closePdfBtn) closePdfBtn.disabled = false;
+        if (exportBtn) exportBtn.disabled = false;
+        
+        // Load notes for this URL
+        notesManager.loadNotesForFile(virtualPath);
+        
+        // Add tab
+        if (typeof tabManager !== 'undefined') {
+            tabManager.addTab(virtualPath, fileName, 'url');
+        }
+        
+        // Load figures
+        if (typeof figuresManager !== 'undefined') {
+            figuresManager.loadFiguresForFile(virtualPath);
+        }
+        
+        // Hide Figures button for URL content
+        if (figuresBtn) {
+            figuresBtn.style.display = 'none';
+        }
+        
+        hideLoading();
+        setStatus(`✅ Loaded web page: ${title} (${result.wordCount.toLocaleString()} words)`);
+        
+        // Store the text for analysis
+        window.urlContentText = result.text;
+        
+        // Perform analysis
+        setTimeout(() => {
+            performAnalysis();
+        }, 100);
+        
+    } catch (error) {
+        console.error('Error processing URL content:', error);
+        setStatus('❌ Error: ' + error.message);
+        hideLoading();
+        throw error;
+    }
+};
+
 // Cross-Document Navigation Function
 window.openFileFromPath = async function(filePath, targetNoteId = null, cachedState = null) {
     try {
         // Save current state if switching files
         if (currentFilePath && currentFilePath !== filePath && window.saveCurrentState) {
             await window.saveCurrentState();
+        }
+
+        // Check if this is a URL path (imported from web) - handle specially
+        if (filePath.startsWith('url://')) {
+            // Delegate to openFileFromLibrary which has the URL handling logic
+            if (window.openFileFromLibrary) {
+                await window.openFileFromLibrary(filePath);
+                
+                // After file is loaded, navigate to the target note if specified
+                if (targetNoteId) {
+                    // Switch to notes tab
+                    const notesTab = document.querySelector('[data-tab="notes"]');
+                    if (notesTab) notesTab.click();
+                    
+                    // Wait a bit for rendering, then scroll to note
+                    setTimeout(() => {
+                        notesManager.scrollToNote(targetNoteId);
+                    }, 500);
+                }
+                return;
+            }
         }
 
         // Check if file exists and get file info
@@ -5768,6 +5934,123 @@ function setupLibraryResizer() {
 // Open file from library
 window.openFileFromLibrary = async function(filePath) {
     try {
+        // Check if this is a URL path (imported from web)
+        if (filePath.startsWith('url://')) {
+            // Load URL content from library metadata
+            if (typeof libraryManager !== 'undefined') {
+                const file = libraryManager.library.files[filePath];
+                if (file && file.metadata && file.metadata.extractedText) {
+                    // Restore URL content
+                    const sourceUrl = file.metadata.sourceUrl || filePath.replace('url://', '');
+                    const title = file.name.replace('.txt', '').replace(/_/g, ' ');
+                    
+                    currentFilePath = filePath;
+                    currentFileName = file.name;
+                    currentFileType = 'txt';
+                    fileNameDisplay.textContent = `🌐 ${title}`;
+                    
+                    // Clear any cached translations for this URL path (content may have changed)
+                    if (typeof translationCache !== 'undefined') {
+                        translationCache.clearTranslationsForFile(filePath);
+                    }
+                    
+                    // Update last opened
+                    libraryManager.updateFileLastOpened(filePath);
+                    
+                    // Reset state
+                    resetPOSCounts();
+                    statsPanel.reset();
+                    currentPdfData = null;
+                    updateUILabels('txt');
+                    resetTranslationState();
+                    
+                    // Clear map view
+                    if (mapGrid) {
+                        mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 Loading content...</p></div>';
+                    }
+                    
+                    // Hide PDF canvas and clean up containers
+                    const pdfCanvas = document.getElementById('pdfCanvas');
+                    if (pdfCanvas) pdfCanvas.style.display = 'none';
+                    
+                    const pdfContainer = document.getElementById('pdfViewerContainer');
+                    if (pdfContainer) {
+                        const existingContainers = ['.epub-container', '.docx-content', '.markdown-content', '.txt-content', '.code-content'];
+                        existingContainers.forEach(selector => {
+                            const container = pdfContainer.querySelector(selector);
+                            if (container) container.remove();
+                        });
+                    }
+                    
+                    // Create text viewer
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'txt-content';
+                    wrapper.style.cssText = 'overflow-y: auto; height: 100%; padding: 40px; background: white; font-size: 16px; line-height: 1.8; max-width: 900px; margin: 0 auto;';
+                    
+                    // Add source info badge
+                    const sourceBadge = document.createElement('div');
+                    sourceBadge.style.cssText = 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 20px; border-radius: 8px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);';
+                    const importDate = file.metadata.importDate ? new Date(file.metadata.importDate).toLocaleString() : 'Unknown';
+                    const wordCount = file.metadata.wordCount || file.metadata.extractedText.split(/\s+/).filter(w => w.length > 0).length;
+                    sourceBadge.innerHTML = `
+                        <div style="font-weight: bold; font-size: 18px; margin-bottom: 4px;">🌐 ${escapeHtml(title)}</div>
+                        <div style="font-size: 13px; opacity: 0.9;">Source: <a href="${escapeHtml(sourceUrl)}" target="_blank" style="color: white; text-decoration: underline;">${escapeHtml(sourceUrl)}</a></div>
+                        <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">Imported: ${importDate} • ${wordCount.toLocaleString()} words</div>
+                    `;
+                    wrapper.appendChild(sourceBadge);
+                    
+                    // Add content
+                    const content = document.createElement('div');
+                    content.style.cssText = 'white-space: pre-wrap; word-wrap: break-word; color: #333;';
+                    content.textContent = file.metadata.extractedText;
+                    wrapper.appendChild(content);
+                    
+                    pdfContainer.appendChild(wrapper);
+                    
+                    // IMPORTANT: Populate rawTextContent for analysis system
+                    document.getElementById('rawTextContent').innerHTML = 
+                        `<div style="white-space: pre-wrap;">${escapeHtml(file.metadata.extractedText)}</div>`;
+                    
+                    // Clear highlighted text content (will be populated by performAnalysis)
+                    document.getElementById('highlightedTextContent').innerHTML = '';
+                    
+                    // Enable buttons
+                    if (closePdfBtn) closePdfBtn.disabled = false;
+                    if (exportBtn) exportBtn.disabled = false;
+                    
+                    // Load notes
+                    notesManager.loadNotesForFile(filePath);
+                    
+                    // Add tab
+                    if (typeof tabManager !== 'undefined') {
+                        tabManager.addTab(filePath, file.name, 'url');
+                    }
+                    
+                    // Load figures
+                    if (typeof figuresManager !== 'undefined') {
+                        figuresManager.loadFiguresForFile(filePath);
+                    }
+                    
+                    // Hide Figures button
+                    if (figuresBtn) {
+                        figuresBtn.style.display = 'none';
+                    }
+                    
+                    setStatus(`✅ Loaded web page: ${title} (${wordCount.toLocaleString()} words)`);
+                    
+                    // Perform analysis
+                    setTimeout(() => {
+                        performAnalysis();
+                    }, 100);
+                    
+                    return;
+                } else {
+                    throw new Error('URL content not found in library metadata');
+                }
+            }
+        }
+        
+        // Normal file handling
         // Determine file type from extension
         const ext = filePath.split('.').pop().toLowerCase();
         let fileType = 'pdf';
