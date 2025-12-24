@@ -698,5 +698,446 @@ function fetchUrlContent(url) {
   });
 }
 
+// YouTube Transcript Handler (direct approach)
+ipcMain.handle('fetch-youtube-transcript', async (event, { url, language = 'en' }) => {
+  return new Promise(async (resolve) => {
+    try {
+      // Extract video ID from URL
+      const extractVideoId = (url) => {
+        if (!url) return null;
+        url = url.trim();
+        if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+        
+        let match = url.match(/[?&]v=([^&]+)/);
+        if (match) return match[1];
+        
+        match = url.match(/youtu\.be\/([^?]+)/);
+        if (match) return match[1];
+        
+        match = url.match(/youtube\.com\/embed\/([^?]+)/);
+        if (match) return match[1];
+        
+        match = url.match(/m\.youtube\.com\/watch\?v=([^&]+)/);
+        if (match) return match[1];
+        
+        return null;
+      };
+
+      const videoId = extractVideoId(url);
+      if (!videoId) {
+        resolve({
+          success: false,
+          error: 'Invalid YouTube URL. Please provide a valid YouTube video link.'
+        });
+        return;
+      }
+
+      console.log('Fetching transcript for video:', videoId, 'language:', language);
+
+      // Step 1: Fetch video page to get caption tracks
+      const videoPageUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      console.log('Fetching video page:', videoPageUrl);
+      
+      const options = {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        }
+      };
+      
+      https.get(videoPageUrl, options, (response) => {
+        console.log('Response status:', response.statusCode);
+        
+        let htmlData = '';
+        
+        response.on('data', (chunk) => {
+          htmlData += chunk;
+        });
+        
+        response.on('end', async () => {
+          console.log('HTML received, length:', htmlData.length);
+          try {
+            console.log('Parsing HTML response, length:', htmlData.length);
+            
+            // Try to extract caption tracks first
+            const captionsData = htmlData.match(/"captionTracks":\[([^\]]+)\]/);
+            
+            if (!captionsData) {
+              console.log('No captionTracks found, trying transcript panels...');
+              
+              // Try multiple patterns to find transcript data
+              const segments = [];
+              let fullText = '';
+              
+              // Pattern 1: Try transcriptSegmentRenderer with various formats
+              const patterns = [
+                /"transcriptSegmentRenderer":\{[^}]*"startMs":"(\d+)"[^}]*"snippet":\{"runs":\[\{"text":"([^"]+)"\}\]\}/g,
+                /"transcriptSegmentRenderer":\{[^}]*"startMs":"(\d+)"[^}]*"simpleText":"([^"]+)"/g,
+                /"startMs":"(\d+)"[^}]*"snippet":\{"runs":\[\{"text":"([^"]+)"\}\]\}/g
+              ];
+              
+              let foundSegments = false;
+              
+              for (const pattern of patterns) {
+                console.log('Trying pattern:', pattern.source.substring(0, 50) + '...');
+                const matches = Array.from(htmlData.matchAll(pattern));
+                
+                if (matches.length > 0) {
+                  console.log('Found', matches.length, 'segments with this pattern');
+                  foundSegments = true;
+                  
+                  for (const match of matches) {
+                    const start = parseInt(match[1]) / 1000; // Convert ms to seconds
+                    const text = match[2]
+                      .replace(/\\n/g, ' ')
+                      .replace(/\\"/g, '"')
+                      .replace(/\\\\/g, '\\')
+                      .replace(/\\u0026/g, '&')
+                      .trim();
+                    
+                    if (text && text.length > 0) {
+                      segments.push({ 
+                        start, 
+                        duration: 3, // Default duration since we don't always have endMs
+                        text 
+                      });
+                      fullText += text + ' ';
+                    }
+                  }
+                  
+                  break; // Found segments, stop trying other patterns
+                }
+              }
+              
+              if (!foundSegments || segments.length === 0) {
+                console.log('No transcript segments found with any pattern');
+                console.log('HTML sample:', htmlData.substring(0, 1000));
+                resolve({
+                  success: false,
+                  error: 'No captions or transcripts available for this video. The video may not have any text content enabled.'
+                });
+                return;
+              }
+              
+              console.log('Transcript extracted successfully:', segments.length, 'segments');
+              console.log('Sample text:', fullText.substring(0, 100) + '...');
+              
+              resolve({
+                success: true,
+                segments: segments,
+                fullText: fullText.trim(),
+                isAutoGenerated: true,
+                videoId: videoId,
+                wordCount: fullText.trim().split(/\s+/).filter(w => w.length > 0).length
+              });
+              return;
+            }
+
+            console.log('Caption tracks data found');
+            
+            // FIRST: Try to extract transcripts directly from the HTML (more reliable!)
+            console.log('Attempting to extract transcript from HTML first...');
+            const transcriptSegments = [];
+            let transcriptText = '';
+            
+            // Check if transcript data exists at all
+            const hasTranscript = htmlData.includes('transcriptSegmentRenderer') || 
+                                 htmlData.includes('"transcript"') ||
+                                 htmlData.includes('engagementPanels');
+            
+            console.log('HTML contains transcript indicators:', hasTranscript);
+            
+            if (hasTranscript) {
+              // Try to find and log a sample of the transcript section
+              const transcriptIndex = htmlData.indexOf('transcriptSegmentRenderer');
+              if (transcriptIndex !== -1) {
+                const sample = htmlData.substring(transcriptIndex, transcriptIndex + 500);
+                console.log('Found transcriptSegmentRenderer at index:', transcriptIndex);
+                console.log('Transcript section sample:', sample);
+              } else {
+                console.log('transcriptSegmentRenderer not found, checking for other transcript markers...');
+                const altIndex = htmlData.indexOf('"transcript"');
+                if (altIndex !== -1) {
+                  const sample = htmlData.substring(altIndex, altIndex + 500);
+                  console.log('Found transcript marker at index:', altIndex);
+                  console.log('Transcript marker sample:', sample);
+                }
+              }
+            }
+            
+            // Try multiple patterns
+            const patterns = [
+              /"transcriptSegmentRenderer":\{"startMs":"(\d+)"[^}]*"snippet":\{"runs":\[\{"text":"([^"]+)"\}\]\}/g,
+              /"startMs":"(\d+)"[^}]*"snippet":\{"runs":\[\{"text":"([^"]+)"\}\]\}/g,
+              /"transcriptSegmentRenderer".*?"startMs":"(\d+)".*?"text":"([^"]+)"/g
+            ];
+            
+            let transcriptMatches = [];
+            
+            for (let i = 0; i < patterns.length; i++) {
+              console.log('Trying transcript pattern', i + 1);
+              transcriptMatches = Array.from(htmlData.matchAll(patterns[i]));
+              if (transcriptMatches.length > 0) {
+                console.log('Found matches with pattern', i + 1);
+                break;
+              }
+            }
+            
+            if (transcriptMatches.length > 0) {
+              console.log('Found', transcriptMatches.length, 'transcript segments in HTML!');
+              
+              for (const match of transcriptMatches) {
+                const start = parseInt(match[1]) / 1000;
+                const text = match[2]
+                  .replace(/\\n/g, ' ')
+                  .replace(/\\"/g, '"')
+                  .replace(/\\\\/g, '\\')
+                  .replace(/\\u0026/g, '&')
+                  .replace(/&#39;/g, "'")
+                  .trim();
+                
+                if (text) {
+                  transcriptSegments.push({ start, duration: 3, text });
+                  transcriptText += text + ' ';
+                }
+              }
+              
+              if (transcriptSegments.length > 0) {
+                console.log('Successfully extracted transcript from HTML!');
+                console.log('Sample:', transcriptText.substring(0, 150));
+                
+                resolve({
+                  success: true,
+                  segments: transcriptSegments,
+                  fullText: transcriptText.trim(),
+                  isAutoGenerated: true,
+                  videoId: videoId,
+                  wordCount: transcriptText.trim().split(/\s+/).filter(w => w.length > 0).length
+                });
+                return;
+              }
+            }
+            
+            console.log('No transcript found in HTML, trying caption URL method...');
+
+            // Parse caption tracks to find the requested language
+            const baseUrlMatch = captionsData[1].match(/"baseUrl":"([^"]+)"/);
+            if (!baseUrlMatch) {
+              console.log('No baseUrl found in caption tracks');
+              resolve({
+                success: false,
+                error: 'Could not extract caption URL.'
+              });
+              return;
+            }
+
+            const captionUrl = baseUrlMatch[1]
+              .replace(/\\u0026/g, '&')
+              .replace(/\\\//g, '/')
+              .replace(/\\/g, '');
+            console.log('Caption URL found:', captionUrl.substring(0, 100) + '...');
+
+            // Step 2: Fetch the captions XML
+            console.log('Fetching captions from URL...');
+            console.log('Full caption URL:', captionUrl);
+            
+            const captionOptions = {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,*/*;q=0.8',
+                'Accept-Encoding': 'identity',
+                'Referer': `https://www.youtube.com/watch?v=${videoId}`
+              }
+            };
+            
+            https.get(captionUrl, captionOptions, (captionResponse) => {
+              console.log('Caption response status:', captionResponse.statusCode);
+              console.log('Caption response headers:', captionResponse.headers);
+              
+              let xmlData = '';
+              
+              captionResponse.setEncoding('utf8');
+              
+              captionResponse.on('data', (chunk) => {
+                console.log('Received chunk, length:', chunk.length);
+                xmlData += chunk;
+              });
+              
+              captionResponse.on('end', () => {
+                console.log('Caption XML received, total length:', xmlData.length);
+                console.log('XML sample (first 500 chars):', xmlData.substring(0, 500));
+                
+                try {
+                  // Parse XML captions - try multiple patterns
+                  let textMatches = Array.from(xmlData.matchAll(/<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g));
+                  
+                  if (textMatches.length === 0) {
+                    console.log('No matches with standard pattern, trying alternate...');
+                    // Try without dur attribute
+                    textMatches = Array.from(xmlData.matchAll(/<text start="([^"]*)"[^>]*>([^<]*)<\/text>/g));
+                  }
+                  
+                  console.log('Found', textMatches.length, 'text matches');
+                  
+                  const segments = [];
+                  let fullText = '';
+
+                  for (const match of textMatches) {
+                    const start = parseFloat(match[1]);
+                    const duration = match[2] ? parseFloat(match[2]) : 3; // Default duration if not present
+                    const textIndex = match[2] ? 3 : 2; // Adjust index based on whether dur was matched
+                    const text = match[textIndex]
+                      .replace(/&amp;/g, '&')
+                      .replace(/&lt;/g, '<')
+                      .replace(/&gt;/g, '>')
+                      .replace(/&quot;/g, '"')
+                      .replace(/&#39;/g, "'")
+                      .replace(/\n/g, ' ')
+                      .trim();
+
+                    if (text) {
+                      segments.push({ start, duration, text });
+                      fullText += text + ' ';
+                    }
+                  }
+
+                  console.log('Parsed', segments.length, 'segments');
+                  console.log('Sample text:', fullText.substring(0, 200));
+
+                  if (segments.length === 0) {
+                    resolve({
+                      success: false,
+                      error: 'No transcript content found in captions XML.'
+                    });
+                    return;
+                  }
+
+                  console.log('Successfully parsed captions!');
+                  resolve({
+                    success: true,
+                    segments: segments,
+                    fullText: fullText.trim(),
+                    isAutoGenerated: true,
+                    videoId: videoId,
+                    wordCount: fullText.trim().split(/\s+/).filter(w => w.length > 0).length
+                  });
+
+                } catch (parseError) {
+                  console.error('XML parsing error:', parseError);
+                  console.error('Error stack:', parseError.stack);
+                  resolve({
+                    success: false,
+                    error: 'Failed to parse caption data: ' + parseError.message
+                  });
+                }
+              });
+            }).on('error', (error) => {
+              console.error('Caption fetch error:', error);
+              resolve({
+                success: false,
+                error: 'Failed to download captions: ' + error.message
+              });
+            });
+
+          } catch (error) {
+            console.error('HTML parsing error:', error);
+            console.error('Error stack:', error.stack);
+            resolve({
+              success: false,
+              error: 'Failed to extract caption information from video page: ' + error.message
+            });
+          }
+        });
+      }).on('error', (error) => {
+        console.error('Video page fetch error:', error);
+        console.error('Error details:', error);
+        resolve({
+          success: false,
+          error: 'Failed to access video page: ' + error.message
+        });
+      });
+
+    } catch (error) {
+      console.error('YouTube transcript error:', error);
+      resolve({
+        success: false,
+        error: error.message || 'An unexpected error occurred.'
+      });
+    }
+  });
+});
+
+// Fetch YouTube video metadata
+ipcMain.handle('fetch-youtube-metadata', async (event, { videoId, apiKey }) => {
+  return new Promise((resolve) => {
+    try {
+      if (!apiKey) {
+        resolve({
+          success: false,
+          error: 'YouTube API key not configured'
+        });
+        return;
+      }
+
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${videoId}&key=${apiKey}`;
+      
+      https.get(url, (response) => {
+        let data = '';
+        
+        response.setEncoding('utf8');
+        
+        response.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        response.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            
+            if (result.error) {
+              resolve({
+                success: false,
+                error: result.error.message || 'Failed to fetch video metadata'
+              });
+              return;
+            }
+            
+            if (!result.items || result.items.length === 0) {
+              resolve({
+                success: false,
+                error: 'Video not found'
+              });
+              return;
+            }
+            
+            resolve({
+              success: true,
+              metadata: result.items[0]
+            });
+          } catch (error) {
+            resolve({
+              success: false,
+              error: 'Failed to parse metadata: ' + error.message
+            });
+          }
+        });
+      }).on('error', (error) => {
+        resolve({
+          success: false,
+          error: 'Failed to fetch metadata: ' + error.message
+        });
+      });
+      
+    } catch (error) {
+      resolve({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+});
+
 console.log('Grammar Highlighter Desktop started');
 

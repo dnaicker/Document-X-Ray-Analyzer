@@ -29,7 +29,8 @@
     "jszip": "^3.10.1",
     "mammoth": "^1.6.0",
     "pdfjs-dist": "^5.4.449",
-    "tesseract.js": "^5.0.4"
+    "tesseract.js": "^5.0.4",
+    "youtube-transcript": "^1.2.1"
   },
   "build": {
     "appId": "com.grammarhighlighter.desktop",

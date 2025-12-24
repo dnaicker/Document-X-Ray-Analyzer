@@ -26,6 +26,7 @@
 - **DOCX** - Microsoft Word document analysis
 - **Markdown** - Formatted markdown files with preview
 - **Text Files** - Direct text analysis
+- **YouTube Transcripts** - Import video transcripts directly from YouTube URLs (NEW!)
 - **60+ Source Code Languages** - JavaScript, Python, Java, C/C++, C#, Go, Rust, PHP, Ruby, Swift, Kotlin, GDScript, and more with syntax highlighting
 
 ### 🎨 Advanced Parts of Speech Highlighting
@@ -80,6 +81,17 @@ Understand unfamiliar codebases in seconds:
 **Powered by**: OpenAI GPT-4, Google Gemini, or Local Ollama (free & private)
 
 > **See [CODE_ANALYSIS_GUIDE.md](CODE_ANALYSIS_GUIDE.md) for detailed documentation**
+
+### 🎥 YouTube Transcript Import (NEW!)
+Import and analyze transcripts from any YouTube video:
+- **Direct URL Import** - Paste any YouTube URL to extract transcripts
+- **Multiple Languages** - Support for 12+ languages including English, Spanish, French, German, Japanese, and more
+- **Optional Timestamps** - Include or exclude timestamps in the transcript
+- **Full Grammar Analysis** - Apply all analysis features to video content
+- **Video Metadata** - See title, channel, views, and publication date
+- **No API Key Required** - Works out of the box (optional API key for enhanced features)
+
+> **See [YOUTUBE_SETUP_GUIDE.md](YOUTUBE_SETUP_GUIDE.md) for setup instructions**
 
 ### 🔍 Powerful Search & Navigation
 - **Instant search** across large documents
@@ -444,6 +456,7 @@ Click **"📂 Open File"** and select:
 - EPUB e-books
 - DOCX Word documents
 - Text files
+- Or import YouTube transcripts via **"🎥 Import YouTube Transcript"**
 
 ### 2️⃣ Analyze Text
 - **Automatic extraction** for text-based files

@@ -2004,6 +2004,293 @@ if (openFileBtn) {
     });
 }
 
+// YouTube Import Button
+const importYoutubeBtn = document.getElementById('importYoutubeBtn');
+const youtubeImportModal = document.getElementById('youtubeImportModal');
+const closeYoutubeModal = document.getElementById('closeYoutubeModal');
+const cancelYoutubeImport = document.getElementById('cancelYoutubeImport');
+const confirmYoutubeImport = document.getElementById('confirmYoutubeImport');
+const youtubeUrlInput = document.getElementById('youtubeUrlInput');
+const youtubeLangSelect = document.getElementById('youtubeLangSelect');
+const includeTimestampsCheck = document.getElementById('includeTimestampsCheck');
+const youtubeImportProgress = document.getElementById('youtubeImportProgress');
+const youtubeImportStatus = document.getElementById('youtubeImportStatus');
+const youtubeImportProgressBar = document.getElementById('youtubeImportProgressBar');
+const youtubeImportError = document.getElementById('youtubeImportError');
+
+// Open YouTube Import Modal
+if (importYoutubeBtn && youtubeImportModal) {
+    importYoutubeBtn.addEventListener('click', () => {
+        // Reset modal state
+        youtubeUrlInput.value = '';
+        youtubeLangSelect.value = 'en';
+        includeTimestampsCheck.checked = false;
+        youtubeImportProgress.classList.add('hidden');
+        youtubeImportError.classList.add('hidden');
+        youtubeImportProgressBar.style.width = '0%';
+        
+        // Show modal
+        youtubeImportModal.style.display = 'flex';
+        youtubeUrlInput.focus();
+    });
+}
+
+// Close YouTube Import Modal
+const closeYoutubeImportModal = () => {
+    if (youtubeImportModal) {
+        youtubeImportModal.style.display = 'none';
+    }
+};
+
+if (closeYoutubeModal) {
+    closeYoutubeModal.addEventListener('click', closeYoutubeImportModal);
+}
+
+if (cancelYoutubeImport) {
+    cancelYoutubeImport.addEventListener('click', closeYoutubeImportModal);
+}
+
+// Close modal when clicking outside
+if (youtubeImportModal) {
+    youtubeImportModal.addEventListener('click', (e) => {
+        if (e.target === youtubeImportModal) {
+            closeYoutubeImportModal();
+        }
+    });
+}
+
+// Allow Enter key to submit
+if (youtubeUrlInput) {
+    youtubeUrlInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && confirmYoutubeImport) {
+            confirmYoutubeImport.click();
+        }
+    });
+}
+
+// Confirm YouTube Import
+if (confirmYoutubeImport) {
+    confirmYoutubeImport.addEventListener('click', async () => {
+        const url = youtubeUrlInput.value.trim();
+        const language = youtubeLangSelect.value;
+        const includeTimestamps = includeTimestampsCheck.checked;
+        
+        if (!url) {
+            youtubeImportError.textContent = 'Please enter a YouTube URL';
+            youtubeImportError.classList.remove('hidden');
+            return;
+        }
+        
+        // Hide error, show progress
+        youtubeImportError.classList.add('hidden');
+        youtubeImportProgress.classList.remove('hidden');
+        youtubeImportStatus.textContent = 'Fetching video information...';
+        youtubeImportProgressBar.style.width = '20%';
+        
+        // Disable buttons during import
+        confirmYoutubeImport.disabled = true;
+        cancelYoutubeImport.disabled = true;
+        
+        try {
+            // Check if YouTube Transcript Reader is available
+            if (!window.youtubeTranscriptReader) {
+                throw new Error('YouTube Transcript Reader not initialized. Please restart the application.');
+            }
+            
+            // Load config for API keys
+            let config = {};
+            try {
+                config = require('../config.js');
+            } catch (e) {
+                console.warn('Config file not found, using defaults');
+            }
+            
+            // Set API keys if available
+            if (config.youtube && config.youtube.apiKey) {
+                window.youtubeTranscriptReader.setApiKey(config.youtube.apiKey);
+            }
+            
+            // Set SerpApi key if available (highly recommended!)
+            if (config.serpapi && config.serpapi.apiKey) {
+                window.youtubeTranscriptReader.setSerpApiKey(config.serpapi.apiKey);
+                console.log('✅ SerpApi key configured - using reliable transcript method');
+            } else {
+                console.warn('⚠️ No SerpApi key found. Transcript import may be unreliable. Get free key at: https://serpapi.com/manage-api-key');
+            }
+            
+            // Update progress
+            youtubeImportStatus.textContent = 'Fetching video metadata...';
+            youtubeImportProgressBar.style.width = '40%';
+            
+            // Fetch transcript using the YouTube reader
+            const result = await window.youtubeTranscriptReader.fetchTranscript(url, language);
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to fetch transcript');
+            }
+            
+            youtubeImportStatus.textContent = 'Processing transcript...';
+            youtubeImportProgressBar.style.width = '60%';
+            
+            // Format transcript with or without timestamps
+            const formattedText = includeTimestamps 
+                ? window.youtubeTranscriptReader.formatTranscript(result.segments, true)
+                : result.text;
+            
+            // Create a virtual file path for this YouTube video
+            const fileName = `${result.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50)}.txt`;
+            const virtualPath = `youtube://${result.videoId}`;
+            
+            // Set current file info
+            currentFileName = fileName;
+            currentFilePath = virtualPath;
+            currentFileType = 'txt';
+            fileNameDisplay.textContent = `🎥 ${result.title}`;
+            
+            // Clear any cached translations
+            if (typeof translationCache !== 'undefined') {
+                translationCache.clearTranslationsForFile(virtualPath);
+            }
+            
+            youtubeImportStatus.textContent = 'Adding to library...';
+            youtubeImportProgressBar.style.width = '80%';
+            
+            // Add to library
+            if (typeof libraryManager !== 'undefined') {
+                libraryManager.addFile(virtualPath, fileName, 'root');
+                // Store the extracted text and metadata
+                const file = libraryManager.library.files[virtualPath];
+                if (file) {
+                    file.metadata = {
+                        ...file.metadata,
+                        type: 'youtube-transcript',
+                        videoId: result.videoId,
+                        videoTitle: result.title,
+                        channel: result.channel,
+                        sourceUrl: result.sourceUrl,
+                        thumbnailUrl: result.thumbnailUrl,
+                        duration: result.duration,
+                        viewCount: result.viewCount,
+                        publishedAt: result.publishedAt,
+                        isAutoGenerated: result.isAutoGenerated,
+                        language: language,
+                        extractedText: formattedText,
+                        importDate: new Date().toISOString(),
+                        wordCount: result.wordCount,
+                        includesTimestamps: includeTimestamps
+                    };
+                    libraryManager.saveLibrary();
+                }
+            }
+            
+            youtubeImportStatus.textContent = 'Loading transcript...';
+            youtubeImportProgressBar.style.width = '100%';
+            
+            // Reset state
+            resetPOSCounts();
+            statsPanel.reset();
+            currentPdfData = null;
+            updateUILabels('txt');
+            resetTranslationState();
+            
+            // Clear map view
+            if (mapGrid) {
+                mapGrid.innerHTML = '<div class="placeholder-text"><p>📄 Loading transcript...</p></div>';
+            }
+            
+            // Hide PDF canvas and clean up containers
+            const pdfCanvas = document.getElementById('pdfCanvas');
+            if (pdfCanvas) pdfCanvas.style.display = 'none';
+            
+            const pdfContainer = document.getElementById('pdfViewerContainer');
+            if (pdfContainer) {
+                const existingContainers = pdfContainer.querySelectorAll('.epub-container, .docx-content, .markdown-content, .txt-content, .code-content');
+                existingContainers.forEach(container => container.remove());
+            }
+            
+            // Create YouTube transcript container
+            if (pdfContainer) {
+                const ytContainer = document.createElement('div');
+                ytContainer.className = 'txt-content youtube-transcript';
+                ytContainer.style.cssText = `
+                    padding: 30px;
+                    max-width: 900px;
+                    margin: 0 auto;
+                    line-height: 1.8;
+                    font-size: 16px;
+                    color: #333;
+                    background: white;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    border-radius: 8px;
+                `;
+                
+                // Add video metadata header
+                const header = document.createElement('div');
+                header.style.cssText = `
+                    border-bottom: 2px solid #e0e0e0;
+                    padding-bottom: 20px;
+                    margin-bottom: 30px;
+                `;
+                header.innerHTML = `
+                    <div style="display: flex; gap: 20px; align-items: start;">
+                        ${result.thumbnailUrl ? `<img src="${result.thumbnailUrl}" alt="Video thumbnail" style="width: 200px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">` : ''}
+                        <div style="flex: 1;">
+                            <h2 style="margin: 0 0 10px 0; font-size: 1.5em; color: #222;">${escapeHtml(result.title)}</h2>
+                            <p style="margin: 5px 0; color: #666;"><strong>Channel:</strong> ${escapeHtml(result.channel)}</p>
+                            <p style="margin: 5px 0; color: #666;"><strong>Published:</strong> ${new Date(result.publishedAt).toLocaleDateString()}</p>
+                            <p style="margin: 5px 0; color: #666;"><strong>Word Count:</strong> ${result.wordCount.toLocaleString()} words</p>
+                            ${result.isAutoGenerated ? '<p style="margin: 5px 0; color: #ff9800;"><em>⚠️ Auto-generated captions</em></p>' : ''}
+                            <a href="${result.sourceUrl}" target="_blank" style="display: inline-block; margin-top: 10px; color: #667eea; text-decoration: none;">🔗 View on YouTube</a>
+                        </div>
+                    </div>
+                `;
+                ytContainer.appendChild(header);
+                
+                // Add transcript text
+                const textDiv = document.createElement('div');
+                textDiv.style.cssText = 'white-space: pre-wrap; word-wrap: break-word;';
+                textDiv.textContent = formattedText;
+                ytContainer.appendChild(textDiv);
+                
+                pdfContainer.appendChild(ytContainer);
+            }
+            
+            // Set raw text content
+            document.getElementById('rawTextContent').innerHTML = 
+                `<div style="white-space: pre-wrap;">${escapeHtml(formattedText)}</div>`;
+            
+            // Close modal
+            setTimeout(() => {
+                closeYoutubeImportModal();
+                
+                // Switch to Analyze tab and trigger analysis
+                const analyzeTab = document.getElementById('analyzeTab');
+                if (analyzeTab) {
+                    analyzeTab.click();
+                    
+                    // Auto-analyze after a brief delay
+                    setTimeout(() => {
+                        const analyzeBtn = document.getElementById('analyzeTextBtn');
+                        if (analyzeBtn) {
+                            analyzeBtn.click();
+                        }
+                    }, 500);
+                }
+            }, 500);
+            
+        } catch (error) {
+            console.error('YouTube import error:', error);
+            youtubeImportError.textContent = error.message || 'Failed to import transcript';
+            youtubeImportError.classList.remove('hidden');
+            youtubeImportProgress.classList.add('hidden');
+        } finally {
+            // Re-enable buttons
+            confirmYoutubeImport.disabled = false;
+            cancelYoutubeImport.disabled = false;
+        }
+    });
+}
+
 // Welcome screen open file button
 const welcomeOpenFileBtn = document.getElementById('welcomeOpenFileBtn');
 if (welcomeOpenFileBtn) {

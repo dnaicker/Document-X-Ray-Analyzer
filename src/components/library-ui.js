@@ -57,9 +57,7 @@ class LibraryUI {
                             <button class="btn-library" onclick="libraryUI.showImportDialog()" title="Import Files">
                                 📥 Import
                             </button>
-                            <button class="btn-library" onclick="libraryUI.repairLibrary()" title="Repair Library Structure" style="background: #ff9800;">
-                                🔧 Repair
-                            </button>
+                            
                         </div>
                     </div>
                     
@@ -1170,7 +1168,7 @@ class LibraryUI {
                         cursor: pointer;
                         transition: transform 0.2s, box-shadow 0.2s;
                     " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
-                        📁 Import Folder (with subdirectories)
+                        📁 Import Folder
                     </button>
                     <button class="btn-primary" onclick="libraryUI.importFromUrl(); this.closest('.modal-overlay').remove();" style="
                         padding: 14px 20px;
@@ -1184,6 +1182,7 @@ class LibraryUI {
                     " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
                         🌐 Import from URL
                     </button>
+                    
                 </div>
                 <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();" style="
                     margin-top: 16px;
@@ -1379,6 +1378,36 @@ class LibraryUI {
                 urlDialog.remove();
             }
         });
+        
+        document.body.appendChild(urlDialog);
+    }
+    
+    importFromYoutube() {
+        // Show the YouTube import modal
+        const youtubeModal = document.getElementById('youtubeImportModal');
+        if (youtubeModal) {
+            // Reset modal state
+            const urlInput = document.getElementById('youtubeUrlInput');
+            const langSelect = document.getElementById('youtubeLangSelect');
+            const timestampsCheck = document.getElementById('includeTimestampsCheck');
+            const progress = document.getElementById('youtubeImportProgress');
+            const error = document.getElementById('youtubeImportError');
+            const progressBar = document.getElementById('youtubeImportProgressBar');
+            
+            if (urlInput) urlInput.value = '';
+            if (langSelect) langSelect.value = 'en';
+            if (timestampsCheck) timestampsCheck.checked = false;
+            if (progress) progress.classList.add('hidden');
+            if (error) error.classList.add('hidden');
+            if (progressBar) progressBar.style.width = '0%';
+            
+            // Show modal
+            youtubeModal.style.display = 'flex';
+            if (urlInput) urlInput.focus();
+        } else {
+            console.error('YouTube import modal not found');
+            alert('YouTube import feature is not available. Please restart the application.');
+        }
     }
     
     handleFileClick(event) {
